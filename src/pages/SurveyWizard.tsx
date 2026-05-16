@@ -60,7 +60,7 @@ const STEPS = [
 ];
 
 export default function SurveyWizard() {
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
   const [currentStep, setCurrentStep] = useState(() => {
     const saved = localStorage.getItem('survey_step');
     return saved ? parseInt(saved, 10) : 1;
