@@ -38,7 +38,7 @@ export default function UserDashboard() {
     };
 
     fetchData();
-  }, [token]);
+  }, [token, searchParams]);
 
   const showConfirmation = searchParams.get('submitted') === 'true';
 
