@@ -14,6 +14,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Storage for Vercel
 const uploadsDir = '/tmp/uploads';
 if (!fs.existsSync(uploadsDir)) {
   try {
@@ -51,6 +52,15 @@ const initDatabase = async () => {
       CREATE TABLE IF NOT EXISTS documents (
         id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id), type TEXT NOT NULL, file_path TEXT NOT NULL, status TEXT DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      CREATE TABLE IF NOT EXISTS survey_history (
+        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id), action TEXT NOT NULL, details TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS news (
+        id SERIAL PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL, image_url TEXT, category TEXT, is_active INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS events (
+        id SERIAL PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL, date TIMESTAMP NOT NULL, location TEXT, capacity INTEGER DEFAULT 50, is_active INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
       CREATE TABLE IF NOT EXISTS settings (
         id SERIAL PRIMARY KEY, key TEXT UNIQUE NOT NULL, value TEXT NOT NULL
       );
@@ -71,6 +81,11 @@ const authenticateToken = (req: any, res: any, next: any) => {
     req.user = user;
     next();
   });
+};
+
+const isAdmin = (req: any, res: any, next: any) => {
+  if (req.user && req.user.role === 'admin') next();
+  else res.status(403).json({ error: 'Denied' });
 };
 
 // --- AUTH ---
@@ -97,12 +112,10 @@ app.post(['/api/auth/login', '/api/auth/ingreso'], async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Error' }); }
 });
 
-// --- SURVEY ---
-app.get('/api/user/survey', authenticateToken, async (req: any, res) => {
-  try {
-    const r = await pool.query('SELECT * FROM surveys WHERE user_id = $1', [req.user.id]);
-    res.json(r.rows[0] || { status: 'pending_start', answers: {}, current_step: 1 });
-  } catch (e) { res.status(500).json({ error: 'Error' }); }
+// --- USER SURVEY ---
+app.get(['/api/user/survey', '/api/usuario/encuesta'], authenticateToken, async (req: any, res) => {
+  const r = await pool.query('SELECT * FROM surveys WHERE user_id = $1', [req.user.id]);
+  res.json(r.rows[0] || { status: 'pending_start', answers: {}, current_step: 1 });
 });
 
 app.post('/api/user/survey/save', authenticateToken, async (req: any, res) => {
@@ -114,55 +127,74 @@ app.post('/api/user/survey/save', authenticateToken, async (req: any, res) => {
       [req.user.id, answersJson, step || 1, habeas_data_accepted ? 1 : 0]
     );
     res.json({ success: true });
-  } catch (e: any) { 
-    console.error('Save Error:', e.message);
-    res.status(500).json({ error: e.message }); 
-  }
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/user/survey/submit', authenticateToken, async (req: any, res) => {
+  try {
+    await pool.query('UPDATE surveys SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2', ['pending', req.user.id]);
+    await pool.query('INSERT INTO survey_history (user_id, action, details) VALUES ($1, $2, $3)', [req.user.id, 'Envío de encuesta', 'Encuesta enviada para validación.']);
+    res.json({ success: true });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+app.get(['/api/user/survey/history', '/api/usuario/historial/encuesta'], authenticateToken, async (req: any, res) => {
+  const r = await pool.query('SELECT * FROM survey_history WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
+  res.json(r.rows);
 });
 
 // --- DOCUMENTS ---
 app.get('/api/user/documents', authenticateToken, async (req: any, res) => {
-  try {
-    const r = await pool.query('SELECT * FROM documents WHERE user_id = $1', [req.user.id]);
-    const docs = r.rows.map(d => ({
-      ...d,
-      url: `/api/documents/view/${d.file_path}`
-    }));
-    res.json(docs);
-  } catch (e) { res.status(500).json({ error: 'Error' }); }
+  const r = await pool.query('SELECT * FROM documents WHERE user_id = $1', [req.user.id]);
+  const docs = r.rows.map(d => ({ ...d, url: `/api/documents/view/${d.file_path}` }));
+  res.json(docs);
 });
 
 app.post('/api/user/documents/upload', authenticateToken, upload.single('file'), async (req: any, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
   const { type } = req.body;
-  try {
-    const r = await pool.query('INSERT INTO documents (user_id, type, file_path) VALUES ($1, $2, $3) RETURNING *', [req.user.id, type, req.file.filename]);
-    res.json({ ...r.rows[0], url: `/api/documents/view/${req.file.filename}` });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  const r = await pool.query('INSERT INTO documents (user_id, type, file_path) VALUES ($1, $2, $3) RETURNING *', [req.user.id, type, req.file.filename]);
+  res.json({ ...r.rows[0], url: `/api/documents/view/${req.file.filename}` });
 });
 
-// Route to SERVE files
 app.get('/api/documents/view/:filename', authenticateToken, (req, res) => {
   const filePath = path.join(uploadsDir, req.params.filename);
-  if (fs.existsSync(filePath)) {
-    res.sendFile(filePath);
-  } else {
-    res.status(404).send('Archivo no encontrado');
-  }
+  if (fs.existsSync(filePath)) res.sendFile(filePath);
+  else res.status(404).send('Not found');
 });
 
-// --- STATS & SETTINGS ---
+// --- ADMIN ---
+app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
+  const r = await pool.query('SELECT id, full_name, document_type, document_number, phone, email, role, created_at FROM users ORDER BY created_at DESC');
+  res.json(r.rows);
+});
+app.get('/api/admin/surveys', authenticateToken, isAdmin, async (req, res) => {
+  const r = await pool.query('SELECT s.*, u.full_name, u.document_number FROM surveys s JOIN users u ON s.user_id = u.id ORDER BY s.updated_at DESC');
+  res.json(r.rows);
+});
+app.get('/api/admin/news', authenticateToken, isAdmin, async (req, res) => {
+  const r = await pool.query('SELECT * FROM news ORDER BY created_at DESC');
+  res.json(r.rows);
+});
+app.get('/api/admin/events', authenticateToken, isAdmin, async (req, res) => {
+  const r = await pool.query('SELECT * FROM events ORDER BY date DESC');
+  res.json(r.rows);
+});
+app.patch('/api/admin/users/:id/role', authenticateToken, isAdmin, async (req, res) => {
+  await pool.query('UPDATE users SET role = $1 WHERE id = $2', [req.body.role, req.params.id]);
+  res.json({ success: true });
+});
+
+// --- SETTINGS & SPA ---
+app.get('/api/settings/habeas_data', async (req, res) => {
+  const r = await pool.query("SELECT value FROM settings WHERE key = 'habeas_data'");
+  res.json(r.rows[0] || { value: '/habeas_data.pdf' });
+});
 app.get('/api/stats', async (req, res) => {
   const u = await pool.query("SELECT COUNT(*) FROM users WHERE role = 'user'");
   res.json({ totalUsers: parseInt(u.rows[0].count), completedSurveys: 0, pendingSurveys: 0, registeredEvents: 0 });
 });
 
-app.get('/api/settings/habeas_data', async (req, res) => {
-  const r = await pool.query("SELECT value FROM settings WHERE key = 'habeas_data'");
-  res.json(r.rows[0] || { value: '/habeas_data.pdf' });
-});
-
-// --- SPA ---
 const dist = path.join(process.cwd(), 'dist');
 if (fs.existsSync(dist)) {
   app.use(express.static(dist));
@@ -172,13 +204,9 @@ if (fs.existsSync(dist)) {
   });
 }
 
-// BOOT
 initDatabase().then(async () => {
   const pass = bcrypt.hashSync('Allus2013.**', 10);
-  await pool.query(
-    'INSERT INTO users (full_name, document_type, document_number, email, password, role) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (document_number) DO UPDATE SET password = $5, role = $6',
-    ['Administrador Principal', 'CC', '1016016370', 'admin@unidas.social', pass, 'admin']
-  ).catch(() => {});
+  await pool.query('INSERT INTO users (full_name, document_type, document_number, email, password, role) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (document_number) DO UPDATE SET password = $5, role = $6', ['Administrador Principal', 'CC', '1016016370', 'admin@unidas.social', pass, 'admin']).catch(() => {});
 });
 
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
