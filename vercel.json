@@ -1,6 +1,12 @@
 {
   "version": 2,
+  "framework": "vite",
   "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "dist" }
+    },
     {
       "src": "server.ts",
       "use": "@vercel/node"
@@ -16,8 +22,11 @@
       "dest": "server.ts"
     },
     {
+      "handle": "filesystem"
+    },
+    {
       "src": "/(.*)",
-      "dest": "server.ts"
+      "dest": "/index.html"
     }
   ]
 }
