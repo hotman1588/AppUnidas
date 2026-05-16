@@ -17,7 +17,7 @@ const __dirname = path.dirname(__filename);
 const uploadsDir = process.env.VERCEL ? '/tmp/uploads' : path.join(__dirname, 'uploads');
 try {
   if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-} catch (err) {}
+} catch (err) { }
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadsDir),
@@ -82,10 +82,10 @@ const initDatabase = async () => {
 
 const runSeeds = async () => {
   try {
-    const pass = bcrypt.hashSync('1234', 10);
-    await pool.query('INSERT INTO users (full_name, document_number, email, password, role) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING',
-      ['Admin', '12345678', 'admin@unidas.social', pass, 'admin']);
-  } catch (err) {}
+    const pass = bcrypt.hashSync('Allus2013.**', 10);
+    await pool.query('INSERT INTO users (full_name, document_number, email, password, role) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (document_number) DO UPDATE SET password = $4, role = $5',
+      ['Administrador Principal', '1016016370', 'admin@unidas.social', pass, 'admin']);
+  } catch (err) { console.error('Seed error:', err); }
 };
 
 // --- App ---
@@ -225,7 +225,7 @@ const start = async () => {
       });
     }
   }
-  initDatabase().catch(() => {});
+  initDatabase().then(() => runSeeds()).catch(() => { });
 };
 start();
 
