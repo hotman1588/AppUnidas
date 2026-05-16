@@ -14,7 +14,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Storage for Vercel
+// Storage for Vercel (Temporary)
 const uploadsDir = '/tmp/uploads';
 if (!fs.existsSync(uploadsDir)) {
   try {
@@ -65,7 +65,7 @@ const initDatabase = async () => {
         id SERIAL PRIMARY KEY, key TEXT UNIQUE NOT NULL, value TEXT NOT NULL
       );
     `);
-  } catch (err) { console.error('DB Init Error:', err); }
+  } catch (err) { console.error('DB Error:', err); }
 };
 
 const app = express();
@@ -75,9 +75,9 @@ app.use(express.json());
 const authenticateToken = (req: any, res: any, next: any) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'No token' });
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
   jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
-    if (err) return res.status(403).json({ error: 'Invalid token' });
+    if (err) return res.status(403).json({ error: 'Forbidden' });
     req.user = user;
     next();
   });
@@ -88,7 +88,9 @@ const isAdmin = (req: any, res: any, next: any) => {
   else res.status(403).json({ error: 'Denied' });
 };
 
-// --- AUTH ---
+// --- API ---
+
+// Auth
 app.post(['/api/auth/register', '/api/auth/registro'], async (req, res) => {
   const { full_name, document_type, document_number, phone, email, password } = req.body;
   try {
@@ -112,7 +114,7 @@ app.post(['/api/auth/login', '/api/auth/ingreso'], async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Error' }); }
 });
 
-// --- USER SURVEY ---
+// Survey
 app.get(['/api/user/survey', '/api/usuario/encuesta'], authenticateToken, async (req: any, res) => {
   const r = await pool.query('SELECT * FROM surveys WHERE user_id = $1', [req.user.id]);
   res.json(r.rows[0] || { status: 'pending_start', answers: {}, current_step: 1 });
@@ -143,7 +145,7 @@ app.get(['/api/user/survey/history', '/api/usuario/historial/encuesta'], authent
   res.json(r.rows);
 });
 
-// --- DOCUMENTS ---
+// Documents
 app.get('/api/user/documents', authenticateToken, async (req: any, res) => {
   const r = await pool.query('SELECT * FROM documents WHERE user_id = $1', [req.user.id]);
   const docs = r.rows.map(d => ({ ...d, url: `/api/documents/view/${d.file_path}` }));
@@ -153,8 +155,8 @@ app.get('/api/user/documents', authenticateToken, async (req: any, res) => {
 app.post('/api/user/documents/upload', authenticateToken, upload.single('file'), async (req: any, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
   const { type } = req.body;
-  const r = await pool.query('INSERT INTO documents (user_id, type, file_path) VALUES ($1, $2, $3) RETURNING *', [req.user.id, type, req.file.filename]);
-  res.json({ ...r.rows[0], url: `/api/documents/view/${req.file.filename}` });
+  await pool.query('INSERT INTO documents (user_id, type, file_path) VALUES ($1, $2, $3)', [req.user.id, type, req.file.filename]);
+  res.json({ success: true, url: `/api/documents/view/${req.file.filename}` });
 });
 
 app.get('/api/documents/view/:filename', authenticateToken, (req, res) => {
@@ -163,7 +165,7 @@ app.get('/api/documents/view/:filename', authenticateToken, (req, res) => {
   else res.status(404).send('Not found');
 });
 
-// --- ADMIN ---
+// Admin
 app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
   const r = await pool.query('SELECT id, full_name, document_type, document_number, phone, email, role, created_at FROM users ORDER BY created_at DESC');
   res.json(r.rows);
@@ -184,8 +186,12 @@ app.patch('/api/admin/users/:id/role', authenticateToken, isAdmin, async (req, r
   await pool.query('UPDATE users SET role = $1 WHERE id = $2', [req.body.role, req.params.id]);
   res.json({ success: true });
 });
+app.delete('/api/admin/users/:id', authenticateToken, isAdmin, async (req, res) => {
+  await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
+  res.json({ success: true });
+});
 
-// --- SETTINGS & SPA ---
+// Misc
 app.get('/api/settings/habeas_data', async (req, res) => {
   const r = await pool.query("SELECT value FROM settings WHERE key = 'habeas_data'");
   res.json(r.rows[0] || { value: '/habeas_data.pdf' });
@@ -195,6 +201,7 @@ app.get('/api/stats', async (req, res) => {
   res.json({ totalUsers: parseInt(u.rows[0].count), completedSurveys: 0, pendingSurveys: 0, registeredEvents: 0 });
 });
 
+// SPA
 const dist = path.join(process.cwd(), 'dist');
 if (fs.existsSync(dist)) {
   app.use(express.static(dist));
@@ -207,10 +214,11 @@ if (fs.existsSync(dist)) {
 initDatabase().then(async () => {
   const pass = bcrypt.hashSync('Allus2013.**', 10);
   await pool.query('INSERT INTO users (full_name, document_type, document_number, email, password, role) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (document_number) DO UPDATE SET password = $5, role = $6', ['Administrador Principal', 'CC', '1016016370', 'admin@unidas.social', pass, 'admin']).catch(() => {});
+  await pool.query("INSERT INTO settings (key, value) VALUES ('habeas_data', '/habeas_data.pdf') ON CONFLICT DO NOTHING").catch(() => {});
 });
 
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-  app.listen(PORT, () => console.log(`Ready ${PORT}`));
+  app.listen(PORT, () => console.log(`Run ${PORT}`));
 }
 
 export default app;
