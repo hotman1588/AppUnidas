@@ -225,7 +225,7 @@ const start = async () => {
       });
     }
   }
-  initDatabase().then(() => runSeeds()).catch(() => {});
+  initDatabase().catch(() => {});
 };
 start();
 
