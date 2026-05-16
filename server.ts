@@ -47,6 +47,83 @@ const pool = new Pool({
   }
 });
 
+// Database Schema Initialization
+const initDatabase = async () => {
+  console.log('Initializing database schema...');
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        full_name TEXT NOT NULL,
+        document_type TEXT DEFAULT 'CC',
+        document_number TEXT UNIQUE NOT NULL,
+        phone TEXT,
+        email TEXT UNIQUE,
+        password TEXT NOT NULL,
+        role TEXT DEFAULT 'user',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS surveys (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        answers JSONB DEFAULT '{}',
+        status TEXT DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS survey_history (
+        id SERIAL PRIMARY KEY,
+        survey_id INTEGER REFERENCES surveys(id),
+        user_id INTEGER REFERENCES users(id),
+        action TEXT NOT NULL,
+        details TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS reviews (
+        id SERIAL PRIMARY KEY,
+        survey_id INTEGER REFERENCES surveys(id),
+        analyst_id INTEGER REFERENCES users(id),
+        status TEXT NOT NULL,
+        observations TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS news (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        image_url TEXT,
+        category TEXT,
+        is_active INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS events (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        date TIMESTAMP NOT NULL,
+        location TEXT,
+        is_active INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('Database schema checked/created successfully.');
+  } catch (err) {
+    console.error('Error initializing database schema:', err);
+    throw err;
+  }
+};
+
 // Seed initial users if not exists
 const seedUser = async (fullName: string, doc: string, email: string, pass: string, role: string) => {
   const hashedPassword = bcrypt.hashSync(pass, 10);
@@ -95,7 +172,16 @@ const runSeeds = async () => {
   console.log('Seeds finished.');
 };
 
-runSeeds().catch(err => console.error('FAILED TO RUN SEEDS:', err));
+const runServerInit = async () => {
+  try {
+    await initDatabase();
+    await runSeeds();
+  } catch (err) {
+    console.error('CRITICAL ERROR DURING INITIALIZATION:', err);
+  }
+};
+
+runServerInit();
 
 const app = express();
 export default app;
