@@ -1,5 +1,5 @@
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
+// Dynamic import for vite later
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
@@ -95,7 +95,7 @@ const runSeeds = async () => {
   console.log('Seeds finished.');
 };
 
-runSeeds();
+runSeeds().catch(err => console.error('FAILED TO RUN SEEDS:', err));
 
 const app = express();
 export default app;
@@ -910,6 +910,7 @@ async function startServer() {
 
   // Vite middleware
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -917,10 +918,16 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    } else {
+      app.get('*', (req, res) => {
+        res.send('Frontend not built. Please ensure "npm run build" is part of your build command.');
+      });
+    }
   }
 
   // Only listen if not on Vercel
