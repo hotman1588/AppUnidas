@@ -51,7 +51,6 @@ const initDatabase = async () => {
         role TEXT DEFAULT 'user',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-      ALTER TABLE users ALTER COLUMN document_type SET DEFAULT 'CC';
       
       CREATE TABLE IF NOT EXISTS surveys (
         id SERIAL PRIMARY KEY,
@@ -76,15 +75,23 @@ const initDatabase = async () => {
       CREATE TABLE IF NOT EXISTS news (
         id SERIAL PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL, image_url TEXT, category TEXT, is_active INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      
       CREATE TABLE IF NOT EXISTS events (
-        id SERIAL PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL, date TIMESTAMP NOT NULL, location TEXT, is_active INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        id SERIAL PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL, date TIMESTAMP NOT NULL, location TEXT, capacity INTEGER DEFAULT 50, is_active INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      
       CREATE TABLE IF NOT EXISTS survey_history (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id),
         action TEXT NOT NULL,
         details TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS settings (
+        id SERIAL PRIMARY KEY,
+        key TEXT UNIQUE NOT NULL,
+        value TEXT NOT NULL
       );
     `);
   } catch (err) { console.error('Schema Error:', err); }
@@ -97,6 +104,7 @@ const runSeeds = async () => {
       'INSERT INTO users (full_name, document_type, document_number, email, password, role) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (document_number) DO UPDATE SET password = $5, role = $6',
       ['Administrador Principal', 'CC', '1016016370', 'admin@unidas.social', pass, 'admin']
     );
+    await pool.query('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT DO NOTHING', ['habeas_data', '/habeas_data.pdf']);
   } catch (err) { console.error('Seed error:', err); }
 };
 
@@ -115,7 +123,53 @@ const authenticateToken = (req: any, res: any, next: any) => {
   });
 };
 
-// --- AUTH ---
+const isAdmin = (req: any, res: any, next: any) => {
+  if (req.user && req.user.role === 'admin') next();
+  else res.status(403).json({ error: 'Acceso denegado' });
+};
+
+// --- ADMIN ROUTES ---
+app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
+  const r = await pool.query('SELECT id, full_name, document_type, document_number, phone, email, role, created_at FROM users ORDER BY created_at DESC');
+  res.json(r.rows);
+});
+
+app.get('/api/admin/surveys', authenticateToken, isAdmin, async (req, res) => {
+  const r = await pool.query(`
+    SELECT s.*, u.full_name, u.document_number 
+    FROM surveys s 
+    JOIN users u ON s.user_id = u.id 
+    ORDER BY s.updated_at DESC
+  `);
+  res.json(r.rows);
+});
+
+app.get('/api/admin/news', authenticateToken, isAdmin, async (req, res) => {
+  const r = await pool.query('SELECT * FROM news ORDER BY created_at DESC');
+  res.json(r.rows);
+});
+
+app.get('/api/admin/events', authenticateToken, isAdmin, async (req, res) => {
+  const r = await pool.query('SELECT * FROM events ORDER BY date DESC');
+  res.json(r.rows);
+});
+
+app.get('/api/admin/analysts-stats', authenticateToken, isAdmin, async (req, res) => {
+  res.json([]); // Placeholder
+});
+
+app.patch('/api/admin/users/:id/role', authenticateToken, isAdmin, async (req, res) => {
+  const { role } = req.body;
+  await pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, req.params.id]);
+  res.json({ success: true });
+});
+
+app.delete('/api/admin/users/:id', authenticateToken, isAdmin, async (req, res) => {
+  await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
+  res.json({ success: true });
+});
+
+// --- USER ROUTES ---
 app.post(['/api/auth/register', '/api/auth/registro'], async (req, res) => {
   const { full_name, document_type, document_number, phone, email, password } = req.body;
   try {
@@ -135,17 +189,11 @@ app.post(['/api/auth/login', '/api/auth/ingreso'], async (req, res) => {
     const u = r.rows[0];
     if (!u || !bcrypt.compareSync(password, u.password)) return res.status(401).json({ error: 'Inválido' });
     const token = jwt.sign({ id: u.id, role: u.role, name: u.full_name }, JWT_SECRET, { expiresIn: '8h' });
-    res.json({ token, user: { id: u.id, name: u.full_name, role: u.role } });
+    res.json({ token, user: { id: u.id, name: u.full_name, role: u.role, uid: u.id } });
   } catch (e) { res.status(500).json({ error: 'Error' }); }
 });
 
-app.get('/api/auth/me', authenticateToken, async (req: any, res) => {
-  const r = await pool.query('SELECT id, full_name as name, role FROM users WHERE id = $1', [req.user.id]);
-  res.json(r.rows[0]);
-});
-
-// --- SURVEY ---
-app.get(['/api/user/survey', '/api/usuario/encuesta'], authenticateToken, async (req: any, res) => {
+app.get('/api/user/survey', authenticateToken, async (req: any, res) => {
   const r = await pool.query('SELECT * FROM surveys WHERE user_id = $1', [req.user.id]);
   res.json(r.rows[0] || { status: 'pending_start', answers: {}, current_step: 1 });
 });
@@ -161,42 +209,9 @@ app.post('/api/user/survey/save', authenticateToken, async (req: any, res) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/user/survey/submit', authenticateToken, async (req: any, res) => {
-  try {
-    await pool.query('UPDATE surveys SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2', ['pending', req.user.id]);
-    await pool.query('INSERT INTO survey_history (user_id, action, details) VALUES ($1, $2, $3)', 
-      [req.user.id, 'Envío de encuesta', 'La usuaria ha enviado la encuesta para validación.']);
-    res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
-});
-
-app.get(['/api/user/survey/history', '/api/usuario/historial/encuesta'], authenticateToken, async (req: any, res) => {
-  const r = await pool.query('SELECT * FROM survey_history WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
-  res.json(r.rows);
-});
-
-// --- DOCUMENTS ---
-app.get('/api/user/documents', authenticateToken, async (req: any, res) => {
-  const r = await pool.query('SELECT * FROM documents WHERE user_id = $1', [req.user.id]);
-  res.json(r.rows);
-});
-
-app.post('/api/user/documents/upload', authenticateToken, upload.single('file'), async (req: any, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file' });
-  const { type } = req.body;
-  try {
-    const r = await pool.query(
-      'INSERT INTO documents (user_id, type, file_path) VALUES ($1, $2, $3) RETURNING *',
-      [req.user.id, type, req.file.filename]
-    );
-    res.json(r.rows[0]);
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
-});
-
-// --- CONTENT ---
-app.get(['/api/news', '/api/noticias'], async (req, res) => {
-  const r = await pool.query('SELECT * FROM news WHERE is_active = 1 ORDER BY created_at DESC');
-  res.json(r.rows);
+app.get('/api/settings/habeas_data', async (req, res) => {
+  const r = await pool.query("SELECT value FROM settings WHERE key = 'habeas_data'");
+  res.json(r.rows[0] || { value: '/habeas_data.pdf' });
 });
 
 app.get('/api/stats', async (req, res) => {
@@ -225,7 +240,7 @@ const start = async () => {
 start();
 
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-  app.listen(PORT, () => console.log(`Port ${PORT}`));
+  app.listen(PORT, () => console.log(`Admin ready on ${PORT}`));
 }
 
 export default app;
