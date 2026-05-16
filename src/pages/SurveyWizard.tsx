@@ -129,18 +129,17 @@ export default function SurveyWizard() {
   // Load initial data
   useEffect(() => {
     const fetchSurveyData = async () => {
-      if (!user) return;
+      if (!user || !token) return;
       try {
         // 1. Fetch Survey
-        const { data: surveyData, error: surveyError } = await supabase
-          .from('surveys')
-          .select('*')
-          .eq('user_id', user.uid)
-          .single();
+        const surveyRes = await fetch('/api/user/survey', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const surveyData = await surveyRes.json();
 
         if (surveyData) {
           setSurveyStatus(surveyData.status || 'pending_start');
-          setSurveyId(String(surveyData.id));
+          setSurveyId(String(surveyData.id || user.uid));
 
           // Smart merge: Si localStorage tiene más datos que la base de datos, preferir localStorage (previene pérdida por fallos de red)
           const localAnswers = localStorage.getItem('survey_answers');
@@ -161,83 +160,53 @@ export default function SurveyWizard() {
           } else {
             setAnswers(surveyData.answers || {});
             setCurrentStep(surveyData.current_step || 1);
-            setHabeasAccepted(surveyData.habeas_data_accepted || false);
+            setHabeasAccepted(surveyData.habeas_data_accepted === 1);
             
             if (surveyData.answers?.socio?.fecha_nacimiento) {
               const [y, m, d] = surveyData.answers.socio.fecha_nacimiento.split('-');
               setBirthDate({ day: d || '', month: m || '', year: y || '' });
             }
           }
-        } else {
-          // Create initial survey draft if not exists
-          const { data: insertData, error: insertError } = await supabase
-            .from('surveys')
-            .insert({
-              user_id: user.uid,
-              status: 'pending_start',
-              current_step: 1,
-              habeas_data_accepted: false,
-              answers: {},
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            })
-            .select()
-            .single();
-
-          if (insertError) {
-            console.error('Error creating survey:', insertError.message);
-          }
-
-          setSurveyId(insertData?.id ? String(insertData.id) : String(user.uid));
-          setSurveyStatus('pending_start');
         }
 
-        // 2. Fetch Documents (Query by user_id)
-        const { data: docsData, error: docsError } = await supabase
-          .from('documents')
-          .select('*')
-          .eq('user_id', user.uid);
-
-        if (docsData) {
+        // 2. Fetch Documents
+        const docsRes = await fetch('/api/user/documents', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const docsData = await docsRes.json();
+        if (Array.isArray(docsData)) {
           setUploadedDocs(docsData);
         }
 
-        // 3. Fetch settings
-        const { data: settingsData, error: settingsError } = await supabase
-          .from('settings')
-          .select('value')
-          .eq('key', 'habeas_data')
-          .single();
-
-        if (settingsData) {
-          setHabeasDataUrl(settingsData.value);
-        }
       } catch (err) {
-        handleSupabaseError(err, OperationType.GET, 'surveys');
+        console.error(err);
       } finally {
         setLoading(false);
       }
     };
     fetchSurveyData();
-  }, [user]);
+  }, [user, token]);
 
   // Periodic Save to Backend
   const saveToBackend = async (targetStep = currentStep) => {
-    if (!user) return;
+    if (!user || !token) return;
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('surveys')
-        .update({
+      const response = await fetch('/api/user/survey/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
           answers,
-          current_step: targetStep,
-          habeas_data_accepted: habeasAccepted,
-          updated_at: new Date().toISOString()
+          step: targetStep,
+          habeas_data_accepted: habeasAccepted
         })
-        .eq('user_id', user.uid);
+      });
 
-      if (error) {
-        console.error('Failed to save to backend', error.message);
+      if (!response.ok) {
+        console.error('Failed to save to backend');
       }
     } catch (err) {
       console.error('Failed to save to backend', err);
@@ -335,7 +304,7 @@ export default function SurveyWizard() {
   };
 
   const submitSurvey = async () => {
-    if (!habeasAccepted || !user) return;
+    if (!habeasAccepted || !user || !token) return;
 
     const missing = getMissingFields(6); // Check current step (6)
     if (missing.length > 0) {
@@ -345,31 +314,12 @@ export default function SurveyWizard() {
 
     setSaving(true);
     try {
-      const { error: surveyError } = await supabase
-        .from('surveys')
-        .update({
-          status: 'pending',
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', user.uid);
+      const response = await fetch('/api/user/survey/submit', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
 
-      if (surveyError) {
-        console.error('Error submitting survey:', surveyError.message);
-      }
-
-      const { error: historyError } = await supabase
-        .from('survey_history')
-        .insert({
-          user_id: user.uid,
-          survey_id: surveyId ? Number(surveyId) : user.uid,
-          action: 'Envío de encuesta',
-          details: 'La usuaria ha enviado la encuesta para validación.',
-          created_at: new Date().toISOString()
-        });
-
-      if (historyError) {
-        console.error('Error logging survey history:', historyError.message);
-      }
+      if (!response.ok) throw new Error('Failed to submit');
 
       setIsSubmitted(true);
       localStorage.removeItem('survey_answers');
@@ -380,55 +330,34 @@ export default function SurveyWizard() {
         window.location.href = '/dashboard?submitted=true';
       }, 5000);
     } catch (err: any) {
-      handleSupabaseError(err, OperationType.UPDATE, 'surveys');
+      console.error(err);
     } finally {
       setSaving(false);
     }
   };
 
   const handleFileUpload = async (type: string, file: File) => {
-    if (!user) return;
+    if (!user || !token) return;
     setUploading(type);
+    
     const formData = new FormData();
     formData.append('file', file);
     formData.append('type', type);
 
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.uid}_${type}_${Date.now()}.${fileExt}`;
-      const filePath = `${user.uid}/${fileName}`;
+      const response = await fetch('/api/user/documents/upload', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true
-        });
+      if (!response.ok) throw new Error('Upload failed');
 
-      if (uploadError) throw uploadError;
-
-      if (uploadData?.path) {
-        const { data: insertedDoc, error: insertError } = await supabase
-          .from('documents')
-          .insert({
-            user_id: user.uid,
-            type,
-            file_path: uploadData.path,
-            status: 'pending',
-            created_at: new Date().toISOString()
-          })
-          .select()
-          .single();
-
-        if (insertError) {
-          console.error('Error saving document metadata:', insertError.message);
-        } else if (insertedDoc) {
-          setUploadedDocs(prev => [
-            ...prev.filter(d => d.type !== type),
-            insertedDoc
-          ]);
-        }
-      }
+      const insertedDoc = await response.json();
+      setUploadedDocs(prev => [
+        ...prev.filter(d => d.type !== type),
+        insertedDoc
+      ]);
     } catch (err) {
       console.error('Upload failed', err);
     } finally {
