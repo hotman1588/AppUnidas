@@ -151,12 +151,16 @@ export default function UserDashboard() {
                 <p className="text-white/50 mb-10 text-lg leading-relaxed font-medium">
                   {statusInfo.desc}
                 </p>
-                {(surveyStatus?.status === 'pending_start' || surveyStatus?.status === 'rejected') && (
+                {surveyStatus?.status !== 'approved' && surveyStatus?.status !== 'pending' && surveyStatus?.status !== 'rejected_final' && (
                   <Link
                     to="/survey"
                     className="inline-flex items-center space-x-4 px-10 py-5 bg-gradient-to-r from-unidas-primary to-unidas-accent text-white font-black rounded-2xl shadow-2xl shadow-unidas-primary/40 hover:scale-[1.02] active:scale-95 transition-all text-xl"
                   >
-                    <span>{surveyStatus?.status === 'rejected' ? 'Corregir Encuesta' : (surveyStatus?.current_step > 1 ? 'Continuar Encuesta' : 'Comenzar Encuesta')}</span>
+                    <span>
+                      {surveyStatus?.status === 'rejected' 
+                        ? 'Corregir Encuesta' 
+                        : (surveyStatus?.answers && Object.keys(surveyStatus.answers).length > 0 ? 'Continuar Caracterización' : 'Comenzar Caracterización')}
+                    </span>
                     <ArrowRight className="w-6 h-6" />
                   </Link>
                 )}
