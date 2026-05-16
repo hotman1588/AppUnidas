@@ -40,8 +40,12 @@ const upload = multer({
 const JWT_SECRET = process.env.JWT_SECRET || 'unidas-secret-key-123';
 const PORT = process.env.PORT || 3000;
 
+if (!process.env.DATABASE_URL) {
+  console.error('FATAL ERROR: DATABASE_URL environment variable is NOT defined!');
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL || 'postgres://localhost:5432/missing_url_error',
   ssl: { rejectUnauthorized: false }
 });
 
