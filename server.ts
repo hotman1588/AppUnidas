@@ -41,6 +41,11 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+// Add global error handler to the pool to prevent unhandled rejections
+pool.on('error', (err) => {
+  console.error('UNEXPECTED ERROR ON IDLE CLIENT:', err);
+});
+
 // --- Database Logic ---
 const initDatabase = async () => {
   try {
@@ -158,23 +163,36 @@ app.post('/api/analyst/register-complete-characterization', authenticateToken, a
 
 // --- Frontend & Init ---
 const setupApp = async () => {
-  if (process.env.NODE_ENV !== 'production') {
-    const { createServer } = await import('vite');
-    const vite = await createServer({ server: { middlewareMode: true }, appType: 'spa' });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    if (fs.existsSync(distPath)) {
-      app.use(express.static(distPath));
-      app.get('*', (req, res) => {
-        if (!req.path.startsWith('/api')) res.sendFile(path.join(distPath, 'index.html'));
-        else res.status(404).json({ error: 'Not found' });
-      });
+  try {
+    if (process.env.NODE_ENV !== 'production') {
+      const { createServer } = await import('vite');
+      const vite = await createServer({ server: { middlewareMode: true }, appType: 'spa' });
+      app.use(vite.middlewares);
+    } else {
+      const distPath = path.join(process.cwd(), 'dist');
+      if (fs.existsSync(distPath)) {
+        app.use(express.static(distPath));
+        app.get('*', (req, res) => {
+          if (!req.path.startsWith('/api')) {
+            res.sendFile(path.join(distPath, 'index.html'));
+          } else {
+            res.status(404).json({ error: 'API route not found' });
+          }
+        });
+      } else {
+        app.get('*', (req, res) => {
+          if (req.path.startsWith('/api')) return res.status(404).json({ error: 'API route not found' });
+          res.send('La aplicación se está iniciando... Por favor, recarga en unos segundos.');
+        });
+      }
     }
+    
+    // Non-blocking initialization
+    initDatabase().then(() => runSeeds()).catch(e => console.error('Background init failed:', e));
+    
+  } catch (err) {
+    console.error('SETUP ERROR:', err);
   }
-  
-  await initDatabase();
-  await runSeeds();
 };
 
 setupApp();
