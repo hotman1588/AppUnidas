@@ -635,10 +635,10 @@ export default function AdminDashboard() {
                           <td className="px-8 py-8">
                             <div className="flex items-center space-x-4">
                               <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center font-black text-unidas-primary group-hover:bg-unidas-primary group-hover:text-white transition-colors">
-                                {s.user_name[0]}
+                                {(s.full_name || 'U')[0]}
                               </div>
                               <div>
-                                <p className="font-black text-white text-lg">{s.user_name}</p>
+                                <p className="font-black text-white text-lg">{s.full_name || 'Usuario'}</p>
                                 <p className="text-xs text-white/30 font-medium italic">Bogotá D.C.</p>
                               </div>
                             </div>
@@ -772,7 +772,7 @@ export default function AdminDashboard() {
                   <tbody className="text-sm">
                     {surveys.map((s) => (
                       <tr key={s.id} className="group hover:bg-white/5 transition-all">
-                        <td className="px-8 py-8 font-black text-white text-lg">{s.user_name}</td>
+                        <td className="px-8 py-8 font-black text-white text-lg">{s.full_name || 'Usuario'}</td>
                         <td className="px-8 py-8 font-bold text-white/60 tabular-nums">{s.document_number}</td>
                         <td className="px-8 py-8">
                           <span className={cn(
