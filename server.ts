@@ -46,7 +46,9 @@ if (!process.env.DATABASE_URL) {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgres://localhost:5432/missing_url_error',
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
+  connectionTimeoutMillis: 5000, // 5 seconds timeout to avoid 504 hangs
+  idleTimeoutMillis: 10000
 });
 
 // Add global error handler to the pool to prevent unhandled rejections
@@ -145,8 +147,16 @@ app.get('/api/news', async (req, res) => {
   const result = await pool.query('SELECT * FROM news WHERE is_active = 1 ORDER BY created_at DESC');
   res.json(result.rows);
 });
+app.get('/api/noticias', async (req, res) => {
+  const result = await pool.query('SELECT * FROM news WHERE is_active = 1 ORDER BY created_at DESC');
+  res.json(result.rows);
+});
 
 app.get('/api/events', async (req, res) => {
+  const result = await pool.query('SELECT * FROM events WHERE is_active = 1 ORDER BY date ASC');
+  res.json(result.rows);
+});
+app.get('/api/eventos', async (req, res) => {
   const result = await pool.query('SELECT * FROM events WHERE is_active = 1 ORDER BY date ASC');
   res.json(result.rows);
 });
