@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+.vercel
+.env
+.env.local
+.env.*.local
+unidas.db*
+*.db
+*.log
+.DS_Store
+uploads/

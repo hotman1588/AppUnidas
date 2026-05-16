@@ -1,0 +1,6 @@
+{
+  "name": "UNIDAS - Barrios Unidos",
+  "description": "Plataforma social de caracterización, diagnóstico y acompañamiento para mujeres cuidadoras de Barrios Unidos.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": []
+}
