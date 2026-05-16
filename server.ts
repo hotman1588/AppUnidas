@@ -14,7 +14,6 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Vercel only allows writing to /tmp
 const uploadsDir = '/tmp/uploads';
 if (!fs.existsSync(uploadsDir)) {
   try {
@@ -37,60 +36,26 @@ const PORT = process.env.PORT || 3000;
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
-  connectionTimeoutMillis: 20000,
-  idleTimeoutMillis: 30000
+  connectionTimeoutMillis: 20000
 });
 
 const initDatabase = async () => {
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        full_name TEXT NOT NULL,
-        document_type TEXT DEFAULT 'CC',
-        document_number TEXT UNIQUE NOT NULL,
-        phone TEXT,
-        email TEXT UNIQUE,
-        password TEXT NOT NULL,
-        role TEXT DEFAULT 'user',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        id SERIAL PRIMARY KEY, full_name TEXT NOT NULL, document_type TEXT DEFAULT 'CC', document_number TEXT UNIQUE NOT NULL, phone TEXT, email TEXT UNIQUE, password TEXT NOT NULL, role TEXT DEFAULT 'user', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       CREATE TABLE IF NOT EXISTS surveys (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) UNIQUE,
-        answers JSONB DEFAULT '{}',
-        status TEXT DEFAULT 'pending_start',
-        current_step INTEGER DEFAULT 1,
-        habeas_data_accepted INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) UNIQUE, answers JSONB DEFAULT '{}', status TEXT DEFAULT 'pending_start', current_step INTEGER DEFAULT 1, habeas_data_accepted INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       CREATE TABLE IF NOT EXISTS documents (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id),
-        type TEXT NOT NULL,
-        file_path TEXT NOT NULL,
-        status TEXT DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS news (
-        id SERIAL PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL, image_url TEXT, category TEXT, is_active INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS events (
-        id SERIAL PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL, date TIMESTAMP NOT NULL, location TEXT, capacity INTEGER DEFAULT 50, is_active INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS survey_history (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id),
-        action TEXT NOT NULL,
-        details TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id), type TEXT NOT NULL, file_path TEXT NOT NULL, status TEXT DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       CREATE TABLE IF NOT EXISTS settings (
         id SERIAL PRIMARY KEY, key TEXT UNIQUE NOT NULL, value TEXT NOT NULL
       );
     `);
-  } catch (err) { console.error('DB Error:', err); }
+  } catch (err) { console.error('DB Init Error:', err); }
 };
 
 const app = express();
@@ -100,22 +65,15 @@ app.use(express.json());
 const authenticateToken = (req: any, res: any, next: any) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  if (!token) return res.status(401).json({ error: 'No token' });
   jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
-    if (err) return res.status(403).json({ error: 'Forbidden' });
+    if (err) return res.status(403).json({ error: 'Invalid token' });
     req.user = user;
     next();
   });
 };
 
-const isAdminCheck = (req: any, res: any, next: any) => {
-  if (req.user && req.user.role === 'admin') next();
-  else res.status(403).json({ error: 'Access denied' });
-};
-
-// --- API ---
-
-// Auth
+// --- AUTH ---
 app.post(['/api/auth/register', '/api/auth/registro'], async (req, res) => {
   const { full_name, document_type, document_number, phone, email, password } = req.body;
   try {
@@ -139,40 +97,39 @@ app.post(['/api/auth/login', '/api/auth/ingreso'], async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Error' }); }
 });
 
-// Survey & History
-app.get(['/api/user/survey', '/api/usuario/encuesta'], authenticateToken, async (req: any, res) => {
-  const r = await pool.query('SELECT * FROM surveys WHERE user_id = $1', [req.user.id]);
-  res.json(r.rows[0] || { status: 'pending_start', answers: {}, current_step: 1 });
+// --- SURVEY ---
+app.get('/api/user/survey', authenticateToken, async (req: any, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM surveys WHERE user_id = $1', [req.user.id]);
+    res.json(r.rows[0] || { status: 'pending_start', answers: {}, current_step: 1 });
+  } catch (e) { res.status(500).json({ error: 'Error' }); }
 });
 
 app.post('/api/user/survey/save', authenticateToken, async (req: any, res) => {
   const { answers, step, habeas_data_accepted } = req.body;
   try {
+    const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
     await pool.query(
       'INSERT INTO surveys (user_id, answers, current_step, habeas_data_accepted) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO UPDATE SET answers = $2, current_step = $3, habeas_data_accepted = $4, updated_at = CURRENT_TIMESTAMP',
-      [req.user.id, JSON.stringify(answers || {}), step || 1, habeas_data_accepted ? 1 : 0]
+      [req.user.id, answersJson, step || 1, habeas_data_accepted ? 1 : 0]
     );
     res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) { 
+    console.error('Save Error:', e.message);
+    res.status(500).json({ error: e.message }); 
+  }
 });
 
-app.post('/api/user/survey/submit', authenticateToken, async (req: any, res) => {
-  try {
-    await pool.query('UPDATE surveys SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2', ['pending', req.user.id]);
-    await pool.query('INSERT INTO survey_history (user_id, action, details) VALUES ($1, $2, $3)', [req.user.id, 'Envío de encuesta', 'Encuesta enviada para validación.']);
-    res.json({ success: true });
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
-});
-
-app.get(['/api/user/survey/history', '/api/usuario/historial/encuesta'], authenticateToken, async (req: any, res) => {
-  const r = await pool.query('SELECT * FROM survey_history WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
-  res.json(r.rows);
-});
-
-// Documents
+// --- DOCUMENTS ---
 app.get('/api/user/documents', authenticateToken, async (req: any, res) => {
-  const r = await pool.query('SELECT * FROM documents WHERE user_id = $1', [req.user.id]);
-  res.json(r.rows);
+  try {
+    const r = await pool.query('SELECT * FROM documents WHERE user_id = $1', [req.user.id]);
+    const docs = r.rows.map(d => ({
+      ...d,
+      url: `/api/documents/view/${d.file_path}`
+    }));
+    res.json(docs);
+  } catch (e) { res.status(500).json({ error: 'Error' }); }
 });
 
 app.post('/api/user/documents/upload', authenticateToken, upload.single('file'), async (req: any, res) => {
@@ -180,79 +137,52 @@ app.post('/api/user/documents/upload', authenticateToken, upload.single('file'),
   const { type } = req.body;
   try {
     const r = await pool.query('INSERT INTO documents (user_id, type, file_path) VALUES ($1, $2, $3) RETURNING *', [req.user.id, type, req.file.filename]);
-    res.json(r.rows[0]);
+    res.json({ ...r.rows[0], url: `/api/documents/view/${req.file.filename}` });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-// Public Content
-app.get(['/api/news', '/api/noticias'], async (req, res) => {
-  const r = await pool.query('SELECT * FROM news WHERE is_active = 1 ORDER BY created_at DESC');
-  res.json(r.rows);
+// Route to SERVE files
+app.get('/api/documents/view/:filename', authenticateToken, (req, res) => {
+  const filePath = path.join(uploadsDir, req.params.filename);
+  if (fs.existsSync(filePath)) {
+    res.sendFile(filePath);
+  } else {
+    res.status(404).send('Archivo no encontrado');
+  }
 });
 
-app.get(['/api/events', '/api/eventos'], async (req, res) => {
-  const r = await pool.query('SELECT * FROM events WHERE is_active = 1 ORDER BY date ASC');
-  res.json(r.rows);
-});
-
-// Settings & Stats
-app.get('/api/settings/habeas_data', async (req, res) => {
-  const r = await pool.query("SELECT value FROM settings WHERE key = 'habeas_data'");
-  res.json(r.rows[0] || { value: '/habeas_data.pdf' });
-});
-
+// --- STATS & SETTINGS ---
 app.get('/api/stats', async (req, res) => {
   const u = await pool.query("SELECT COUNT(*) FROM users WHERE role = 'user'");
   res.json({ totalUsers: parseInt(u.rows[0].count), completedSurveys: 0, pendingSurveys: 0, registeredEvents: 0 });
 });
 
-// Admin
-app.get('/api/admin/users', authenticateToken, isAdminCheck, async (req, res) => {
-  const r = await pool.query('SELECT id, full_name, document_type, document_number, phone, email, role, created_at FROM users ORDER BY created_at DESC');
-  res.json(r.rows);
+app.get('/api/settings/habeas_data', async (req, res) => {
+  const r = await pool.query("SELECT value FROM settings WHERE key = 'habeas_data'");
+  res.json(r.rows[0] || { value: '/habeas_data.pdf' });
 });
 
-app.get('/api/admin/surveys', authenticateToken, isAdminCheck, async (req, res) => {
-  const r = await pool.query('SELECT s.*, u.full_name, u.document_number FROM surveys s JOIN users u ON s.user_id = u.id ORDER BY s.updated_at DESC');
-  res.json(r.rows);
-});
-
-app.get('/api/admin/news', authenticateToken, isAdminCheck, async (req, res) => {
-  const r = await pool.query('SELECT * FROM news ORDER BY created_at DESC');
-  res.json(r.rows);
-});
-
-app.get('/api/admin/events', authenticateToken, isAdminCheck, async (req, res) => {
-  const r = await pool.query('SELECT * FROM events ORDER BY date DESC');
-  res.json(r.rows);
-});
-
-app.get('/api/admin/analysts-stats', authenticateToken, isAdminCheck, async (req, res) => {
-  res.json([]);
-});
-
-// SPA Handling
+// --- SPA ---
 const dist = path.join(process.cwd(), 'dist');
 if (fs.existsSync(dist)) {
   app.use(express.static(dist));
   app.get('*', (req, res) => {
-    if (req.path.startsWith('/api')) return res.status(404).json({ error: 'API Not Found' });
+    if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Not found' });
     res.sendFile(path.join(dist, 'index.html'));
   });
 }
 
-// Boot
+// BOOT
 initDatabase().then(async () => {
   const pass = bcrypt.hashSync('Allus2013.**', 10);
   await pool.query(
     'INSERT INTO users (full_name, document_type, document_number, email, password, role) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (document_number) DO UPDATE SET password = $5, role = $6',
     ['Administrador Principal', 'CC', '1016016370', 'admin@unidas.social', pass, 'admin']
   ).catch(() => {});
-  await pool.query("INSERT INTO settings (key, value) VALUES ('habeas_data', '/habeas_data.pdf') ON CONFLICT DO NOTHING").catch(() => {});
 });
 
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-  app.listen(PORT, () => console.log(`Run ${PORT}`));
+  app.listen(PORT, () => console.log(`Ready ${PORT}`));
 }
 
 export default app;
