@@ -42,30 +42,118 @@ const pool = new Pool({
 
 const initDatabase = async () => {
   try {
+    console.log('Running database migrations...');
+    
+    // 1. Create users table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY, full_name TEXT NOT NULL, document_type TEXT DEFAULT 'CC', document_number TEXT UNIQUE NOT NULL, phone TEXT, email TEXT UNIQUE, password TEXT NOT NULL, role TEXT DEFAULT 'user', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        id SERIAL PRIMARY KEY, 
+        full_name TEXT NOT NULL, 
+        document_type TEXT DEFAULT 'CC', 
+        document_number TEXT UNIQUE NOT NULL, 
+        phone TEXT, 
+        email TEXT UNIQUE, 
+        password TEXT NOT NULL, 
+        role TEXT DEFAULT 'user', 
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `).catch(err => console.error('Migration Error (users):', err.message));
+
+    // 2. Create surveys table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS surveys (
-        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) UNIQUE, answers JSONB DEFAULT '{}', status TEXT DEFAULT 'pending_start', current_step INTEGER DEFAULT 1, habeas_data_accepted INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        id SERIAL PRIMARY KEY, 
+        user_id INTEGER REFERENCES users(id) UNIQUE, 
+        answers JSONB DEFAULT '{}', 
+        status TEXT DEFAULT 'pending_start', 
+        current_step INTEGER DEFAULT 1, 
+        habeas_data_accepted INTEGER DEFAULT 0, 
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `).catch(err => console.error('Migration Error (surveys):', err.message));
+
+    // 3. Migrate surveys table columns if they are missing
+    await pool.query(`
+      ALTER TABLE surveys ADD COLUMN IF NOT EXISTS answers JSONB DEFAULT '{}';
+      ALTER TABLE surveys ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending_start';
+      ALTER TABLE surveys ADD COLUMN IF NOT EXISTS current_step INTEGER DEFAULT 1;
+      ALTER TABLE surveys ADD COLUMN IF NOT EXISTS habeas_data_accepted INTEGER DEFAULT 0;
+      ALTER TABLE surveys ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    `).catch(err => console.error('Migration Error (surveys alter columns):', err.message));
+
+    // 4. Add UNIQUE constraint to surveys.user_id if missing
+    await pool.query(`
+      ALTER TABLE surveys ADD CONSTRAINT surveys_user_id_key UNIQUE (user_id);
+    `).catch(err => {
+      if (!err.message.includes('already exists') && !err.message.includes('already a unique')) {
+        console.error('Migration Error (surveys unique constraint):', err.message);
+      }
+    });
+
+    // 5. Create documents table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS documents (
-        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id), type TEXT NOT NULL, file_path TEXT NOT NULL, status TEXT DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        id SERIAL PRIMARY KEY, 
+        user_id INTEGER REFERENCES users(id), 
+        type TEXT NOT NULL, 
+        file_path TEXT NOT NULL, 
+        status TEXT DEFAULT 'pending', 
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `).catch(err => console.error('Migration Error (documents):', err.message));
+
+    // 6. Create survey_history table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS survey_history (
-        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id), action TEXT NOT NULL, details TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        id SERIAL PRIMARY KEY, 
+        user_id INTEGER REFERENCES users(id), 
+        action TEXT NOT NULL, 
+        details TEXT, 
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `).catch(err => console.error('Migration Error (survey_history):', err.message));
+
+    // 7. Create news table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS news (
-        id SERIAL PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL, image_url TEXT, category TEXT, is_active INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        id SERIAL PRIMARY KEY, 
+        title TEXT NOT NULL, 
+        content TEXT NOT NULL, 
+        image_url TEXT, 
+        category TEXT, 
+        is_active INTEGER DEFAULT 1, 
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `).catch(err => console.error('Migration Error (news):', err.message));
+
+    // 8. Create events table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS events (
-        id SERIAL PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL, date TIMESTAMP NOT NULL, location TEXT, capacity INTEGER DEFAULT 50, is_active INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        id SERIAL PRIMARY KEY, 
+        title TEXT NOT NULL, 
+        description TEXT NOT NULL, 
+        date TIMESTAMP NOT NULL, 
+        location TEXT, 
+        capacity INTEGER DEFAULT 50, 
+        is_active INTEGER DEFAULT 1, 
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `).catch(err => console.error('Migration Error (events):', err.message));
+
+    // 9. Create settings table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS settings (
-        id SERIAL PRIMARY KEY, key TEXT UNIQUE NOT NULL, value TEXT NOT NULL
+        id SERIAL PRIMARY KEY, 
+        key TEXT UNIQUE NOT NULL, 
+        value TEXT NOT NULL
       );
-    `);
-  } catch (err) { console.error('DB Error:', err); }
+    `).catch(err => console.error('Migration Error (settings):', err.message));
+
+    console.log('Database migrations completed successfully.');
+  } catch (err: any) {
+    console.error('Global Migration Error:', err.message);
+  }
 };
 
 const app = express();
