@@ -262,7 +262,11 @@ app.post('/api/user/documents/upload', authenticateToken, upload.single('file'),
   const { type } = req.body;
   try {
     // 1. Save in local PostgreSQL database
-    await pool.query('INSERT INTO documents (user_id, type, file_path) VALUES ($1, $2, $3)', [req.user.id, type, req.file.filename]);
+    const result = await pool.query(
+      'INSERT INTO documents (user_id, type, file_path) VALUES ($1, $2, $3) RETURNING *',
+      [req.user.id, type, req.file.filename]
+    );
+    const newDoc = result.rows[0];
 
     // 2. Upload to Supabase Storage if initialized
     if (supabase) {
@@ -283,7 +287,10 @@ app.post('/api/user/documents/upload', authenticateToken, upload.single('file'),
       console.warn('Supabase storage client not initialized, file only stored locally.');
     }
 
-    res.json({ success: true, url: `/api/documents/view/${req.file.filename}` });
+    res.json({
+      ...newDoc,
+      url: `/api/documents/view/${req.file.filename}`
+    });
   } catch (err: any) {
     console.error('Document upload error:', err.message);
     res.status(500).json({ error: err.message });

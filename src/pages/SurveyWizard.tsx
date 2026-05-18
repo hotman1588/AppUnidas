@@ -168,7 +168,7 @@ export default function SurveyWizard() {
             const savedStep = localStorage.getItem('survey_step');
             if (savedStep) setCurrentStep(parseInt(savedStep, 10));
             setHabeasAccepted(localStorage.getItem('survey_habeas') === 'true');
-            
+
             if (parsedLocal.socio?.fecha_nacimiento) {
               const [y, m, d] = parsedLocal.socio.fecha_nacimiento.split('-');
               setBirthDate({ day: d || '', month: m || '', year: y || '' });
@@ -177,7 +177,7 @@ export default function SurveyWizard() {
             setAnswers(surveyData.answers || {});
             setCurrentStep(surveyData.current_step || 1);
             setHabeasAccepted(surveyData.habeas_data_accepted === 1);
-            
+
             if (surveyData.answers?.socio?.fecha_nacimiento) {
               const [y, m, d] = surveyData.answers.socio.fecha_nacimiento.split('-');
               setBirthDate({ day: d || '', month: m || '', year: y || '' });
@@ -368,7 +368,7 @@ export default function SurveyWizard() {
       localStorage.removeItem('survey_answers');
       localStorage.removeItem('survey_step');
       localStorage.removeItem('survey_habeas');
-      
+
       setTimeout(() => {
         window.location.href = '/dashboard?submitted=true';
       }, 5000);
@@ -382,7 +382,7 @@ export default function SurveyWizard() {
   const handleFileUpload = async (type: string, file: File) => {
     if (!user || !token) return;
     setUploading(type);
-    
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('type', type);
@@ -1247,9 +1247,9 @@ function Question({
 }: any) {
   return (
     <div className={cn(
-      "bg-white/5 border p-3 rounded-2xl backdrop-blur-xl shadow-sm transition-all hover:bg-white/[0.08] group flex flex-col h-full min-h-[100px] notranslate", 
+      "bg-white/5 border p-3 rounded-2xl backdrop-blur-xl shadow-sm transition-all hover:bg-white/[0.08] group flex flex-col h-full min-h-[100px] notranslate",
       error ? "border-red-500/50 bg-red-500/5" : "border-white/10",
-      className, 
+      className,
       disabled && "opacity-60"
     )} translate="no">
       <div className="mb-2 border-b border-white/5 pb-2">
@@ -1270,8 +1270,8 @@ function Question({
                   onClick={() => onChange(opt)}
                   className={cn(
                     "py-1 px-1.5 rounded-lg text-[10px] font-bold transition-all border text-left flex items-center space-x-1.5",
-                    value === opt 
-                      ? "bg-unidas-primary/20 border-unidas-primary text-unidas-primary" 
+                    value === opt
+                      ? "bg-unidas-primary/20 border-unidas-primary text-unidas-primary"
                       : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10",
                     disabled && "cursor-not-allowed"
                   )}
@@ -1424,8 +1424,8 @@ function Question({
             <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-1.5 flex items-center justify-center">
               <div className="text-center">
                 <span className="text-[10px] font-black text-orange-500 uppercase tracking-wider leading-none">
-                  {suffix 
-                    ? `${Number(value) || 0} ${suffix}` 
+                  {suffix
+                    ? `${Number(value) || 0} ${suffix}`
                     : new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(value) || 0)}
                 </span>
               </div>
