@@ -425,7 +425,7 @@ app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
 });
 
 app.get('/api/admin/surveys', authenticateToken, isAdmin, async (req, res) => {
-  const r = await pool.query('SELECT s.*, u.full_name, u.full_name as user_name, u.document_number FROM surveys s JOIN users u ON s.user_id = u.id ORDER BY s.updated_at DESC');
+  const r = await pool.query('SELECT s.*, u.full_name, u.full_name as user_name, u.document_number, u.role as user_role FROM surveys s JOIN users u ON s.user_id = u.id ORDER BY s.updated_at DESC');
   res.json(r.rows);
 });
 

@@ -435,6 +435,7 @@ export default function AdminDashboard() {
         'ID Encuesta': s.id,
         'Nombre Cuidadora': s.user_name,
         'Documento': s.document_number,
+        'Rol Activo': s.user_role === 'admin' ? 'Administrador' : s.user_role === 'analyst' ? 'Analista' : 'Cuidadora',
         'Estado': s.status === 'approved' ? 'Aprobada' : s.status === 'pending' ? 'Pendiente' : 'Borrador',
         'Fecha Actualización': new Date(s.updated_at).toLocaleDateString(),
       };
