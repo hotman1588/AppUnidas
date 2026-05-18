@@ -477,7 +477,7 @@ export default function AdminDashboard() {
         <div className="space-y-4">
           <SidebarItem active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} icon={BarChart3} label="Vista General" />
           <SidebarItem active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={Users} label="Usuarios y Roles" />
-          <SidebarItem active={activeTab === 'caracterizacion'} onClick={() => setActiveTab('caracterizacion')} icon={ClipboardCheck} label="Caracterización" />
+          <SidebarItem active={activeTab === 'caracterizacion'} onClick={() => setActiveTab('caracterizacion')} icon={ClipboardCheck} label="Encuesta" />
           <SidebarItem active={activeTab === 'events'} onClick={() => setActiveTab('events')} icon={Calendar} label="Eventos" />
           <SidebarItem active={activeTab === 'analysts'} onClick={() => setActiveTab('analysts')} icon={Shield} label="Bandeja de Analistas" />
           <SidebarItem active={activeTab === 'news'} onClick={() => setActiveTab('news')} icon={Bell} label="Noticias" />
@@ -755,7 +755,7 @@ export default function AdminDashboard() {
           {activeTab === 'caracterizacion' && (
             <div className="bg-white/5 rounded-[4rem] border border-white/10 backdrop-blur-xl overflow-hidden shadow-2xl">
               <div className="p-12 border-b border-white/10">
-                <h3 className="text-3xl font-black text-white mb-2">Caracterización Social</h3>
+                <h3 className="text-3xl font-black text-white mb-2">Encuesta Social</h3>
                 <p className="text-white/30 font-medium italic">Consolidado de cuidadoras identificadas</p>
               </div>
               <div className="overflow-x-auto px-6 pb-6">
@@ -1298,7 +1298,7 @@ export default function AdminDashboard() {
                   <ClipboardCheck className="w-8 h-8" />
                 </div>
                 <div>
-                  <h3 className="text-3xl font-black text-white mb-1">Encuesta de Caracterización</h3>
+                  <h3 className="text-3xl font-black text-white mb-1">Encuesta</h3>
                   <p className="text-white/30 font-medium italic">Revisión y edición de datos capturados</p>
                 </div>
               </div>

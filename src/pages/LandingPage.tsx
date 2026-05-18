@@ -26,7 +26,7 @@ export default function LandingPage() {
 
   const features = [
     {
-      title: 'Caracterización Social',
+      title: 'Encuesta Social',
       desc: 'Diagnóstico profundo de las necesidades de las cuidadoras.',
       icon: Users,
       color: 'bg-blue-500'
@@ -74,7 +74,7 @@ export default function LandingPage() {
               </h1>
 
               <p className="text-xl text-white/50 mb-12 max-w-lg leading-relaxed font-medium">
-                Plataforma de caracterización y diagnóstico social para mujeres cuidadoras de la Localidad Barrios Unidos. Tu voz es el motor para construir el cambio.
+                Plataforma de encuestas y diagnóstico social para mujeres cuidadoras de la Localidad Barrios Unidos. Tu voz es el motor para construir el cambio.
               </p>
 
               <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-6">

@@ -152,7 +152,7 @@ export default function AnalystDashboard() {
       <div className="flex flex-col md:flex-row justify-between items-end mb-12 space-y-6 md:space-y-0">
         <div>
           <h1 className="text-4xl font-bold text-slate-900 font-display">Bandeja de Validación</h1>
-          <p className="text-slate-500 font-medium">Revisión documental y caracterización social</p>
+          <p className="text-slate-500 font-medium">Revisión documental y encuesta social</p>
         </div>
         <div className="flex items-center space-x-4 bg-amber-50 px-6 py-3 rounded-2xl border border-amber-100">
            <Clock className="w-6 h-6 text-amber-600" />
@@ -187,7 +187,7 @@ export default function AnalystDashboard() {
                 className="flex items-center space-x-2 bg-unidas-primary text-white px-4 py-2 rounded-xl font-bold hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-unidas-primary/20"
               >
                 <Plus className="w-4 h-4" />
-                <span>Nueva Caracterización</span>
+                <span>Nueva Encuesta</span>
               </button>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -385,7 +385,7 @@ export default function AnalystDashboard() {
                     </div>
                   </Section>
 
-                  <Section title="Respuestas de la Caracterización">
+                  <Section title="Respuestas de la Encuesta">
                     <div className="space-y-6">
                       {Object.keys(surveyAnswers).length === 0 ? (
                         <p className="text-white/30 text-xs italic">Cargando respuestas...</p>

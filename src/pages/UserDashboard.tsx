@@ -58,7 +58,7 @@ export default function UserDashboard() {
           icon: ShieldCheck, 
           label: 'Aprobada', 
           color: 'bg-green-500/10 text-green-500 border-green-500/20',
-          desc: 'Tu caracterización ha sido validada con éxito. Ya puedes participar en eventos.' 
+          desc: 'Tu encuesta ha sido validada con éxito. Ya puedes participar en eventos.' 
         };
       case 'rejected': 
         return { 
@@ -79,7 +79,7 @@ export default function UserDashboard() {
           icon: FileSearch, 
           label: 'Pendiente de Inicio', 
           color: 'bg-white/5 text-white/40 border-white/10',
-          desc: 'Aún no has finalizado tu encuesta de caracterización.' 
+          desc: 'Aún no has finalizado tu encuesta.' 
         };
     }
   };
@@ -147,7 +147,7 @@ export default function UserDashboard() {
                 <statusInfo.icon className="w-16 h-16" />
               </div>
               <div className="flex-grow text-center md:text-left">
-                <h2 className="text-3xl font-black text-white mb-4">Estado de Caracterización</h2>
+                <h2 className="text-3xl font-black text-white mb-4">Estado de la Encuesta</h2>
                 <p className="text-white/50 mb-10 text-lg leading-relaxed font-medium">
                   {statusInfo.desc}
                 </p>
@@ -159,7 +159,7 @@ export default function UserDashboard() {
                     <span>
                       {surveyStatus?.status === 'rejected' 
                         ? 'Corregir Encuesta' 
-                        : (surveyStatus?.answers && Object.keys(surveyStatus.answers).length > 0 ? 'Continuar Caracterización' : 'Comenzar Caracterización')}
+                        : (surveyStatus?.answers && Object.keys(surveyStatus.answers).length > 0 ? 'Continuar Encuesta' : 'Comenzar Encuesta')}
                     </span>
                     <ArrowRight className="w-6 h-6" />
                   </Link>
@@ -217,7 +217,7 @@ export default function UserDashboard() {
                   </div>
                   <h4 className="text-2xl font-black text-white mb-4">Módulo de Eventos Bloqueado</h4>
                   <p className="text-white/40 max-w-sm mx-auto font-medium text-lg leading-relaxed">
-                    Podrás inscribirte a eventos institucionales una vez que tu caracterización sea aprobada por un analista.
+                    Podrás inscribirte a eventos institucionales una vez que tu encuesta sea aprobada por un analista.
                   </p>
                 </div>
               )}
@@ -243,7 +243,7 @@ export default function UserDashboard() {
                 <div className="flex space-x-6 group cursor-pointer opacity-50">
                   <div className="w-1.5 h-12 bg-white/10 rounded-full" />
                   <div className="flex-grow">
-                    <p className="font-black text-white mb-1">Guía de Caracterización</p>
+                    <p className="font-black text-white mb-1">Guía de la Encuesta</p>
                     <p className="text-xs text-white/40 font-medium">Revisa los documentos necesarios.</p>
                   </div>
                 </div>

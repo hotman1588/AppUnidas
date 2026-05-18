@@ -119,10 +119,25 @@ export default function SurveyWizard() {
 
   const userAge = calculateAge(birthDate.day, birthDate.month, birthDate.year);
 
-  // Sync individual birth date parts to the full date string
+  // Sync individual birth date parts to the full date string and compute age
   useEffect(() => {
     if (birthDate.day && birthDate.month && birthDate.year) {
-      handleInputChange('socio', 'fecha_nacimiento', `${birthDate.year}-${birthDate.month}-${birthDate.day}`);
+      const formattedDate = `${birthDate.year}-${birthDate.month}-${birthDate.day}`;
+      const computedAge = calculateAge(birthDate.day, birthDate.month, birthDate.year);
+      setAnswers((prev: any) => {
+        const socio = prev.socio || {};
+        if (socio.fecha_nacimiento === formattedDate && socio.edad === computedAge) {
+          return prev;
+        }
+        return {
+          ...prev,
+          socio: {
+            ...socio,
+            fecha_nacimiento: formattedDate,
+            edad: computedAge ?? undefined
+          }
+        };
+      });
     }
   }, [birthDate]);
 
@@ -420,7 +435,7 @@ export default function SurveyWizard() {
           {surveyStatus === 'approved' && (
             <div className="mb-8 bg-green-500/10 border border-green-500/20 p-4 rounded-2xl flex items-center space-x-3 text-green-500">
               <CheckCircle className="w-5 h-5 flex-shrink-0" />
-              <p className="text-xs font-bold uppercase tracking-wider">Tu caracterización ha sido aprobada. Ahora puedes acceder a cursos y eventos.</p>
+              <p className="text-xs font-bold uppercase tracking-wider">Tu encuesta ha sido aprobada. Ahora puedes acceder a cursos y eventos.</p>
             </div>
           )}
           {surveyStatus === 'rejected' && (
@@ -432,7 +447,7 @@ export default function SurveyWizard() {
           {surveyStatus === 'rejected_final' && (
             <div className="mb-8 bg-red-600/20 border border-red-600/30 p-4 rounded-2xl flex items-center space-x-3 text-red-600">
               <XCircle className="w-5 h-5 flex-shrink-0" />
-              <p className="text-xs font-bold uppercase tracking-wider">Tu caracterización ha sido rechazada definitivamente. Por favor contacta con soporte para más información.</p>
+              <p className="text-xs font-bold uppercase tracking-wider">Tu encuesta ha sido rechazada definitivamente. Por favor contacta con soporte para más información.</p>
             </div>
           )}
 
@@ -442,7 +457,7 @@ export default function SurveyWizard() {
                 <div className="w-8 h-8 bg-unidas-primary rounded-lg flex items-center justify-center text-white">
                   <CheckCircle className="w-5 h-5" />
                 </div>
-                <span className="text-xs font-black text-unidas-primary uppercase tracking-[0.2em]">Caracterización Oficial</span>
+                <span className="text-xs font-black text-unidas-primary uppercase tracking-[0.2em]">Encuesta Oficial</span>
               </div>
               <h1 className="text-4xl font-black text-white font-display">Perfil Cuidadora</h1>
             </div>
@@ -609,19 +624,16 @@ export default function SurveyWizard() {
                     value={birthDate}
                     onChange={(val: any) => {
                       setBirthDate(val);
-                      if (val.day && val.month && val.year) {
-                        handleInputChange('socio', 'fecha_nacimiento', `${val.year}-${val.month}-${val.day}`);
-                      }
                     }}
                     error={validationErrors.includes('socio.fecha_nacimiento')}
-                    ageDisplay={answers.socio?.edad ? `${answers.socio.edad} Años` : null}
+                    ageDisplay={userAge !== null ? `${userAge} Años` : null}
                     disabled={isLocked}
                   />
                   <Question
                     label="IDENTIDAD DE GÉNERO"
                     subtitle="Cómo se identifica actualmente."
                     type="pills"
-                    options={['Mujer', 'Hombre', 'No binario', 'Transgénero', 'Otro']}
+                    options={['Femenino', 'Masculino', 'No binario', 'Transgénero', 'Otro']}
                     value={answers.socio?.genero}
                     onChange={(v: string) => handleInputChange('socio', 'genero', v)}
                     error={validationErrors.includes('socio.genero')}
@@ -1134,7 +1146,7 @@ export default function SurveyWizard() {
                       (habeasAccepted && !isLocked) ? "bg-gradient-to-r from-unidas-primary to-unidas-secondary shadow-unidas-primary/40 hover:scale-[1.02]" : "bg-white/10 text-white/20 cursor-not-allowed"
                     )}
                   >
-                    <span>{surveyStatus === 'pending' ? 'Bajo Revisión' : surveyStatus === 'approved' ? 'Caracterización Aprobada' : 'Finalizar Caracterización'}</span>
+                    <span>{surveyStatus === 'pending' ? 'Bajo Revisión' : surveyStatus === 'approved' ? 'Encuesta Aprobada' : 'Finalizar Encuesta'}</span>
                     <CheckCircle className="w-6 h-6 group-hover:scale-110 transition-transform" />
                   </button>
                 ) : (

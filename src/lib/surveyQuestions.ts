@@ -33,7 +33,7 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     question: 'GÉNERO',
     subtitle: 'Identidad de género con la que te identificas.',
     type: 'select',
-    options: ['Mujer Cisgénero', 'Mujer Transgénero', 'No binaria', 'Otro'],
+    options: ['Femenino', 'Masculino', 'No binario', 'Transgénero', 'Otro'],
     required: true,
     fieldName: 'socio.genero'
   },

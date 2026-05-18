@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, UserPlus, ClipboardList, CheckCircle2, 
@@ -300,7 +300,7 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
               <ClipboardList className="w-6 h-6 text-unidas-primary" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-white uppercase tracking-wider">Caracterización Presencial</h2>
+              <h2 className="text-xl font-black text-white uppercase tracking-wider">Encuesta Presencial</h2>
               <p className="text-xs text-white/40 font-medium italic">Estructura oficial del cuestionario</p>
             </div>
           </div>
@@ -367,7 +367,7 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                     error={validationErrors.includes('socio.fecha_nacimiento')}
                     ageDisplay={answers.socio?.edad ? `${answers.socio.edad} Años` : null}
                   />
-                  <Question label="IDENTIDAD DE GÉNERO" options={['Mujer', 'Hombre', 'No binario', 'Transgénero', 'Otro']} value={answers.socio.genero} onChange={(v: string) => handleInputChange('socio', 'genero', v)} error={validationErrors.includes('socio.genero')} />
+                  <Question label="IDENTIDAD DE GÉNERO" options={['Femenino', 'Masculino', 'No binario', 'Transgénero', 'Otro']} value={answers.socio.genero} onChange={(v: string) => handleInputChange('socio', 'genero', v)} error={validationErrors.includes('socio.genero')} />
                   <Question label="BARRIO DE RESIDENCIA" type="select" options={ALL_BARRIOS} value={answers.socio.barrio} onChange={(v: string) => handleInputChange('socio', 'barrio', v)} error={validationErrors.includes('socio.barrio')} />
                   <Question label="ZONA (UPL)" type="select" options={ALL_UPLS} value={answers.socio.upz} disabled={true} onChange={(v: string) => handleInputChange('socio', 'upz', v)} />
                   <Question 
