@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
-import { LogIn, Mail, KeyRound, AlertCircle, Loader2, ChevronRight } from 'lucide-react';
+import { LogIn, CreditCard, KeyRound, AlertCircle, Loader2, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function LoginPage() {
@@ -79,18 +79,21 @@ export default function LoginPage() {
             <div className="mt-8 p-4 bg-white/5 border border-white/5 rounded-2xl">
               <p className="text-[10px] text-white/30 font-black uppercase tracking-[0.2em] mb-2">Credenciales de Acceso</p>
               <div className="grid grid-cols-1 gap-1 text-[11px] text-unidas-primary font-bold">
-                <div>Usa tu correo y contraseña registrados.</div>
+                <div>Usa tu documento y contraseña registrados.</div>
               </div>
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-8">
+          <form onSubmit={handleSubmit} className="space-y-8" autoComplete="on">
             <div className="space-y-3">
               <label className="text-[10px] font-black text-white/30 uppercase tracking-widest ml-1">Número de Documento</label>
               <div className="relative">
-                <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-6 h-6 text-white/20" />
+                <CreditCard className="absolute left-5 top-1/2 -translate-y-1/2 w-6 h-6 text-white/20" />
                 <input
                   type="text"
+                  name="document_number"
+                  id="document_number"
+                  autoComplete="username"
                   value={documentNumber}
                   onChange={(e) => setDocumentNumber(e.target.value)}
                   className="w-full pl-14 pr-6 py-5 bg-white/5 border border-white/5 focus:border-unidas-primary rounded-2xl transition-all outline-none font-bold text-white text-lg placeholder:text-white/5"
