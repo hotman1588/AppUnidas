@@ -83,6 +83,7 @@ export default function SurveyWizard() {
   const [habeasDataUrl, setHabeasDataUrl] = useState<string | null>(null);
   const [viewerConfig, setViewerConfig] = useState<{ url: string; title: string } | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [showErrorPopup, setShowErrorPopup] = useState(false);
   const [birthDate, setBirthDate] = useState(() => {
     const saved = localStorage.getItem('survey_answers');
     if (saved) {
@@ -307,6 +308,7 @@ export default function SurveyWizard() {
     const missing = getMissingFields(currentStep);
     if (missing.length > 0) {
       setValidationErrors(missing);
+      setShowErrorPopup(true);
       return;
     }
 
@@ -334,6 +336,7 @@ export default function SurveyWizard() {
     const missing = getMissingFields(6); // Check current step (6)
     if (missing.length > 0) {
       setValidationErrors(missing);
+      setShowErrorPopup(true);
       return;
     }
 
@@ -584,6 +587,42 @@ export default function SurveyWizard() {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {showErrorPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-unidas-dark/80 backdrop-blur-md flex items-center justify-center p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="max-w-md w-full bg-white/5 border border-white/10 p-10 rounded-[3rem] text-center shadow-2xl relative overflow-hidden backdrop-blur-2xl"
+            >
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-red-500 via-unidas-secondary to-red-500 animate-pulse" />
+              <div className="w-20 h-20 bg-red-500/20 text-red-500 rounded-[1.75rem] flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-red-500/20">
+                <AlertCircle className="w-10 h-10 animate-bounce" />
+              </div>
+              <h2 className="text-2xl font-black text-white mb-3 font-display">Diligencia la encuesta completa</h2>
+              <p className="text-white/60 font-medium text-base leading-relaxed mb-8">
+                Por favor complete todos los campos resaltados en rojo para continuar.
+              </p>
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowErrorPopup(false)}
+                  className="px-10 py-4 bg-gradient-to-r from-red-500 to-unidas-secondary text-white font-black rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-sm uppercase tracking-wider"
+                >
+                  Aceptar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="max-w-4xl mx-auto px-4 relative z-10">
         <AnimatePresence mode="wait">
           <motion.div
@@ -619,27 +658,7 @@ export default function SurveyWizard() {
 
             {/* Questions Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {/* Error Banner */}
-              <AnimatePresence>
-                {validationErrors.length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mb-8 overflow-hidden"
-                  >
-                    <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-[2rem] flex items-center space-x-4 backdrop-blur-xl">
-                      <div className="bg-red-500/20 text-red-500 p-3 rounded-2xl">
-                        <AlertCircle className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <h4 className="text-white font-black text-lg">Diligencia la encuesta completa</h4>
-                        <p className="text-white/50 text-sm font-medium">Por favor completa todos los campos resaltados en rojo para continuar.</p>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+
 
               {currentStep === 1 && (
                 <>
