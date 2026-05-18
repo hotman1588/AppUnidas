@@ -139,7 +139,7 @@ export default function AnalystDashboard() {
 
   const surveysToDisplay = surveys.filter(s => s.status !== 'pending_start');
   const filteredSurveys = surveysToDisplay.filter(s => 
-    s.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.full_name || s.user_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.document_number?.includes(searchTerm)
   );
   const pendingSurveys = surveysToDisplay.filter(s => s.status === 'pending');
@@ -228,7 +228,7 @@ export default function AnalystDashboard() {
                           <User className="w-5 h-5" />
                         </div>
                         <div>
-                          <p className="font-bold text-slate-800">{s.user_name}</p>
+                          <p className="font-bold text-slate-800">{s.full_name || s.user_name || 'Cuidadora'}</p>
                           <p className="text-[10px] font-bold text-slate-400">
                              {s.status === 'pending' ? 'Pendiente' : 
                               s.status === 'approved' ? 'Aprobada' : 
@@ -363,7 +363,7 @@ export default function AnalystDashboard() {
                 </div>
                 <div className="space-y-10">
                   <Section title="Información Personal">
-                    <DataRow label="Nombre Competo" value={selectedSurvey.user_name} />
+                    <DataRow label="Nombre Completo" value={selectedSurvey.full_name || selectedSurvey.user_name || 'Cuidadora'} />
                     <DataRow label="Documento" value={selectedSurvey.document_number} />
                     <DataRow label="Ubicación" value="Barrios Unidos / UPZ Doce de Octubre" />
                   </Section>

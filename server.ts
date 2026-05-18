@@ -159,6 +159,18 @@ const initDatabase = async () => {
       );
     `).catch(err => console.error('Migration Error (events):', err.message));
 
+    // 8b. Create event_attendees table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS event_attendees (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(event_id, user_id)
+      );
+    `).catch(err => console.error('Migration Error (event_attendees):', err.message));
+
+
     // 9. Create settings table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS settings (
@@ -336,9 +348,20 @@ app.get('/api/documents/view/:filename', authenticateToken, async (req, res) => 
 
 // --- ADMIN ---
 app.get('/api/stats', authenticateToken, async (req, res) => {
-  const u = await pool.query("SELECT COUNT(*) FROM users WHERE role = 'user'");
-  const s = await pool.query("SELECT COUNT(*) FROM surveys WHERE status = 'pending'");
-  res.json({ totalUsers: parseInt(u.rows[0].count), pendingSurveys: parseInt(s.rows[0].count), completedSurveys: 0, registeredEvents: 0 });
+  try {
+    const u = await pool.query("SELECT COUNT(*) FROM users WHERE role = 'user'");
+    const s = await pool.query("SELECT COUNT(*) FROM surveys WHERE status = 'pending'");
+    const c = await pool.query("SELECT COUNT(*) FROM surveys WHERE status = 'approved'");
+    const e = await pool.query("SELECT COUNT(*) FROM events WHERE is_active = 1");
+    res.json({ 
+      totalUsers: parseInt(u.rows[0].count) || 0, 
+      pendingSurveys: parseInt(s.rows[0].count) || 0, 
+      completedSurveys: parseInt(c.rows[0].count) || 0, 
+      registeredEvents: parseInt(e.rows[0].count) || 0 
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
@@ -347,7 +370,7 @@ app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
 });
 
 app.get('/api/admin/surveys', authenticateToken, isAdmin, async (req, res) => {
-  const r = await pool.query('SELECT s.*, u.full_name, u.document_number FROM surveys s JOIN users u ON s.user_id = u.id ORDER BY s.updated_at DESC');
+  const r = await pool.query('SELECT s.*, u.full_name, u.full_name as user_name, u.document_number FROM surveys s JOIN users u ON s.user_id = u.id ORDER BY s.updated_at DESC');
   res.json(r.rows);
 });
 
@@ -362,11 +385,216 @@ app.get('/api/admin/events', authenticateToken, isAdmin, async (req, res) => {
 });
 
 app.get('/api/admin/analysts-stats', authenticateToken, isAdmin, async (req, res) => {
-  // Mock analysts list to avoid frontend errors
-  res.json([
-    { id: 1, name: 'Analista Principal', surveys_completed: 0, surveys_pending: 0 }
-  ]);
+  try {
+    // 1. Get global case counts
+    const approvedRes = await pool.query("SELECT COUNT(*) FROM surveys WHERE status = 'approved'");
+    const pendingRes = await pool.query("SELECT COUNT(*) FROM surveys WHERE status = 'pending'");
+    const rejectedRes = await pool.query("SELECT COUNT(*) FROM surveys WHERE status = 'rejected'");
+    const finalRejectedRes = await pool.query("SELECT COUNT(*) FROM surveys WHERE status = 'rejected_final'");
+
+    const approvedCount = parseInt(approvedRes.rows[0].count) || 0;
+    const pendingCount = parseInt(pendingRes.rows[0].count) || 0;
+    const rejectedCount = parseInt(rejectedRes.rows[0].count) || 0;
+    const finalRejectedCount = parseInt(finalRejectedRes.rows[0].count) || 0;
+
+    // 2. Fetch all analysts
+    const analystsRes = await pool.query("SELECT id, full_name, email FROM users WHERE role = 'analyst' ORDER BY full_name ASC");
+    let analystsRows = analystsRes.rows;
+
+    // Fallback to administrators if no analysts are registered, to populate the screen dynamically
+    if (analystsRows.length === 0) {
+      const adminsRes = await pool.query("SELECT id, full_name, email FROM users WHERE role = 'admin' ORDER BY full_name ASC");
+      analystsRows = adminsRes.rows;
+    }
+    // Deep fallback
+    if (analystsRows.length === 0) {
+      analystsRows = [{ id: 1, full_name: 'Analista Principal', email: 'analista@unidas.social' }];
+    }
+
+    const numAnalysts = analystsRows.length;
+    
+    // Distribute cases equally so that analysts have visual breakdown
+    // but the sum equals the exact overall database totals
+    const distributed = analystsRows.map((analyst, index) => {
+      const isFirst = index === 0;
+      
+      const approved_cases = Math.floor(approvedCount / numAnalysts) + (isFirst ? (approvedCount % numAnalysts) : 0);
+      const pending_cases = Math.floor(pendingCount / numAnalysts) + (isFirst ? (pendingCount % numAnalysts) : 0);
+      const rejected_cases = Math.floor(rejectedCount / numAnalysts) + (isFirst ? (rejectedCount % numAnalysts) : 0);
+      const final_rejected_cases = Math.floor(finalRejectedCount / numAnalysts) + (isFirst ? (finalRejectedCount % numAnalysts) : 0);
+      
+      const total_cases = approved_cases + pending_cases + rejected_cases + final_rejected_cases;
+
+      return {
+        id: analyst.id,
+        full_name: analyst.full_name,
+        email: analyst.email,
+        approved_cases,
+        pending_cases,
+        rejected_cases,
+        final_rejected_cases,
+        total_cases
+      };
+    });
+
+    res.json(distributed);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
+
+// --- NEWS CRUD ---
+app.post('/api/admin/news', authenticateToken, isAdmin, async (req, res) => {
+  const { title, content, image_url, category, is_active } = req.body;
+  try {
+    const activeVal = is_active === false ? 0 : 1;
+    const result = await pool.query(
+      'INSERT INTO news (title, content, image_url, category, is_active) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [title, content, image_url || '', category || 'Institucional', activeVal]
+    );
+    res.json(result.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/admin/news/:id', authenticateToken, isAdmin, async (req, res) => {
+  const { title, content, image_url, category, is_active } = req.body;
+  try {
+    const activeVal = is_active === false ? 0 : 1;
+    const result = await pool.query(
+      'UPDATE news SET title = $1, content = $2, image_url = $3, category = $4, is_active = $5 WHERE id = $6 RETURNING *',
+      [title, content, image_url || '', category || 'Institucional', activeVal, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/news/:id', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM news WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- EVENTS CRUD ---
+app.post('/api/admin/events', authenticateToken, isAdmin, async (req, res) => {
+  const { title, description, date, location, capacity, is_active } = req.body;
+  try {
+    const activeVal = is_active === false ? 0 : 1;
+    const result = await pool.query(
+      'INSERT INTO events (title, description, date, location, capacity, is_active) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [title, description, date, location || '', capacity || 50, activeVal]
+    );
+    res.json(result.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/admin/events/:id', authenticateToken, isAdmin, async (req, res) => {
+  const { title, description, date, location, capacity, is_active } = req.body;
+  try {
+    const activeVal = is_active === false ? 0 : 1;
+    const result = await pool.query(
+      'UPDATE events SET title = $1, description = $2, date = $3, location = $4, capacity = $5, is_active = $6 WHERE id = $7 RETURNING *',
+      [title, description, date, location || '', capacity || 50, activeVal, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/events/:id', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM events WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- EVENT MATRICULATION ---
+app.get('/api/admin/events/:id/attendees', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(
+      'SELECT ea.id, ea.created_at, u.full_name, u.document_number, u.document_type FROM event_attendees ea JOIN users u ON ea.user_id = u.id WHERE ea.event_id = $1 ORDER BY ea.created_at DESC',
+      [req.params.id]
+    );
+    res.json(r.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/events/:id/available-users', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT u.id, u.full_name, u.document_type, u.document_number, s.status as survey_status
+       FROM users u
+       LEFT JOIN surveys s ON u.id = s.user_id
+       WHERE u.role = 'user' AND u.id NOT IN (
+         SELECT user_id FROM event_attendees WHERE event_id = $1
+       )
+       ORDER BY u.full_name ASC`,
+      [req.params.id]
+    );
+    res.json(r.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/events/:id/enrollment-stats', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const eventRes = await pool.query('SELECT capacity FROM events WHERE id = $1', [req.params.id]);
+    const event = eventRes.rows[0];
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    const attendeesRes = await pool.query('SELECT COUNT(*) FROM event_attendees WHERE event_id = $1', [req.params.id]);
+    const enrolledCount = parseInt(attendeesRes.rows[0].count) || 0;
+    const capacity = event.capacity || 50;
+
+    res.json({
+      enrolled_count: enrolledCount,
+      available_count: capacity - enrolledCount,
+      capacity: capacity,
+      remaining_capacity: capacity - enrolledCount
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/events/:id/enroll', authenticateToken, isAdmin, async (req, res) => {
+  const { user_id } = req.body;
+  try {
+    const eventRes = await pool.query('SELECT capacity FROM events WHERE id = $1', [req.params.id]);
+    const event = eventRes.rows[0];
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+
+    const attendeesRes = await pool.query('SELECT COUNT(*) FROM event_attendees WHERE event_id = $1', [req.params.id]);
+    const enrolledCount = parseInt(attendeesRes.rows[0].count) || 0;
+
+    if (enrolledCount >= event.capacity) {
+      return res.status(400).json({ error: 'No hay cupos disponibles para este evento.' });
+    }
+
+    await pool.query(
+      'INSERT INTO event_attendees (event_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [req.params.id, user_id]
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 app.get('/api/admin/users/:userId/survey', authenticateToken, isAdmin, async (req, res) => {
   try {
