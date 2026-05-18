@@ -119,7 +119,7 @@ export default function UserDashboard() {
               </div>
             </div>
             <div>
-              <h1 className="text-5xl font-black text-white font-display mb-1">Hola, {user?.name.split(' ')[0]}</h1>
+              <h1 className="text-5xl font-black text-white font-display mb-1">Hola, {user?.name}</h1>
               <div className="flex items-center space-x-2 text-unidas-primary font-bold uppercase tracking-[0.2em] text-[10px]">
                  <Sparkles className="w-3 h-3" />
                  <span>Comunidad Unidas</span>
