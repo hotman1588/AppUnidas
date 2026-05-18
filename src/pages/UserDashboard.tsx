@@ -5,13 +5,14 @@ import {
   MapPin, CheckCircle2, AlertCircle, ArrowRight, UserCircle2,
   FileSearch, Sparkles, XCircle
 } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { cn } from '../lib/utils';
 
 export default function UserDashboard() {
   const { token, user } = useAuthStore();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [surveyStatus, setSurveyStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [history, setHistory] = useState<any[]>([]);
@@ -151,19 +152,29 @@ export default function UserDashboard() {
                 <p className="text-white/50 mb-10 text-lg leading-relaxed font-medium">
                   {statusInfo.desc}
                 </p>
-                {surveyStatus?.status !== 'approved' && surveyStatus?.status !== 'pending' && surveyStatus?.status !== 'rejected_final' && (
-                  <Link
-                    to="/survey"
-                    className="inline-flex items-center space-x-4 px-10 py-5 bg-gradient-to-r from-unidas-primary to-unidas-accent text-white font-black rounded-2xl shadow-2xl shadow-unidas-primary/40 hover:scale-[1.02] active:scale-95 transition-all text-xl"
-                  >
-                    <span>
-                      {surveyStatus?.status === 'rejected' 
-                        ? 'Corregir Encuesta' 
-                        : (surveyStatus?.answers && Object.keys(surveyStatus.answers).length > 0 ? 'Continuar Encuesta' : 'Comenzar Encuesta')}
-                    </span>
-                    <ArrowRight className="w-6 h-6" />
-                  </Link>
-                )}
+                <button
+                  disabled={surveyStatus?.status === 'pending' || surveyStatus?.status === 'approved' || surveyStatus?.status === 'rejected_final'}
+                  onClick={() => navigate('/survey')}
+                  className={cn(
+                    "inline-flex items-center space-x-4 px-10 py-5 font-black rounded-2xl shadow-2xl transition-all text-xl cursor-pointer",
+                    (surveyStatus?.status === 'pending' || surveyStatus?.status === 'approved' || surveyStatus?.status === 'rejected_final')
+                      ? "bg-white/10 text-white/30 cursor-not-allowed border border-white/5 shadow-none"
+                      : "bg-gradient-to-r from-unidas-primary to-unidas-accent text-white hover:scale-[1.02] active:scale-95 shadow-unidas-primary/40"
+                  )}
+                >
+                  <span>
+                    {surveyStatus?.status === 'pending'
+                      ? 'Encuesta en Revisión'
+                      : surveyStatus?.status === 'approved'
+                        ? 'Encuesta Aprobada'
+                        : surveyStatus?.status === 'rejected_final'
+                          ? 'Encuesta Rechazada'
+                          : surveyStatus?.status === 'rejected'
+                            ? 'Corregir Encuesta'
+                            : (surveyStatus?.answers && Object.keys(surveyStatus.answers).length > 0 ? 'Continuar Encuesta' : 'Comenzar Encuesta')}
+                  </span>
+                  <ArrowRight className="w-6 h-6" />
+                </button>
               </div>
             </div>
 

@@ -132,7 +132,10 @@ app.post('/api/user/survey/save', authenticateToken, async (req: any, res) => {
 
 app.post('/api/user/survey/submit', authenticateToken, async (req: any, res) => {
   try {
-    await pool.query('UPDATE surveys SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2', ['pending', req.user.id]);
+    await pool.query(
+      'INSERT INTO surveys (user_id, status) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET status = $2, updated_at = CURRENT_TIMESTAMP',
+      [req.user.id, 'pending']
+    );
     await pool.query('INSERT INTO survey_history (user_id, action, details) VALUES ($1, $2, $3)', [req.user.id, 'Envío de encuesta', 'Encuesta enviada para validación.']);
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }

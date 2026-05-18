@@ -290,6 +290,16 @@ export default function SurveyWizard() {
       return !val || (typeof val === 'string' && val.trim() === '');
     });
 
+    if (step === 6) {
+      const requiredDocs = ['id_frontal', 'id_reverso', 'utility_bill'];
+      requiredDocs.forEach(type => {
+        const hasDoc = uploadedDocs.some(d => d.type === type && d.file_path);
+        if (!hasDoc) {
+          missing.push(`document.${type}`);
+        }
+      });
+    }
+
     return missing;
   };
 
@@ -329,6 +339,21 @@ export default function SurveyWizard() {
 
     setSaving(true);
     try {
+      // 1. Force save the current answers and step 6 to backend first
+      await fetch('/api/user/survey/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          answers,
+          step: 6,
+          habeas_data_accepted: habeasAccepted
+        })
+      });
+
+      // 2. Submit the survey
       const response = await fetch('/api/user/survey/submit', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
@@ -373,6 +398,7 @@ export default function SurveyWizard() {
         ...prev.filter(d => d.type !== type),
         insertedDoc
       ]);
+      setValidationErrors(prev => prev.filter(err => err !== `document.${type}`));
     } catch (err) {
       console.error('Upload failed', err);
     } finally {
@@ -1033,6 +1059,15 @@ export default function SurveyWizard() {
 
               {currentStep === 6 && (
                 <div className="md:col-span-2 space-y-6">
+                  {validationErrors.some(e => e.startsWith('document.')) && (
+                    <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-2xl flex items-center space-x-4 text-red-500 animate-pulse">
+                      <AlertCircle className="w-6 h-6 shrink-0 animate-bounce" />
+                      <div className="text-xs font-black uppercase tracking-wider">
+                        Debes subir todos los documentos requeridos (Cédula Frontal, Reverso y Recibo Público) para poder finalizar la encuesta.
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <DocumentUpload
                       label="Cédula Frontal"
@@ -1043,6 +1078,7 @@ export default function SurveyWizard() {
                       onView={(path: string) => setViewerConfig({ url: path, title: 'Cédula Frontal' })}
                       isUploading={uploading === 'id_frontal'}
                       disabled={docsLocked}
+                      hasError={validationErrors.includes('document.id_frontal')}
                     />
                     <DocumentUpload
                       label="Cédula Reverso"
@@ -1053,6 +1089,7 @@ export default function SurveyWizard() {
                       onView={(path: string) => setViewerConfig({ url: path, title: 'Cédula Reverso' })}
                       isUploading={uploading === 'id_reverso'}
                       disabled={docsLocked}
+                      hasError={validationErrors.includes('document.id_reverso')}
                     />
                     <DocumentUpload
                       label="Recibo de Servicio Público"
@@ -1064,6 +1101,7 @@ export default function SurveyWizard() {
                       isUploading={uploading === 'utility_bill'}
                       className="md:col-span-2"
                       disabled={docsLocked}
+                      hasError={validationErrors.includes('document.utility_bill')}
                     />
                   </div>
 
@@ -1421,7 +1459,7 @@ function Question({
   );
 }
 
-function DocumentUpload({ label, type, onUpload, status, filePath, onView, isUploading, className, disabled }: any) {
+function DocumentUpload({ label, type, onUpload, status, filePath, onView, isUploading, className, disabled, hasError }: any) {
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -1433,7 +1471,8 @@ function DocumentUpload({ label, type, onUpload, status, filePath, onView, isUpl
 
   return (
     <div className={cn(
-      "space-y-4 bg-white/5 p-8 rounded-[2.5rem] border border-white/5 backdrop-blur-sm flex flex-col items-center text-center relative overflow-hidden transition-opacity",
+      "space-y-4 bg-white/5 p-8 rounded-[2.5rem] border backdrop-blur-sm flex flex-col items-center text-center relative overflow-hidden transition-all duration-300",
+      hasError ? "border-red-500/50 bg-red-500/5 shadow-lg shadow-red-500/5 animate-pulse" : "border-white/5",
       className,
       isActuallyDisabled && "opacity-60"
     )}>
