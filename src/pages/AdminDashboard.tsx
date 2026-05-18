@@ -7,7 +7,8 @@ import {
   MoreVertical, CheckCircle2, XCircle, Clock,
   Plus, Edit2, Shield, UserPlus, X, Lock,
   Newspaper, MapPin, Image, Trash2, ClipboardList,
-  Sparkles, AlertCircle, FileText, Upload, ChevronLeft
+  Sparkles, AlertCircle, FileText, Upload, ChevronLeft,
+  Menu
 } from 'lucide-react';
 import { DocumentType, DocumentTypeLabel, DOCUMENT_TYPES } from '../lib/documentTypes';
 import { 
@@ -49,6 +50,7 @@ export default function AdminDashboard() {
   const [habeasDataPath, setHabeasDataPath] = useState<string | null>(null);
   const [uploadingHabeas, setUploadingHabeas] = useState(false);
   const [viewerConfig, setViewerConfig] = useState<{ url: string; title: string } | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -492,12 +494,21 @@ export default function AdminDashboard() {
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 space-y-6 md:space-y-0">
-            <div>
+            <div className="w-full md:w-auto">
               <div className="flex items-center space-x-2 text-unidas-secondary font-black uppercase tracking-widest text-[10px] mb-3">
                 <Sparkles className="w-4 h-4" />
                 <span>Panel de Control Institucional</span>
               </div>
-              <h1 className="text-5xl font-black text-white font-display leading-none mb-4">Administración</h1>
+              <div className="flex items-center justify-between md:justify-start md:space-x-6 mb-4">
+                <h1 className="text-4xl md:text-5xl font-black text-white font-display leading-none">Administración</h1>
+                <button 
+                  onClick={() => setMobileMenuOpen(true)}
+                  className="lg:hidden px-5 py-3 bg-white/5 border border-white/10 text-white font-black rounded-2xl flex items-center space-x-3 hover:bg-white/10 active:scale-95 transition-all shadow-xl"
+                >
+                  <Menu className="w-5 h-5 text-unidas-primary" />
+                  <span className="text-[10px] uppercase tracking-wider">Menú</span>
+                </button>
+              </div>
               <p className="text-white/40 font-medium text-lg italic">Gestión integral del sistema UNIDAS</p>
             </div>
             {user?.role === 'admin' && (
@@ -1605,6 +1616,57 @@ export default function AdminDashboard() {
           </motion.div>
         </div>
       )}
+
+      {/* Mobile Sidebar Drawer */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 z-[110] lg:hidden">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileMenuOpen(false)}
+              className="absolute inset-0 bg-unidas-dark/80 backdrop-blur-sm"
+            />
+            {/* Drawer Content */}
+            <motion.aside
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="absolute top-0 bottom-0 left-0 w-80 bg-[#13111C] border-r border-white/10 p-10 pt-24 z-50 flex flex-col"
+            >
+              <div className="mb-12 px-2 flex justify-between items-center">
+                <div>
+                  <h2 className="text-unidas-primary font-black uppercase tracking-[0.3em] text-[10px] mb-2 flex items-center space-x-2">
+                    <Shield className="w-3 h-3" />
+                    <span>Admin Suite</span>
+                  </h2>
+                  <p className="text-white font-black text-2xl font-display">UNIDAS Cloud</p>
+                </div>
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-3 bg-white/5 hover:bg-white/10 rounded-xl text-white/40 hover:text-white transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <SidebarItem active={activeTab === 'overview'} onClick={() => { setActiveTab('overview'); setMobileMenuOpen(false); }} icon={BarChart3} label="Vista General" />
+                <SidebarItem active={activeTab === 'users'} onClick={() => { setActiveTab('users'); setMobileMenuOpen(false); }} icon={Users} label="Usuarios y Roles" />
+                <SidebarItem active={activeTab === 'caracterizacion'} onClick={() => { setActiveTab('caracterizacion'); setMobileMenuOpen(false); }} icon={ClipboardCheck} label="Encuesta" />
+                <SidebarItem active={activeTab === 'events'} onClick={() => { setActiveTab('events'); setMobileMenuOpen(false); }} icon={Calendar} label="Eventos" />
+                <SidebarItem active={activeTab === 'analysts'} onClick={() => { setActiveTab('analysts'); setMobileMenuOpen(false); }} icon={Shield} label="Bandeja de Analistas" />
+                <SidebarItem active={activeTab === 'news'} onClick={() => { setActiveTab('news'); setMobileMenuOpen(false); }} icon={Bell} label="Noticias" />
+                <div className="pt-10">
+                   <SidebarItem active={activeTab === 'settings'} onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }} icon={Settings} label="Configuración" />
+                </div>
+              </div>
+            </motion.aside>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );
