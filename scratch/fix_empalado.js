@@ -17,21 +17,14 @@ if (!dbUrl) {
   process.exit(1);
 }
 
-const parsedUrl = new URL(dbUrl);
-
 const pool = new Pool({
-  user: decodeURIComponent(parsedUrl.username),
-  password: decodeURIComponent(parsedUrl.password),
-  host: parsedUrl.hostname,
-  port: parseInt(parsedUrl.port || '5432', 10),
-  database: decodeURIComponent(parsedUrl.pathname.substring(1)),
+  connectionString: dbUrl,
   ssl: { rejectUnauthorized: false }
 });
 
 async function run() {
   try {
     console.log('Connecting to database...');
-    console.log(`Connecting as user: ${decodeURIComponent(parsedUrl.username)} to ${parsedUrl.hostname}:${parsedUrl.port}`);
     const selectRes = await pool.query('SELECT id, user_id, answers FROM surveys');
     console.log(`Total surveys found: ${selectRes.rows.length}`);
     
