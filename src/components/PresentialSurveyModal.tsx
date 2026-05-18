@@ -612,7 +612,7 @@ function QuestionSelect({ label, name, value, options, onChange, className }: an
 
 function Question({ label, type = 'pills', options = [], value, onChange, placeholder, error, className, min, max, step, showOther, otherValue, onOtherChange, ageDisplay }: any) {
   return (
-    <div className={cn("space-y-3 p-6 rounded-[2rem] transition-all", error ? "bg-red-500/5 border border-red-500/20" : "bg-white/5 border border-white/10", className)}>
+    <div className={cn("space-y-3 p-6 rounded-[2rem] transition-all notranslate", error ? "bg-red-500/5 border border-red-500/20" : "bg-white/5 border border-white/10", className)} translate="no">
       <div className="flex justify-between items-center px-1">
         <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">{label}</label>
         {ageDisplay && <span className="text-[10px] font-black text-unidas-primary uppercase">{ageDisplay}</span>}

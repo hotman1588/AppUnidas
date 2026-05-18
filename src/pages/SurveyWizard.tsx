@@ -1247,11 +1247,11 @@ function Question({
 }: any) {
   return (
     <div className={cn(
-      "bg-white/5 border p-3 rounded-2xl backdrop-blur-xl shadow-sm transition-all hover:bg-white/[0.08] group flex flex-col h-full min-h-[100px]", 
+      "bg-white/5 border p-3 rounded-2xl backdrop-blur-xl shadow-sm transition-all hover:bg-white/[0.08] group flex flex-col h-full min-h-[100px] notranslate", 
       error ? "border-red-500/50 bg-red-500/5" : "border-white/10",
       className, 
       disabled && "opacity-60"
-    )}>
+    )} translate="no">
       <div className="mb-2 border-b border-white/5 pb-2">
         <label className="text-[11px] font-black text-white/70 uppercase tracking-[0.05em] block mb-0.5 group-hover:text-unidas-primary transition-colors">{label}</label>
         {subtitle && <p className="text-[9px] text-white/30 font-medium italic leading-tight">{subtitle}</p>}
