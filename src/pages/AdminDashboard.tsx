@@ -8,7 +8,7 @@ import {
   Plus, Edit2, Shield, UserPlus, X, Lock,
   Newspaper, MapPin, Image, Trash2, ClipboardList,
   Sparkles, AlertCircle, FileText, Upload, ChevronLeft,
-  Menu
+  Menu, MessageSquare
 } from 'lucide-react';
 import { DocumentType, DocumentTypeLabel, DOCUMENT_TYPES } from '../lib/documentTypes';
 import { 
@@ -51,6 +51,8 @@ export default function AdminDashboard() {
   const [uploadingHabeas, setUploadingHabeas] = useState(false);
   const [viewerConfig, setViewerConfig] = useState<{ url: string; title: string } | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [surveyHistory, setSurveyHistory] = useState<any[]>([]);
+  const [reviewForm, setReviewForm] = useState({ status: 'approved', observations: '' });
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -213,21 +215,25 @@ export default function AdminDashboard() {
 
   const handleOpenSurvey = async (survey: any) => {
     setEditingSurvey(survey);
+    setReviewForm({ status: survey.status === 'pending' ? 'approved' : survey.status, observations: '' });
     try {
-      // We need a route to fetch specific survey details if not already in surveys list
-      // For now, let's assume we fetch answers for this survey
-      const res = await fetch(`/api/surveys/${survey.id}`, {
+      const res = await fetch(`/api/admin/users/${survey.user_id}/survey`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
       setSurveyAnswers(data.answers || {});
       
-      // Fetch user documents
       const docRes = await fetch(`/api/admin/users/${survey.user_id}/documents`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const docData = await docRes.json();
       setUserDocuments(docData || []);
+
+      const historyRes = await fetch(`/api/admin/surveys/${survey.id}/history`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const historyData = await historyRes.json();
+      setSurveyHistory(historyData || []);
 
       setShowSurveyModal(true);
     } catch (err) {
@@ -235,19 +241,16 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleSaveSurvey = async () => {
+  const handleReviewSurvey = async () => {
     setFormLoading(true);
     try {
-      const res = await fetch('/api/admin/survey/answers', {
+      const res = await fetch(`/api/admin/surveys/${editingSurvey.id}/review`, {
         method: 'POST',
-        headers: {
+        headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}` 
         },
-        body: JSON.stringify({
-          surveyId: editingSurvey.id,
-          answers: surveyAnswers
-        })
+        body: JSON.stringify(reviewForm)
       });
       if (res.ok) {
         setShowSurveyModal(false);
@@ -1301,111 +1304,172 @@ export default function AdminDashboard() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-[#13111C] border border-white/10 rounded-[3.5rem] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+            className="bg-[#13111C] border border-white/10 rounded-[3.5rem] shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col md:flex-row"
           >
-            <div className="p-12 border-b border-white/5 flex justify-between items-center bg-white/2 flex-shrink-0">
-              <div className="flex items-center space-x-6">
-                <div className="w-16 h-16 bg-unidas-primary/10 rounded-3xl flex items-center justify-center text-unidas-primary border border-unidas-primary/20">
-                  <ClipboardCheck className="w-8 h-8" />
-                </div>
-                <div>
-                  <h3 className="text-3xl font-black text-white mb-1">Encuesta</h3>
-                  <p className="text-white/30 font-medium italic">Revisión y edición de datos capturados</p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setShowSurveyModal(false)}
-                className="p-4 hover:bg-white/5 rounded-2xl transition-all text-white/20 hover:text-white"
-              >
-                <X className="w-8 h-8" />
-              </button>
-            </div>
-            
-            <div className="flex-grow overflow-y-auto p-12 space-y-12">
-              {/* Profile Bar */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 p-10 bg-white/5 rounded-[3rem] border border-white/5">
-                <div>
-                  <label className="text-[10px] font-black text-white/20 uppercase tracking-widest block mb-1">Cuidadora</label>
-                  <p className="text-xl font-black text-white">{editingSurvey.user_name}</p>
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-white/20 uppercase tracking-widest block mb-1">Documento</label>
-                  <p className="text-xl font-black text-white/60 tabular-nums">{editingSurvey.document_number}</p>
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-white/20 uppercase tracking-widest block mb-1">Localidad</label>
-                  <p className="text-xl font-black text-unidas-secondary">Barrios Unidos</p>
-                </div>
-              </div>
-
-              {/* Form Content */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
-                {Object.entries(surveyAnswers).map(([key, value]: [string, any]) => (
-                  <div key={key} className="space-y-3 group">
-                    <label className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] ml-2 group-focus-within:text-unidas-primary transition-colors">{key.replace(/_/g, ' ')}</label>
-                    <input 
-                      type="text"
-                      value={value}
-                      onChange={(e) => setSurveyAnswers({...surveyAnswers, [key]: e.target.value})}
-                      className="w-full px-6 py-4 bg-white/5 border border-white/5 rounded-2xl outline-none focus:border-unidas-primary transition-all font-bold text-white/80"
-                    />
+            {/* Left Panel - Information Viewer */}
+            <div className="flex-grow overflow-y-auto p-12 border-r border-white/10 relative">
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center space-x-6">
+                  <div className="w-16 h-16 bg-unidas-primary/10 rounded-3xl flex items-center justify-center text-unidas-primary border border-unidas-primary/20">
+                    <ClipboardCheck className="w-8 h-8" />
                   </div>
-                ))}
+                  <div>
+                    <h3 className="text-3xl font-black text-white mb-1">Expediente Social</h3>
+                    <p className="text-white/30 font-medium italic">Revisión documental y encuesta social</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowSurveyModal(false)}
+                  className="p-4 hover:bg-white/5 rounded-2xl transition-all text-white/20 hover:text-white"
+                >
+                  <X className="w-8 h-8" />
+                </button>
               </div>
 
-              {/* Documents Section */}
-              <div className="space-y-6">
-                <h4 className="text-[10px] font-black text-unidas-primary uppercase tracking-[0.3em] flex items-center space-x-3">
-                  <FileText className="w-5 h-5" />
-                  <span>Documentos de Soporte</span>
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {['id_frontal', 'id_reverso', 'utility_bill'].map(type => {
-                    const doc = userDocuments.find(d => d.type === type);
-                    return (
-                      <div key={type} className="p-6 bg-white/5 rounded-3xl border border-white/5 flex flex-col items-center text-center">
-                        <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-4">
-                          {type === 'id_frontal' ? 'Cédula Frontal' : type === 'id_reverso' ? 'Cédula Reverso' : 'Recibo'}
-                        </p>
-                        {doc ? (
+              <div className="space-y-12">
+                {/* Profile Bar */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 p-10 bg-white/5 rounded-[3rem] border border-white/5">
+                  <div>
+                    <label className="text-[10px] font-black text-white/20 uppercase tracking-widest block mb-1">Nombre Completo</label>
+                    <p className="text-xl font-black text-white">{editingSurvey.full_name || editingSurvey.user_name || 'Cuidadora'}</p>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-white/20 uppercase tracking-widest block mb-1">Documento</label>
+                    <p className="text-xl font-black text-white/60 tabular-nums">{editingSurvey.document_number}</p>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-white/20 uppercase tracking-widest block mb-1">Ubicación</label>
+                    <p className="text-xl font-black text-unidas-secondary">Barrios Unidos</p>
+                  </div>
+                </div>
+
+                {/* Support Documents Section */}
+                <div className="space-y-6">
+                  <h4 className="text-[10px] font-black text-unidas-primary uppercase tracking-[0.3em] flex items-center space-x-3">
+                    <FileText className="w-5 h-5" />
+                    <span>Documentos de Soporte</span>
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {['id_frontal', 'id_reverso', 'utility_bill'].map(type => {
+                      const doc = userDocuments.find(d => d.type === type);
+                      const label = type === 'id_frontal' ? 'Cédula Frontal' : type === 'id_reverso' ? 'Cédula Reverso' : 'Recibo';
+                      return (
+                        <DocThumbnail 
+                          key={type}
+                          label={label} 
+                          doc={doc}
+                          onView={(url: string) => setViewerConfig({ url, title: label })}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Survey Answers Section */}
+                <div className="space-y-6">
+                  <h4 className="text-[10px] font-black text-unidas-primary uppercase tracking-[0.3em] flex items-center space-x-3">
+                    <ClipboardList className="w-5 h-5" />
+                    <span>Respuestas de la Encuesta</span>
+                  </h4>
+                  <div className="space-y-6">
+                    {Object.keys(surveyAnswers).length === 0 ? (
+                      <p className="text-white/30 text-xs italic">Cargando respuestas...</p>
+                    ) : (
+                      Object.entries(surveyAnswers).map(([module, moduleAnswers]: [string, any]) => (
+                        <div key={module} className="bg-white/5 p-8 rounded-[2rem] border border-white/5">
+                          <h5 className="text-[10px] font-black text-unidas-primary uppercase tracking-[0.2em] mb-6">{module}</h5>
                           <div className="space-y-4">
-                            <div className="w-16 h-16 bg-unidas-primary/10 rounded-2xl flex items-center justify-center text-unidas-primary">
-                              <FileText className="w-8 h-8" />
-                            </div>
-                            <button 
-                              onClick={() => setViewerConfig({ url: doc.file_path, title: type.replace(/_/g, ' ') })}
-                              className="w-full px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-black text-white uppercase tracking-widest transition-all"
-                            >
-                              Ver Documento
-                            </button>
-                            <p className="text-[9px] font-bold text-white/20 uppercase tracking-widest">Status: {doc.status}</p>
+                            {Object.entries(moduleAnswers).map(([q, a]: [string, any]) => (
+                              <div key={q} className="flex flex-col space-y-1">
+                                <span className="text-[9px] text-white/30 font-black uppercase tracking-wider">{q.replace(/_/g, ' ')}</span>
+                                <span className="text-sm text-white/80 font-medium">{String(a)}</span>
+                              </div>
+                            ))}
                           </div>
-                        ) : (
-                          <div className="py-6 flex flex-col items-center text-white/10">
-                            <XCircle className="w-10 h-10 mb-2" />
-                            <p className="text-[10px] font-bold uppercase tracking-widest">No Cargado</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Tracking / History Section */}
+                <div className="space-y-6">
+                  <h4 className="text-[10px] font-black text-unidas-primary uppercase tracking-[0.3em] flex items-center space-x-3">
+                    <Clock className="w-5 h-5" />
+                    <span>Historial y Trazabilidad</span>
+                  </h4>
+                  <div className="space-y-4">
+                    {surveyHistory.map((h) => (
+                      <div key={h.id} className="flex space-x-4 group">
+                        <div className="w-1 bg-white/10 rounded-full group-hover:bg-unidas-primary transition-all" />
+                        <div>
+                          <div className="flex items-center space-x-2 mb-1">
+                            <span className="text-[10px] font-black text-unidas-primary uppercase tracking-widest">{h.action}</span>
+                            <span className="text-[10px] text-white/30 font-bold">•</span>
+                            <span className="text-[10px] text-white/30 font-bold">{new Date(h.created_at).toLocaleString()}</span>
                           </div>
-                        )}
+                          <p className="text-xs text-white/60 leading-relaxed italic">"{h.details}"</p>
+                          <p className="text-[8px] text-white/20 font-black uppercase tracking-tighter mt-1">Registrado por: {h.user_name}</p>
+                        </div>
                       </div>
-                    );
-                  })}
+                    ))}
+                    {surveyHistory.length === 0 && <p className="text-white/20 text-xs italic">Sin historial registrado.</p>}
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="p-12 border-t border-white/5 bg-white/2 flex justify-end space-x-6 flex-shrink-0">
-               <button 
-                onClick={() => setShowSurveyModal(false)}
-                className="px-8 py-5 bg-white/10 text-white/60 font-black rounded-2xl uppercase tracking-widest text-[10px]"
-              >
-                Cerrar sin guardar
-              </button>
+            {/* Right Panel - Resolution Drawer */}
+            <div className="w-full md:w-[360px] p-10 bg-white/5 flex flex-col justify-between backdrop-blur-md">
+              <div>
+                <h4 className="text-lg font-black text-white mb-6 flex items-center space-x-2">
+                  <CheckCircle2 className="w-5 h-5 text-unidas-primary" />
+                  <span>Resolución</span>
+                </h4>
+                <div className="space-y-4 mb-8">
+                  <ResolutionOption 
+                    active={reviewForm.status === 'approved'} 
+                    onClick={() => setReviewForm({...reviewForm, status: 'approved'})}
+                    icon={CheckCircle2} 
+                    label="Aprobar" 
+                    color="text-green-500 bg-green-500/10" 
+                  />
+                  <ResolutionOption 
+                    active={reviewForm.status === 'rejected'} 
+                    onClick={() => setReviewForm({...reviewForm, status: 'rejected'})}
+                    icon={AlertCircle} 
+                    label="Solicitar Ajustes" 
+                    color="text-amber-500 bg-amber-500/10" 
+                  />
+                  <ResolutionOption 
+                    active={reviewForm.status === 'rejected_final'} 
+                    onClick={() => setReviewForm({...reviewForm, status: 'rejected_final'})}
+                    icon={XCircle} 
+                    label="Rechazar" 
+                    color="text-red-500 bg-red-500/10" 
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-white/30 uppercase tracking-widest flex items-center space-x-2">
+                    <MessageSquare className="w-3 h-3" />
+                    <span>Observaciones</span>
+                  </label>
+                  <textarea 
+                    className="w-full p-4 rounded-xl bg-white/5 border border-white/5 text-white outline-none focus:border-unidas-primary text-sm h-32"
+                    placeholder="Escribe comentarios..."
+                    value={reviewForm.observations}
+                    onChange={(e) => setReviewForm({...reviewForm, observations: e.target.value})}
+                  />
+                </div>
+              </div>
+
               <button 
-                onClick={handleSaveSurvey}
+                onClick={handleReviewSurvey}
                 disabled={formLoading}
-                className="px-10 py-5 bg-unidas-primary text-white font-black rounded-2xl uppercase tracking-widest text-[10px] shadow-2xl shadow-unidas-primary/30 hover:scale-[1.02] transition-all"
+                className="w-full py-4 bg-gradient-to-r from-unidas-primary to-unidas-secondary text-white font-black rounded-2xl shadow-xl shadow-unidas-primary/20 hover:scale-[1.02] active:scale-95 transition-all mt-8 relative overflow-hidden"
               >
-                {formLoading ? 'Guardando...' : 'Actualizar Ficha'}
+                {formLoading ? 'Procesando...' : 'Confirmar Acción'}
               </button>
             </div>
           </motion.div>
@@ -1704,5 +1768,59 @@ function StatCard({ icon: Icon, color, label, value, trend }: any) {
         <p className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">{label}</p>
       </div>
     </div>
+  );
+}
+
+function Section({ title, children }: any) {
+  return (
+    <div className="space-y-4">
+      <p className="text-[10px] font-black text-white/30 uppercase tracking-widest leading-none">{title}</p>
+      {children}
+    </div>
+  );
+}
+
+function DocThumbnail({ label, doc, onView }: any) {
+  if (!doc) {
+    return (
+      <div className="aspect-square bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center p-4 opacity-30">
+        <XCircle className="w-8 h-8 text-white/20 mb-2" />
+        <span className="text-[9px] font-black text-white/20 text-center uppercase tracking-tighter">{label}</span>
+        <span className="text-[7px] text-white/10 mt-1 uppercase">No cargado</span>
+      </div>
+    );
+  }
+
+  return (
+    <div 
+      onClick={() => onView(doc.file_path)}
+      className="aspect-square bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center p-4 hover:border-unidas-primary transition-all cursor-pointer group"
+    >
+      <FileText className="w-8 h-8 text-unidas-primary mb-2 transition-transform group-hover:scale-110" />
+      <span className="text-[9px] font-black text-white/40 text-center uppercase tracking-tighter group-hover:text-white/60 transition-colors">{label}</span>
+      <span className={cn(
+        "text-[7px] font-black mt-2 px-2 py-0.5 rounded-full border",
+        doc.status === 'approved' ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
+      )}>
+        {doc.status === 'approved' ? 'APROBADO' : 'PENDIENTE'}
+      </span>
+    </div>
+  );
+}
+
+function ResolutionOption({ active, onClick, icon: Icon, label, color }: any) {
+  return (
+    <button 
+      onClick={onClick}
+      className={cn(
+        "w-full flex items-center space-x-4 px-4 py-4 rounded-xl border transition-all font-black text-xs uppercase tracking-widest",
+        active ? "border-unidas-primary bg-white/10 text-white shadow-lg shadow-unidas-primary/20" : "border-transparent bg-white/5 text-white/20 hover:bg-white/10 hover:text-white/40"
+      )}
+    >
+      <div className={cn("p-2 rounded-lg", color)}>
+        <Icon className="w-4 h-4" />
+      </div>
+      <span>{label}</span>
+    </button>
   );
 }
