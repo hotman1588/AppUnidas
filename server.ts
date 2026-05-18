@@ -9,7 +9,6 @@ import fs from 'fs';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
-import supabaseConfig from './supabase-config.json';
 
 dotenv.config();
 
@@ -27,11 +26,15 @@ if (!fs.existsSync(uploadsDir)) {
 // Initialize Supabase Client for Cloud Storage
 let supabase: any = null;
 try {
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || supabaseConfig.supabaseUrl;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_KEY || supabaseConfig.supabaseKey;
-  if (url && key) {
-    supabase = createClient(url, key);
-    console.log('Supabase client initialized successfully for server uploads.');
+  const configPath = path.join(process.cwd(), 'supabase-config.json');
+  if (fs.existsSync(configPath)) {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || config.supabaseUrl;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_KEY || config.supabaseKey;
+    if (url && key) {
+      supabase = createClient(url, key);
+      console.log('Supabase client initialized successfully for server uploads.');
+    }
   }
 } catch (err: any) {
   console.error('Failed to initialize Supabase client in server.ts:', err.message);
