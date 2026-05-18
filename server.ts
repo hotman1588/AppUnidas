@@ -8,6 +8,7 @@ import { Pool } from 'pg';
 import fs from 'fs';
 import multer from 'multer';
 import dotenv from 'dotenv';
+import { createClient } from '@supabase/supabase-js';
 
 dotenv.config();
 
@@ -20,6 +21,23 @@ if (!fs.existsSync(uploadsDir)) {
   try {
     fs.mkdirSync(uploadsDir, { recursive: true });
   } catch (err) {}
+}
+
+// Initialize Supabase Client for Cloud Storage
+let supabase: any = null;
+try {
+  const configPath = path.join(process.cwd(), 'supabase-config.json');
+  if (fs.existsSync(configPath)) {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || config.supabaseUrl;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_KEY || config.supabaseKey;
+    if (url && key) {
+      supabase = createClient(url, key);
+      console.log('Supabase client initialized successfully for server uploads.');
+    }
+  }
+} catch (err: any) {
+  console.error('Failed to initialize Supabase client in server.ts:', err.message);
 }
 
 const storage = multer.diskStorage({
@@ -239,17 +257,74 @@ app.get('/api/user/documents', authenticateToken, async (req: any, res) => {
   res.json(r.rows.map(d => ({ ...d, url: `/api/documents/view/${d.file_path}` })));
 });
 
-app.post('/api/user/documents/upload', authenticateToken, upload.single('file'), async (req: any, res) => {
+app.post('/api/user/documents/upload', authenticateToken, upload.single('file'), async (req: any, res: any) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
   const { type } = req.body;
-  await pool.query('INSERT INTO documents (user_id, type, file_path) VALUES ($1, $2, $3)', [req.user.id, type, req.file.filename]);
-  res.json({ success: true, url: `/api/documents/view/${req.file.filename}` });
+  try {
+    // 1. Save in local PostgreSQL database
+    await pool.query('INSERT INTO documents (user_id, type, file_path) VALUES ($1, $2, $3)', [req.user.id, type, req.file.filename]);
+
+    // 2. Upload to Supabase Storage if initialized
+    if (supabase) {
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const { error } = await supabase.storage
+        .from('documents')
+        .upload(req.file.filename, fileBuffer, {
+          contentType: req.file.mimetype,
+          upsert: true
+        });
+
+      if (error) {
+        console.error('Supabase storage upload failed:', error.message);
+      } else {
+        console.log('Successfully mirrored file to Supabase storage:', req.file.filename);
+      }
+    } else {
+      console.warn('Supabase storage client not initialized, file only stored locally.');
+    }
+
+    res.json({ success: true, url: `/api/documents/view/${req.file.filename}` });
+  } catch (err: any) {
+    console.error('Document upload error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.get('/api/documents/view/:filename', authenticateToken, (req, res) => {
+app.get('/api/documents/view/:filename', authenticateToken, async (req, res) => {
   const filePath = path.join(uploadsDir, req.params.filename);
-  if (fs.existsSync(filePath)) res.sendFile(filePath);
-  else res.status(404).send('Not found');
+  
+  // 1. Try serving local file first
+  if (fs.existsSync(filePath)) {
+    return res.sendFile(filePath);
+  }
+  
+  // 2. Fallback: retrieve from Supabase Storage if local file is missing (Vercel serverless environment)
+  if (supabase) {
+    try {
+      console.log(`Local file missing. Fetching ${req.params.filename} from Supabase storage fallback...`);
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .download(req.params.filename);
+
+      if (!error && data) {
+        const buffer = Buffer.from(await data.arrayBuffer());
+        const ext = path.extname(req.params.filename).toLowerCase();
+        let contentType = 'application/octet-stream';
+        if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+        else if (ext === '.png') contentType = 'image/png';
+        else if (ext === '.pdf') contentType = 'application/pdf';
+
+        res.setHeader('Content-Type', contentType);
+        return res.send(buffer);
+      } else {
+        console.error('Supabase storage download failed:', error?.message || 'File not found');
+      }
+    } catch (err: any) {
+      console.error('Error fetching file from Supabase storage:', err.message);
+    }
+  }
+  
+  res.status(404).send('Not found');
 });
 
 // --- ADMIN ---
