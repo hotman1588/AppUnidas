@@ -430,6 +430,51 @@ export default function AdminDashboard() {
       return;
     }
 
+    // 1. Definir el orden lógico de los metadatos y de los módulos de la encuesta
+    const baseHeaders = ['ID Encuesta', 'Nombre Cuidadora', 'Documento', 'Rol Activo', 'Estado', 'Fecha Actualización'];
+    const moduleOrder = ['socio', 'economia', 'cuidado', 'bienestar', 'proyecciones'];
+    const moduleLabels: Record<string, string> = {
+      socio: 'PERFIL SOCIODEMOGRÁFICO',
+      economia: 'ECONOMÍA Y AUTONOMÍA',
+      cuidado: 'CARGA DE CUIDADO',
+      bienestar: 'BIENESTAR Y SEGURIDAD',
+      proyecciones: 'SUEÑOS Y PROYECCIONES'
+    };
+
+    // Colección de preguntas únicas detectadas por cada módulo
+    const moduleColumns: Record<string, Set<string>> = {
+      socio: new Set(),
+      economia: new Set(),
+      cuidado: new Set(),
+      bienestar: new Set(),
+      proyecciones: new Set()
+    };
+
+    // 2. Escanear todas las encuestas para recopilar el universo completo de preguntas existentes
+    surveys.forEach(s => {
+      if (s.answers && typeof s.answers === 'object') {
+        Object.entries(s.answers).forEach(([module, questions]: [string, any]) => {
+          const modKey = module.toLowerCase();
+          if (moduleColumns[modKey] && questions && typeof questions === 'object') {
+            Object.keys(questions).forEach(q => {
+              // Convertir "campo_de_ejemplo" a "Campo De Ejemplo" para presentación premium
+              const cleanQuestion = q.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              const prefix = moduleLabels[modKey] || module.toUpperCase();
+              moduleColumns[modKey].add(`${prefix} - ${cleanQuestion}`);
+            });
+          }
+        });
+      }
+    });
+
+    // 3. Crear el listado final y ordenado de encabezados para el reporte Excel
+    const orderedHeaders = [...baseHeaders];
+    moduleOrder.forEach(mod => {
+      const sortedCols = Array.from(moduleColumns[mod]).sort();
+      orderedHeaders.push(...sortedCols);
+    });
+
+    // 4. Mapear cada encuesta a un objeto plano con las columnas estructuradas
     const flattenedData = surveys.map(s => {
       const flat: any = {
         'ID Encuesta': s.id,
@@ -442,11 +487,12 @@ export default function AdminDashboard() {
 
       if (s.answers && typeof s.answers === 'object') {
         Object.entries(s.answers).forEach(([module, questions]: [string, any]) => {
+          const modKey = module.toLowerCase();
           if (questions && typeof questions === 'object') {
             Object.entries(questions).forEach(([q, a]: [string, any]) => {
-              // Convertir "mi_pregunta" a "Mi pregunta" para mejor lectura
               const cleanQuestion = q.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-              flat[`${module.toUpperCase()} - ${cleanQuestion}`] = String(a);
+              const prefix = moduleLabels[modKey] || module.toUpperCase();
+              flat[`${prefix} - ${cleanQuestion}`] = String(a);
             });
           }
         });
@@ -455,7 +501,8 @@ export default function AdminDashboard() {
       return flat;
     });
 
-    const ws = XLSX.utils.json_to_sheet(flattenedData);
+    // 5. Crear la hoja de cálculo con la ordenación estricta de encabezados por módulo
+    const ws = XLSX.utils.json_to_sheet(flattenedData, { header: orderedHeaders });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Respuestas Consolidadas");
     XLSX.writeFile(wb, "UNIDAS_Consolidado_Encuestas.xlsx");
