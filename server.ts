@@ -353,11 +353,66 @@ app.get('/api/stats', authenticateToken, async (req, res) => {
     const s = await pool.query("SELECT COUNT(*) FROM surveys WHERE status = 'pending'");
     const c = await pool.query("SELECT COUNT(*) FROM surveys WHERE status = 'approved'");
     const e = await pool.query("SELECT COUNT(*) FROM events WHERE is_active = 1");
+
+    // 1. Dynamic Education distribution from surveys JSONB answers
+    const eduRes = await pool.query(`
+      SELECT 
+        COALESCE(answers->'socio'->>'nivel_educativo', 'No especificado') AS level,
+        COUNT(*) AS count
+      FROM surveys
+      GROUP BY level
+    `);
+    const educationDist = eduRes.rows.map(row => ({
+      label: row.level,
+      value: parseInt(row.count) || 0
+    }));
+
+    // 2. Dynamic Registration trend (grouped by day of week)
+    const trendRes = await pool.query(`
+      SELECT 
+        EXTRACT(ISODOW FROM created_at) AS dow,
+        COUNT(*) AS count
+      FROM users
+      WHERE role = 'user'
+      GROUP BY dow
+      ORDER BY dow
+    `);
+    
+    const dayMap: Record<number, string> = {
+      1: 'Lun',
+      2: 'Mar',
+      3: 'Mie',
+      4: 'Jue',
+      5: 'Vie',
+      6: 'Sab',
+      7: 'Dom'
+    };
+
+    // Pre-populate all days of the week with 0 registrations
+    const trendMap: Record<string, number> = {
+      'Lun': 0, 'Mar': 0, 'Mie': 0, 'Jue': 0, 'Vie': 0, 'Sab': 0, 'Dom': 0
+    };
+
+    trendRes.rows.forEach(row => {
+      const dowNum = parseInt(row.dow);
+      const dayName = dayMap[dowNum];
+      if (dayName) {
+        trendMap[dayName] = parseInt(row.count) || 0;
+      }
+    });
+
+    const registryTrend = Object.entries(trendMap).map(([name, val]) => ({
+      name,
+      val
+    }));
+
     res.json({ 
       totalUsers: parseInt(u.rows[0].count) || 0, 
       pendingSurveys: parseInt(s.rows[0].count) || 0, 
       completedSurveys: parseInt(c.rows[0].count) || 0, 
-      registeredEvents: parseInt(e.rows[0].count) || 0 
+      registeredEvents: parseInt(e.rows[0].count) || 0,
+      educationDist,
+      registryTrend
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

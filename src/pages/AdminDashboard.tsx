@@ -544,9 +544,9 @@ export default function AdminDashboard() {
                   </h3>
                   <div className="h-80 w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={[
-                        { name: 'Lun', val: 12 }, { name: 'Mar', val: 19 }, { name: 'Mie', val: 15 },
-                        { name: 'Jue', val: 22 }, { name: 'Vie', val: 30 }, { name: 'Sab', val: 8 }, { name: 'Dom', val: 4 }
+                      <BarChart data={stats.registryTrend?.length ? stats.registryTrend : [
+                        { name: 'Lun', val: 0 }, { name: 'Mar', val: 0 }, { name: 'Mie', val: 0 },
+                        { name: 'Jue', val: 0 }, { name: 'Vie', val: 0 }, { name: 'Sab', val: 0 }, { name: 'Dom', val: 0 }
                       ]}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'rgba(255,255,255,0.2)', fontSize: 10, fontWeight: 900 }} dy={10} />
@@ -579,7 +579,7 @@ export default function AdminDashboard() {
                       <PieChart>
                         <Pie
                           data={stats.educationDist?.length ? stats.educationDist : [
-                            { label: 'Primaria', value: 10 }, { label: 'Secundaria', value: 40 }, { label: 'Titulado', value: 30 }
+                            { label: 'Primaria', value: 0 }, { label: 'Secundaria', value: 0 }, { label: 'Técnico', value: 0 }
                           ]}
                           innerRadius={80}
                           outerRadius={100}
@@ -601,10 +601,12 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   <div className="mt-8 grid grid-cols-2 gap-4">
-                    {stats.educationDist?.map((item: any, i: number) => (
+                    {(stats.educationDist?.length ? stats.educationDist : [
+                      { label: 'Primaria', value: 0 }, { label: 'Secundaria', value: 0 }, { label: 'Técnico', value: 0 }
+                    ]).map((item: any, i: number) => (
                       <div key={i} className="flex items-center space-x-3 bg-white/5 p-3 rounded-2xl border border-white/5">
                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                         <span className="text-[9px] font-black text-white/40 uppercase truncate">{item.label}</span>
+                         <span className="text-[9px] font-black text-white/40 uppercase truncate">{item.label} ({item.value})</span>
                       </div>
                     ))}
                   </div>
