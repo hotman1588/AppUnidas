@@ -190,7 +190,7 @@ const authenticateToken = (req: any, res: any, next: any) => {
 };
 
 const isAdmin = (req: any, res: any, next: any) => {
-  if (req.user && req.user.role === 'admin') next();
+  if (req.user && (req.user.role === 'admin' || req.user.role === 'analyst')) next();
   else res.status(403).json({ error: 'Denied' });
 };
 
@@ -359,6 +359,64 @@ app.get('/api/admin/analysts-stats', authenticateToken, isAdmin, async (req, res
   res.json([
     { id: 1, name: 'Analista Principal', surveys_completed: 0, surveys_pending: 0 }
   ]);
+});
+
+app.get('/api/admin/users/:userId/survey', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM surveys WHERE user_id = $1', [req.params.userId]);
+    res.json(r.rows[0] || { status: 'pending_start', answers: {}, current_step: 1 });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/admin/users/:userId/documents', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM documents WHERE user_id = $1', [req.params.userId]);
+    res.json(r.rows.map(d => ({ ...d, url: `/api/documents/view/${d.file_path}` })));
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/admin/surveys/:surveyId/history', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(
+      'SELECT sh.*, u.full_name as user_name FROM survey_history sh JOIN users u ON sh.user_id = u.id WHERE sh.user_id = (SELECT user_id FROM surveys WHERE id = $1) ORDER BY sh.created_at DESC',
+      [req.params.surveyId]
+    );
+    res.json(r.rows);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/admin/surveys/:surveyId/review', authenticateToken, isAdmin, async (req: any, res: any) => {
+  const { status, observations } = req.body;
+  try {
+    // 1. Update survey status
+    await pool.query(
+      'UPDATE surveys SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [status, req.params.surveyId]
+    );
+    
+    // 2. Get the user_id for this survey
+    const s = await pool.query('SELECT user_id FROM surveys WHERE id = $1', [req.params.surveyId]);
+    const userId = s.rows[0]?.user_id;
+    
+    if (userId) {
+      // 3. Insert into survey history
+      const action = status === 'approved' ? 'Aprobación de Encuesta' : status === 'rejected' ? 'Solicitud de Ajustes' : 'Rechazo de Encuesta';
+      await pool.query(
+        'INSERT INTO survey_history (user_id, action, details) VALUES ($1, $2, $3)',
+        [userId, action, observations || 'Revisado por el analista.']
+      );
+    }
+    
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.patch('/api/admin/users/:id/role', authenticateToken, isAdmin, async (req, res) => {
