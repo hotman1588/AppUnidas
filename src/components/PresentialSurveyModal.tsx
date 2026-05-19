@@ -301,6 +301,18 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
   const prevStep = () => setCurrentStep(prev => prev - 1);
 
   const handleSubmit = async () => {
+    // Validate identity fields to ensure they are fully populated (handles cases where cache bypassed Step 0)
+    if (!userData.full_name || !userData.document_number || !userData.password) {
+      const missingFields = [];
+      if (!userData.full_name) missingFields.push('full_name');
+      if (!userData.document_number) missingFields.push('document_number');
+      if (!userData.password) missingFields.push('password');
+      setValidationErrors(missingFields);
+      setCurrentStep(0); // Redirect analyst to Step 0
+      setShowErrorPopup(true);
+      return;
+    }
+
     if (!validateStep()) {
       setShowErrorPopup(true);
       return;

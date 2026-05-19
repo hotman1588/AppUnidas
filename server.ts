@@ -711,8 +711,18 @@ app.post('/api/admin/surveys/:surveyId/review', authenticateToken, isAdmin, asyn
 
 app.post('/api/analyst/register-complete-characterization', authenticateToken, isAdmin, async (req: any, res: any) => {
   const { user, answers } = req.body;
+  console.log('Received register-complete-characterization request:', {
+    hasBody: !!req.body,
+    hasUser: !!user,
+    userKeys: user ? Object.keys(user) : [],
+    documentNumber: user?.document_number,
+    fullName: user?.full_name
+  });
+  
   if (!user || !user.document_number || !user.full_name) {
-    return res.status(400).json({ error: 'Faltan datos requeridos del usuario' });
+    return res.status(400).json({ 
+      error: `Faltan datos requeridos del usuario. Recibido: ${JSON.stringify(user || {})}. Los campos 'full_name' (Nombre) y 'document_number' (Documento) son obligatorios.` 
+    });
   }
 
   const client = await pool.connect();
