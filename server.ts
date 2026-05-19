@@ -425,8 +425,56 @@ app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
 });
 
 app.get('/api/admin/surveys', authenticateToken, isAdmin, async (req, res) => {
-  const r = await pool.query('SELECT s.*, u.full_name, u.full_name as user_name, u.document_number, u.role as user_role FROM surveys s JOIN users u ON s.user_id = u.id ORDER BY s.updated_at DESC');
-  res.json(r.rows);
+  try {
+    const surveyRes = await pool.query(`
+      SELECT s.*, u.full_name, u.full_name as user_name, u.document_number, u.role as user_role 
+      FROM surveys s 
+      JOIN users u ON s.user_id = u.id 
+      ORDER BY s.updated_at DESC
+    `);
+    
+    const docRes = await pool.query('SELECT * FROM documents');
+    const allDocs = docRes.rows;
+
+    const protocol = req.headers['x-forwarded-proto'] || 'http';
+    const host = req.headers.host;
+    const baseUrl = `${protocol}://${host}`;
+
+    const surveys = surveyRes.rows.map(s => {
+      let answers = s.answers || {};
+      if (typeof answers === 'string') {
+        try {
+          answers = JSON.parse(answers);
+        } catch (e) {
+          answers = {};
+        }
+      }
+
+      // Ensure answers.documentos exists
+      if (!answers.documentos || typeof answers.documentos !== 'object') {
+        answers.documentos = {};
+      }
+
+      // Find documents for this survey's user and merge them
+      const userDocs = allDocs.filter(d => d.user_id === s.user_id);
+      userDocs.forEach(d => {
+        // If it's already a full URL in answers.documentos (e.g. Supabase upload from presencial), keep it
+        // Otherwise, construct the downloadable URL link
+        if (!answers.documentos[d.type]) {
+          answers.documentos[d.type] = `${baseUrl}/api/documents/view/${d.file_path}`;
+        }
+      });
+
+      return {
+        ...s,
+        answers
+      };
+    });
+
+    res.json(surveys);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/admin/news', authenticateToken, isAdmin, async (req, res) => {

@@ -432,13 +432,14 @@ export default function AdminDashboard() {
 
     // 1. Definir el orden lógico de los metadatos y de los módulos de la encuesta
     const baseHeaders = ['ID Encuesta', 'Nombre Cuidadora', 'Documento', 'Rol Activo', 'Estado', 'Fecha Actualización'];
-    const moduleOrder = ['socio', 'economia', 'cuidado', 'bienestar', 'proyecciones'];
+    const moduleOrder = ['socio', 'economia', 'cuidado', 'bienestar', 'proyecciones', 'documentos'];
     const moduleLabels: Record<string, string> = {
       socio: 'PERFIL SOCIODEMOGRÁFICO',
       economia: 'ECONOMÍA Y AUTONOMÍA',
       cuidado: 'CARGA DE CUIDADO',
       bienestar: 'BIENESTAR Y SEGURIDAD',
-      proyecciones: 'SUEÑOS Y PROYECCIONES'
+      proyecciones: 'SUEÑOS Y PROYECCIONES',
+      documentos: 'DOCUMENTOS DE SOPORTE'
     };
 
     // Colección de preguntas únicas detectadas por cada módulo
@@ -447,7 +448,8 @@ export default function AdminDashboard() {
       economia: new Set(),
       cuidado: new Set(),
       bienestar: new Set(),
-      proyecciones: new Set()
+      proyecciones: new Set(),
+      documentos: new Set()
     };
 
     // 2. Escanear todas las encuestas para recopilar el universo completo de preguntas existentes
