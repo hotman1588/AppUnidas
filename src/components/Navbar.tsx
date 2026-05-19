@@ -24,6 +24,17 @@ export default function Navbar() {
   const [passwordForm, setPasswordForm] = useState({ current_password: '', new_password: '', confirm_password: '' });
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowUpdateModal(false);
+        setShowPasswordModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
     if (user) {
       fetch('/api/user/profile', {
         headers: { 'Authorization': `Bearer ${useAuthStore.getState().token}` }
@@ -259,7 +270,7 @@ export default function Navbar() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative"
+            className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar"
           >
             <button 
               onClick={() => setShowUpdateModal(false)}
@@ -322,7 +333,7 @@ export default function Navbar() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative"
+            className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar"
           >
             <button 
               onClick={() => setShowPasswordModal(false)}
