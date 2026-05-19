@@ -16,6 +16,7 @@ export default function UserDashboard() {
   const [surveyStatus, setSurveyStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [history, setHistory] = useState<any[]>([]);
+  const [userEvents, setUserEvents] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -31,6 +32,14 @@ export default function UserDashboard() {
         });
         const historyData = await historyRes.json();
         setHistory(historyData);
+
+        const eventsRes = await fetch('/api/user/events', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (eventsRes.ok) {
+          const eventsData = await eventsRes.json();
+          setUserEvents(eventsData);
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -194,33 +203,61 @@ export default function UserDashboard() {
               </div>
 
               {surveyStatus?.status === 'approved' ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {[1, 2].map(evt => (
-                    <div key={evt} className="bg-white/5 p-6 rounded-[2.5rem] border border-white/5 hover:bg-white/10 transition-all cursor-pointer group scale-in overflow-hidden relative">
-                      <div className="aspect-video bg-white/5 rounded-3xl mb-6 overflow-hidden relative">
-                        <img src={`https://images.unsplash.com/photo-1544027993-37dbfe43562a?q=80&w=400&auto=format&fit=crop&sig=${evt}`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-60 group-hover:opacity-100" />
-                        <div className="absolute top-4 left-4 bg-unidas-dark/60 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 text-[10px] font-black text-white uppercase tracking-widest">
-                          15 Plazas Libres
+                userEvents.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {userEvents.map(evt => (
+                      <div key={evt.id} className="bg-white/5 p-6 rounded-[2.5rem] border border-white/5 hover:bg-white/10 transition-all cursor-pointer group scale-in overflow-hidden relative flex items-start space-x-6">
+                        {/* Left: Premium Calendar Day Card */}
+                        <div className="w-20 h-24 bg-gradient-to-br from-unidas-primary to-unidas-secondary rounded-2xl p-0.5 flex flex-col items-center justify-center text-center shadow-lg group-hover:scale-105 transition-transform flex-shrink-0">
+                          <div className="w-full h-full bg-unidas-dark rounded-[14px] flex flex-col items-center justify-center p-2">
+                            <span className="text-[10px] font-black text-unidas-primary uppercase tracking-widest leading-none mb-1">
+                              {new Date(evt.date).toLocaleDateString('es-ES', { month: 'short' }).replace('.', '').toUpperCase()}
+                            </span>
+                            <span className="text-3xl font-black text-white leading-none">
+                              {new Date(evt.date).getDate()}
+                            </span>
+                            <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest leading-none mt-1">
+                              {new Date(evt.date).toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', '')}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        {/* Right: Info */}
+                        <div className="flex-grow">
+                          <div className="flex items-center space-x-2 text-[10px] font-bold text-unidas-secondary uppercase tracking-widest mb-1">
+                            <Sparkles className="w-3 h-3" />
+                            <span>Matriculado con Éxito</span>
+                          </div>
+                          <h4 className="text-xl font-black text-white leading-tight mb-2 group-hover:text-unidas-primary transition-colors">{evt.title}</h4>
+                          <p className="text-white/40 text-xs mb-4 leading-relaxed font-medium line-clamp-2">{evt.description}</p>
+                          
+                          <div className="flex flex-wrap gap-2">
+                            <div className="flex items-center space-x-1 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5 text-[10px] font-bold text-white/60">
+                              <Clock className="w-3 h-3 text-unidas-primary" />
+                              <span>
+                                {new Date(evt.date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-1 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5 text-[10px] font-bold text-white/60">
+                              <MapPin className="w-3 h-3 text-unidas-secondary" />
+                              <span>{evt.location || 'Casa del Cuidado'}</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2 text-[10px] font-bold text-unidas-secondary uppercase tracking-widest mb-3">
-                        <Sparkles className="w-4 h-4" />
-                        <span>Inscripciones Abiertas</span>
-                      </div>
-                      <h4 className="text-xl font-black text-white mb-4 leading-tight group-hover:text-unidas-primary transition-colors">Taller de Respiro y Bienestar Emocional</h4>
-                      <div className="flex items-center space-x-6 text-sm text-white/40 font-bold">
-                        <div className="flex items-center space-x-2">
-                          <Calendar className="w-4 h-4" />
-                          <span>15 Jun</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <MapPin className="w-4 h-4" />
-                          <span>Casa del Cuidado</span>
-                        </div>
-                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-white/5 border-2 border-dashed border-white/10 rounded-[3rem] p-16 text-center backdrop-blur-sm">
+                    <div className="w-24 h-24 bg-white/5 rounded-[2rem] flex items-center justify-center text-white/20 mx-auto mb-8 border border-white/5">
+                      <Calendar className="w-10 h-10" />
                     </div>
-                  ))}
-                </div>
+                    <h4 className="text-2xl font-black text-white mb-4">Aún no te has inscrito a ningún evento</h4>
+                    <p className="text-white/40 max-w-sm mx-auto font-medium text-lg leading-relaxed">
+                      Explora el catálogo oficial de talleres para solicitar tu matriculación y potenciar tu bienestar.
+                    </p>
+                  </div>
+                )
               ) : (
                 <div className="bg-white/5 border-2 border-dashed border-white/10 rounded-[3rem] p-16 text-center backdrop-blur-sm">
                   <div className="w-24 h-24 bg-white/5 rounded-[2rem] flex items-center justify-center text-white/20 mx-auto mb-8 border border-white/5">

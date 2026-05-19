@@ -264,6 +264,21 @@ app.get(['/api/user/survey/history', '/api/usuario/historial/encuesta'], authent
   res.json(r.rows);
 });
 
+app.get('/api/user/events', authenticateToken, async (req: any, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT e.* 
+      FROM events e
+      INNER JOIN event_attendees ea ON e.id = ea.event_id
+      WHERE ea.user_id = $1
+      ORDER BY e.date ASC
+    `, [req.user.id]);
+    res.json(r.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/user/documents', authenticateToken, async (req: any, res) => {
   const r = await pool.query('SELECT * FROM documents WHERE user_id = $1', [req.user.id]);
   res.json(r.rows.map(d => ({ ...d, url: `/api/documents/view/${d.file_path}` })));
