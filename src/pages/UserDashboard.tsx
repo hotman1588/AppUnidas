@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { 
   ClipboardList, Calendar, Bell, ShieldCheck, Clock, 
   MapPin, CheckCircle2, AlertCircle, ArrowRight, UserCircle2,
-  FileSearch, Sparkles, XCircle
+  FileSearch, Sparkles, XCircle, ChevronDown, Settings, KeyRound, LogOut
 } from 'lucide-react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
@@ -17,6 +17,14 @@ export default function UserDashboard() {
   const [loading, setLoading] = useState(true);
   const [history, setHistory] = useState<any[]>([]);
   const [userEvents, setUserEvents] = useState<any[]>([]);
+
+  const [profileData, setProfileData] = useState<any>(null);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  
+  const [updateForm, setUpdateForm] = useState({ full_name: '', phone: '', email: '' });
+  const [passwordForm, setPasswordForm] = useState({ current_password: '', new_password: '', confirm_password: '' });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -40,6 +48,15 @@ export default function UserDashboard() {
           const eventsData = await eventsRes.json();
           setUserEvents(eventsData);
         }
+
+        const profileRes = await fetch('/api/user/profile', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (profileRes.ok) {
+          const profData = await profileRes.json();
+          setProfileData(profData);
+          setUpdateForm({ full_name: profData.full_name || '', phone: profData.phone || '', email: profData.email || '' });
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -49,6 +66,53 @@ export default function UserDashboard() {
 
     fetchData();
   }, [token, searchParams]);
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/user/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(updateForm)
+      });
+      if (res.ok) {
+        alert('Datos actualizados exitosamente');
+        setShowUpdateModal(false);
+        const profileRes = await fetch('/api/user/profile', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (profileRes.ok) setProfileData(await profileRes.json());
+      } else {
+        const data = await res.json();
+        alert(data.error);
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordForm.new_password !== passwordForm.confirm_password) {
+      return alert('Las contraseñas nuevas no coinciden');
+    }
+    try {
+      const res = await fetch('/api/user/password', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          current_password: passwordForm.current_password,
+          new_password: passwordForm.new_password
+        })
+      });
+      if (res.ok) {
+        alert('Contraseña actualizada exitosamente');
+        setShowPasswordModal(false);
+        setPasswordForm({ current_password: '', new_password: '', confirm_password: '' });
+      } else {
+        const data = await res.json();
+        alert(data.error);
+      }
+    } catch (err) { console.error(err); }
+  };
 
   const showConfirmation = searchParams.get('submitted') === 'true';
 
@@ -127,12 +191,54 @@ export default function UserDashboard() {
                 <UserCircle2 className="w-14 h-14 text-white" />
               </div>
             </div>
-            <div>
-              <h1 className="text-5xl font-black text-white font-display mb-1">Hola, {user?.name}</h1>
-              <div className="flex items-center space-x-2 text-unidas-primary font-bold uppercase tracking-[0.2em] text-[10px]">
-                 <Sparkles className="w-3 h-3" />
-                 <span>Comunidad Unidas</span>
-              </div>
+            <div className="relative">
+              <button 
+                onClick={() => setShowProfileMenu(!showProfileMenu)}
+                className="flex items-center space-x-3 text-left group hover:opacity-80 transition-opacity"
+              >
+                <div>
+                  <h1 className="text-5xl font-black text-white font-display mb-1">Hola, {user?.name}</h1>
+                  <div className="flex items-center space-x-2 text-unidas-primary font-bold uppercase tracking-[0.2em] text-[10px]">
+                     <Sparkles className="w-3 h-3" />
+                     <span>Comunidad Unidas</span>
+                  </div>
+                </div>
+                <ChevronDown className={`w-8 h-8 text-white/50 group-hover:text-white transition-all ${showProfileMenu ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Profile Dropdown */}
+              {showProfileMenu && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="absolute top-full left-0 mt-4 w-64 bg-[#1a1b26] border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                >
+                  <button 
+                    onClick={() => { setShowProfileMenu(false); setShowUpdateModal(true); }}
+                    className="w-full px-6 py-4 flex items-center space-x-3 text-white/80 hover:bg-white/5 hover:text-white transition-colors text-left"
+                  >
+                    <Settings className="w-4 h-4" />
+                    <span className="text-sm font-bold">Actualizar Datos</span>
+                  </button>
+                  <button 
+                    onClick={() => { setShowProfileMenu(false); setShowPasswordModal(true); }}
+                    className="w-full px-6 py-4 flex items-center space-x-3 text-white/80 hover:bg-white/5 hover:text-white transition-colors text-left border-t border-white/5"
+                  >
+                    <KeyRound className="w-4 h-4" />
+                    <span className="text-sm font-bold">Cambiar Contraseña</span>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      useAuthStore.getState().logout();
+                      navigate('/');
+                    }}
+                    className="w-full px-6 py-4 flex items-center space-x-3 text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors text-left border-t border-white/5"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span className="text-sm font-bold">Cerrar Sesión</span>
+                  </button>
+                </motion.div>
+              )}
             </div>
           </div>
           <div className="flex items-center space-x-4">
@@ -348,6 +454,125 @@ export default function UserDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Update Profile Modal */}
+      {showUpdateModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative"
+          >
+            <button 
+              onClick={() => setShowUpdateModal(false)}
+              className="absolute top-6 right-6 text-slate-400 hover:text-slate-600"
+            >
+              <XCircle className="w-6 h-6" />
+            </button>
+            <h2 className="text-2xl font-black text-slate-800 mb-6">Actualizar Datos</h2>
+            <form onSubmit={handleUpdateProfile} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Cédula</label>
+                <input 
+                  type="text" 
+                  disabled 
+                  value={profileData?.document_number || ''}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 cursor-not-allowed"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Nombre Completo</label>
+                <input 
+                  type="text" 
+                  required
+                  value={updateForm.full_name}
+                  onChange={(e) => setUpdateForm({...updateForm, full_name: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-unidas-primary outline-none focus:ring-2 focus:ring-unidas-primary/20 text-slate-800"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Teléfono</label>
+                <input 
+                  type="tel" 
+                  required
+                  value={updateForm.phone}
+                  onChange={(e) => setUpdateForm({...updateForm, phone: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-unidas-primary outline-none focus:ring-2 focus:ring-unidas-primary/20 text-slate-800"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Correo Electrónico</label>
+                <input 
+                  type="email" 
+                  required
+                  value={updateForm.email}
+                  onChange={(e) => setUpdateForm({...updateForm, email: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-unidas-primary outline-none focus:ring-2 focus:ring-unidas-primary/20 text-slate-800"
+                />
+              </div>
+              <button type="submit" className="w-full py-4 bg-unidas-primary text-white font-black rounded-xl hover:bg-unidas-secondary transition-colors mt-6">
+                Guardar Cambios
+              </button>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Change Password Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative"
+          >
+            <button 
+              onClick={() => setShowPasswordModal(false)}
+              className="absolute top-6 right-6 text-slate-400 hover:text-slate-600"
+            >
+              <XCircle className="w-6 h-6" />
+            </button>
+            <h2 className="text-2xl font-black text-slate-800 mb-6">Cambiar Contraseña</h2>
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Contraseña Actual</label>
+                <input 
+                  type="password" 
+                  required
+                  value={passwordForm.current_password}
+                  onChange={(e) => setPasswordForm({...passwordForm, current_password: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-unidas-primary outline-none focus:ring-2 focus:ring-unidas-primary/20 text-slate-800"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Nueva Contraseña</label>
+                <input 
+                  type="password" 
+                  required
+                  minLength={6}
+                  value={passwordForm.new_password}
+                  onChange={(e) => setPasswordForm({...passwordForm, new_password: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-unidas-primary outline-none focus:ring-2 focus:ring-unidas-primary/20 text-slate-800"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Confirmar Nueva Contraseña</label>
+                <input 
+                  type="password" 
+                  required
+                  minLength={6}
+                  value={passwordForm.confirm_password}
+                  onChange={(e) => setPasswordForm({...passwordForm, confirm_password: e.target.value})}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-unidas-primary outline-none focus:ring-2 focus:ring-unidas-primary/20 text-slate-800"
+                />
+              </div>
+              <button type="submit" className="w-full py-4 bg-unidas-primary text-white font-black rounded-xl hover:bg-unidas-secondary transition-colors mt-6">
+                Actualizar Contraseña
+              </button>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

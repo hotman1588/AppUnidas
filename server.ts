@@ -231,6 +231,43 @@ app.post(['/api/auth/login', '/api/auth/ingreso'], async (req, res) => {
 });
 
 // --- USER ---
+app.get('/api/user/profile', authenticateToken, async (req: any, res) => {
+  try {
+    const r = await pool.query('SELECT full_name, document_type, document_number, phone, email FROM users WHERE id = $1', [req.user.id]);
+    res.json(r.rows[0] || {});
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+app.patch('/api/user/profile', authenticateToken, async (req: any, res) => {
+  const { full_name, phone, email } = req.body;
+  try {
+    await pool.query(
+      'UPDATE users SET full_name = $1, phone = $2, email = $3 WHERE id = $4',
+      [full_name, phone, email, req.user.id]
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/user/password', authenticateToken, async (req: any, res) => {
+  const { current_password, new_password } = req.body;
+  try {
+    const userRes = await pool.query('SELECT password FROM users WHERE id = $1', [req.user.id]);
+    const u = userRes.rows[0];
+    if (!u || !bcrypt.compareSync(current_password, u.password)) {
+      return res.status(401).json({ error: 'La contraseña actual es incorrecta' });
+    }
+    const hashed = bcrypt.hashSync(new_password, 10);
+    await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashed, req.user.id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get(['/api/user/survey', '/api/usuario/encuesta'], authenticateToken, async (req: any, res) => {
   const r = await pool.query('SELECT * FROM surveys WHERE user_id = $1', [req.user.id]);
   res.json(r.rows[0] || { status: 'pending_start', answers: {}, current_step: 1 });
