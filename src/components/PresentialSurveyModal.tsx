@@ -333,7 +333,7 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-unidas-dark/95 backdrop-blur-md overflow-y-auto">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-unidas-dark/95 backdrop-blur-md overflow-y-auto">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -795,13 +795,22 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
 
         {/* Footer */}
         <div className="p-6 border-t border-white/5 bg-black/20 flex items-center justify-between shrink-0">
-          <button 
-            onClick={prevStep} disabled={currentStep === 0 || loading}
-            className="flex items-center space-x-2 text-white/40 hover:text-white transition-colors disabled:opacity-0"
-          >
-            <ChevronLeft className="w-5 h-5" />
-            <span className="font-bold uppercase tracking-widest text-[10px]">Atrás</span>
-          </button>
+          <div className="flex items-center space-x-4">
+            <button 
+              onClick={prevStep} disabled={currentStep === 0 || loading}
+              className="flex items-center space-x-2 text-white/40 hover:text-white transition-colors disabled:opacity-0"
+            >
+              <ChevronLeft className="w-5 h-5" />
+              <span className="font-bold uppercase tracking-widest text-[10px]">Atrás</span>
+            </button>
+            <button 
+              onClick={clearData}
+              className="flex items-center space-x-2 px-4 py-2.5 bg-red-500/20 border border-red-500/30 text-red-400 hover:text-white hover:bg-red-500/30 rounded-xl transition-all text-[10px] font-black uppercase tracking-widest"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Limpiar Datos</span>
+            </button>
+          </div>
           
           <div className="flex space-x-3">
             {currentStep < 6 ? (
