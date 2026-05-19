@@ -653,7 +653,7 @@ app.get('/api/admin/events/:id/attendees', authenticateToken, isAdmin, async (re
 app.get('/api/admin/events/:id/available-users', authenticateToken, isAdmin, async (req, res) => {
   try {
     const r = await pool.query(
-      `SELECT u.id, u.full_name, u.document_type, u.document_number, s.status as survey_status
+      `SELECT u.id, u.full_name, u.phone, u.document_type, u.document_number, s.status as survey_status
        FROM users u
        LEFT JOIN surveys s ON u.id = s.user_id
        WHERE u.role = 'user' AND u.id NOT IN (

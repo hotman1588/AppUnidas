@@ -104,6 +104,7 @@ export default function AnalystDashboard() {
   };
 
   const handleEnrollUser = async (userId: number) => {
+    const userToEnroll = allUsers.find(u => u.id === userId);
     try {
       const res = await fetch(`/api/admin/events/${selectedEventForEnroll.id}/enroll`, {
         method: 'POST',
@@ -113,6 +114,27 @@ export default function AnalystDashboard() {
       if (res.ok) {
         const attRes = await fetch(`/api/admin/events/${selectedEventForEnroll.id}/attendees`, { headers: { 'Authorization': `Bearer ${token}` } });
         setAttendees(await attRes.json());
+
+        // Enviar alerta por WhatsApp si el usuario tiene teléfono registrado
+        if (userToEnroll && userToEnroll.phone) {
+          const cleaned = userToEnroll.phone.replace(/\D/g, '');
+          const finalPhone = cleaned.startsWith('57') ? cleaned : `57${cleaned}`;
+          let formattedDate = selectedEventForEnroll.date;
+          try {
+            formattedDate = new Date(selectedEventForEnroll.date).toLocaleString('es-CO', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+          } catch (e) { console.error(e); }
+          
+          const message = `¡Hola, *${userToEnroll.full_name}*! 🎉\n\nTe informamos que has sido matriculado(a) exitosamente en el taller *"${selectedEventForEnroll.title}"* de la plataforma *Unidas - Barrios Unidos*.\n\n📅 *Fecha:* ${formattedDate}\n📍 *Ubicación:* ${selectedEventForEnroll.location || 'Instalaciones de la Secretaría'}\n\n¡Te esperamos con los brazos abiertos para potenciar juntos tu bienestar! 💜`;
+          const waUrl = `https://api.whatsapp.com/send?phone=${finalPhone}&text=${encodeURIComponent(message)}`;
+          window.open(waUrl, '_blank');
+        }
       } else {
         const data = await res.json();
         alert(data.error);
