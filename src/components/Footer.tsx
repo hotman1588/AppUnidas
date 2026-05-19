@@ -64,9 +64,9 @@ export default function Footer() {
                 <span>Sitios Oficiales</span>
               </div>
               <ul className="space-y-3 text-xs">
-                <li><a href="#" className="hover:text-white transition-colors">Alcaldía Local</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Secretaría de la Mujer</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Integración Social</a></li>
+                <li><a href="https://www.barriosunidos.gov.co/" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Alcaldía Local</a></li>
+                <li><a href="https://www.sdmujer.gov.co/" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Secretaría de la Mujer</a></li>
+                <li><a href="https://www.integracionsocial.gov.co/" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Integración Social</a></li>
               </ul>
             </div>
           </div>
