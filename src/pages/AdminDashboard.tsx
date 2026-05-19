@@ -394,6 +394,34 @@ export default function AdminDashboard() {
     } catch (err) { console.error(err); }
   };
 
+  const handleUnenrollUser = async (userId: number) => {
+    if (!window.confirm('¿Está seguro de que desea eliminar a este cuidador del taller/evento?')) return;
+    try {
+      const res = await fetch(`/api/admin/events/${selectedEventForEnroll.id}/enroll/${userId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const headers = { 'Authorization': `Bearer ${token}` };
+        
+        // Actualizar asistentes
+        const attRes = await fetch(`/api/admin/events/${selectedEventForEnroll.id}/attendees`, { headers });
+        setAttendees(await attRes.json());
+        
+        // Actualizar usuarios disponibles
+        const availRes = await fetch(`/api/admin/events/${selectedEventForEnroll.id}/available-users`, { headers });
+        setAvailableUsers(await availRes.json());
+        
+        // Actualizar estadísticas
+        const statsRes = await fetch(`/api/admin/events/${selectedEventForEnroll.id}/enrollment-stats`, { headers });
+        setEnrollmentStats(await statsRes.json());
+      } else {
+        const data = await res.json();
+        alert(data.error);
+      }
+    } catch (err) { console.error(err); }
+  };
+
   const handleHabeasUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1730,7 +1758,16 @@ export default function AdminDashboard() {
                           <p className="text-[9px] text-white/20 uppercase font-bold tracking-widest">Registrada: {new Date(a.created_at).toLocaleDateString()}</p>
                         </div>
                       </div>
-                      <CheckCircle2 className="w-6 h-6 text-green-500" />
+                      <div className="flex items-center space-x-3">
+                        <CheckCircle2 className="w-6 h-6 text-green-500" />
+                        <button
+                          onClick={() => handleUnenrollUser(a.user_id)}
+                          className="p-3 bg-red-500/10 text-red-500 rounded-2xl hover:bg-red-500 hover:text-white transition-all border border-red-500/20 shadow-md flex items-center justify-center cursor-pointer"
+                          title="Eliminar matrícula"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

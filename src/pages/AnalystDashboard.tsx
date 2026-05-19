@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ClipboardCheck, Clock, Search, Filter, Eye, CheckCircle2, XCircle, 
   AlertCircle, ChevronRight, MessageSquare, User, FileText, Calendar,
-  Users, MapPin, ClipboardList, Plus, X, UserPlus
+  Users, MapPin, ClipboardList, Plus, X, UserPlus, Trash2
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { cn } from '../lib/utils';
@@ -109,6 +109,23 @@ export default function AnalystDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ user_id: userId })
+      });
+      if (res.ok) {
+        const attRes = await fetch(`/api/admin/events/${selectedEventForEnroll.id}/attendees`, { headers: { 'Authorization': `Bearer ${token}` } });
+        setAttendees(await attRes.json());
+      } else {
+        const data = await res.json();
+        alert(data.error);
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleUnenrollUser = async (userId: number) => {
+    if (!window.confirm('¿Está seguro de que desea eliminar a este cuidador del taller/evento?')) return;
+    try {
+      const res = await fetch(`/api/admin/events/${selectedEventForEnroll.id}/enroll/${userId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         const attRes = await fetch(`/api/admin/events/${selectedEventForEnroll.id}/attendees`, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -545,12 +562,21 @@ export default function AnalystDashboard() {
                   <div className="space-y-3">
                     {attendees.length === 0 && <p className="text-center text-slate-400 py-10 italic">No hay cuidadoras matriculadas aún</p>}
                     {attendees.map(a => (
-                      <div key={a.id} className="p-3 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-slate-200 border-2 border-white" />
-                        <div>
-                          <p className="text-xs font-bold text-slate-800">{a.full_name}</p>
-                          <p className="text-[9px] text-slate-400 uppercase font-bold">{new Date(a.created_at).toLocaleDateString()}</p>
+                      <div key={a.id} className="p-3 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 rounded-full bg-slate-200 border-2 border-white" />
+                          <div>
+                            <p className="text-xs font-bold text-slate-800">{a.full_name}</p>
+                            <p className="text-[9px] text-slate-400 uppercase font-bold">{new Date(a.created_at).toLocaleDateString()}</p>
+                          </div>
                         </div>
+                        <button
+                          onClick={() => handleUnenrollUser(a.user_id)}
+                          className="p-2 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white rounded-lg transition-all border border-red-100 flex items-center justify-center cursor-pointer"
+                          title="Eliminar matrícula"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     ))}
                   </div>

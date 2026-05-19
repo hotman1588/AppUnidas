@@ -641,7 +641,7 @@ app.delete('/api/admin/events/:id', authenticateToken, isAdmin, async (req, res)
 app.get('/api/admin/events/:id/attendees', authenticateToken, isAdmin, async (req, res) => {
   try {
     const r = await pool.query(
-      'SELECT ea.id, ea.created_at, u.full_name, u.document_number, u.document_type FROM event_attendees ea JOIN users u ON ea.user_id = u.id WHERE ea.event_id = $1 ORDER BY ea.created_at DESC',
+      'SELECT ea.id, ea.created_at, u.id AS user_id, u.full_name, u.document_number, u.document_type FROM event_attendees ea JOIN users u ON ea.user_id = u.id WHERE ea.event_id = $1 ORDER BY ea.created_at DESC',
       [req.params.id]
     );
     res.json(r.rows);
@@ -706,6 +706,19 @@ app.post('/api/admin/events/:id/enroll', authenticateToken, isAdmin, async (req,
     await pool.query(
       'INSERT INTO event_attendees (event_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
       [req.params.id, user_id]
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/events/:id/enroll/:userId', authenticateToken, isAdmin, async (req, res) => {
+  const { id: eventId, userId } = req.params;
+  try {
+    await pool.query(
+      'DELETE FROM event_attendees WHERE event_id = $1 AND user_id = $2',
+      [eventId, userId]
     );
     res.json({ success: true });
   } catch (err: any) {
