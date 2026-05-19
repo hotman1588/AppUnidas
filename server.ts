@@ -367,43 +367,43 @@ app.get('/api/stats', authenticateToken, async (req, res) => {
       value: parseInt(row.count) || 0
     }));
 
-    // 2. Dynamic Registration trend (grouped by day of week)
+    // 2. Dynamic Registration trend (grouped by calendar date for the last 7 days)
     const trendRes = await pool.query(`
       SELECT 
-        EXTRACT(ISODOW FROM created_at) AS dow,
+        DATE(created_at) AS reg_date,
         COUNT(*) AS count
       FROM users
-      WHERE role = 'user'
-      GROUP BY dow
-      ORDER BY dow
+      WHERE role = 'user' AND created_at >= CURRENT_DATE - INTERVAL '6 days'
+      GROUP BY reg_date
+      ORDER BY reg_date
     `);
     
-    const dayMap: Record<number, string> = {
-      1: 'Lun',
-      2: 'Mar',
-      3: 'Mie',
-      4: 'Jue',
-      5: 'Vie',
-      6: 'Sab',
-      7: 'Dom'
-    };
-
-    // Pre-populate all days of the week with 0 registrations
-    const trendMap: Record<string, number> = {
-      'Lun': 0, 'Mar': 0, 'Mie': 0, 'Jue': 0, 'Vie': 0, 'Sab': 0, 'Dom': 0
-    };
+    const trendMap: Record<string, number> = {};
+    const datesList: string[] = [];
+    
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const dateStr = `${day}/${month}`;
+      trendMap[dateStr] = 0;
+      datesList.push(dateStr);
+    }
 
     trendRes.rows.forEach(row => {
-      const dowNum = parseInt(row.dow);
-      const dayName = dayMap[dowNum];
-      if (dayName) {
-        trendMap[dayName] = parseInt(row.count) || 0;
+      const d = new Date(row.reg_date);
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const dateStr = `${day}/${month}`;
+      if (trendMap[dateStr] !== undefined) {
+        trendMap[dateStr] = parseInt(row.count) || 0;
       }
     });
 
-    const registryTrend = Object.entries(trendMap).map(([name, val]) => ({
+    const registryTrend = datesList.map(name => ({
       name,
-      val
+      val: trendMap[name]
     }));
 
     res.json({ 
