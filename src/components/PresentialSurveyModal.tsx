@@ -775,27 +775,46 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                   <DocUploadItem label="Cédula Reverso" type="id_reverso" onUpload={handleFileUpload} url={answers.documentos.id_reverso} uploading={uploading === 'id_reverso'} hasError={validationErrors.includes('document.id_reverso')} />
                   <DocUploadItem label="Recibo Público" type="utility_bill" onUpload={handleFileUpload} url={answers.documentos.utility_bill} uploading={uploading === 'utility_bill'} className="md:col-span-2" hasError={validationErrors.includes('document.utility_bill')} />
                   
-                  <div className={cn("md:col-span-2 p-8 rounded-[2rem] border transition-all", habeasAccepted ? "bg-unidas-primary/10 border-unidas-primary/20" : "bg-white/5 border-white/10", validationErrors.includes('habeas') && "border-red-500")}>
-                    <div className="flex items-start space-x-4">
-                      <input 
-                        type="checkbox" checked={habeasAccepted} onChange={(e) => setHabeasAccepted(e.target.checked)}
-                        className="mt-1 w-6 h-6 rounded-lg border-white/20 bg-white/5 text-unidas-primary focus:ring-unidas-primary transition-all"
-                      />
-                      <div>
-                        <p className="text-white font-black text-lg">Acepto la Política de Habeas Data</p>
-                        <p className="text-white/40 text-xs mt-2 leading-relaxed font-medium italic">Autorizo el tratamiento de mis datos personales para fines institucionales según la Ley 1581 de 2012.</p>
-                        {habeasDataUrl && (
-                          <div className="mt-4 pt-4 border-t border-white/5">
-                            <button
-                              type="button"
-                              onClick={() => setViewerConfig({ url: habeasDataUrl, title: 'Política de Tratamiento de Datos' })}
-                              className="inline-flex items-center space-x-2 text-unidas-primary font-black uppercase tracking-widest text-[10px] hover:underline"
-                            >
-                              <FileText className="w-4 h-4" />
-                              <span>Ver Política de Tratamiento de Datos</span>
-                            </button>
-                          </div>
-                        )}
+                  <div className="md:col-span-2 bg-white/5 p-8 rounded-[2.5rem] border border-white/10 backdrop-blur-md">
+                    <div className="flex items-center space-x-3 mb-6 text-unidas-primary">
+                      <FileText className="w-8 h-8" />
+                      <h3 className="text-2xl font-black text-white">Términos y Habeas Data</h3>
+                    </div>
+                    <div className="h-40 overflow-y-auto bg-white/5 p-6 rounded-2xl border border-white/5 mb-8 text-sm text-white/50 leading-relaxed font-medium custom-scrollbar">
+                      <p className="font-bold mb-2 text-white/80 uppercase text-base tracking-widest">Utilización y tratamiento de datos personales:</p>
+                      <p>
+                        La recolección y tratamientos de los datos personales tiene como finalidad mantener una base de datos, que le permite a PROYECTOS Y CONSULTORIAS RC SAS generar estadísticas e informes de las actividades correspondientes a la ejecución del Contrato CPS 334-2025.
+                        <br /><br />
+                        Al aceptar estos términos y condiciones, las personas participantes indican que conocen y autorizan de manera libre, previa, expresa e informada el tratamiento de los datos personales suministrados durante el proceso de inscripción y participación en la actividad, los cuales serán utilizados única y exclusivamente para las finalidades indicadas anteriormente.
+                      </p>
+                      {habeasDataUrl && (
+                        <div className="mt-4 pt-4 border-t border-white/5">
+                          <button
+                            type="button"
+                            onClick={() => setViewerConfig({ url: habeasDataUrl, title: 'Política de Tratamiento de Datos' })}
+                            className="inline-flex items-center space-x-2 text-unidas-primary font-black uppercase tracking-widest text-[10px] hover:underline"
+                          >
+                            <FileText className="w-4 h-4" />
+                            <span>Ver Política de Tratamiento de Datos</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className={cn(
+                      "bg-white/5 border p-8 rounded-[2.5rem] backdrop-blur-sm transition-all",
+                      validationErrors.includes('habeas') ? "border-red-500/50 bg-red-500/5" : "border-white/5"
+                    )}>
+                      <div className="flex items-start space-x-4">
+                        <input
+                          type="checkbox"
+                          id="habeas_presential"
+                          checked={habeasAccepted}
+                          onChange={(e) => setHabeasAccepted(e.target.checked)}
+                          className="w-6 h-6 mt-1 rounded border-white/10 text-unidas-primary focus:ring-unidas-primary bg-white/5 cursor-pointer"
+                        />
+                        <label htmlFor="habeas_presential" className="text-sm text-white/60 font-medium leading-relaxed cursor-pointer select-none">
+                          Acepto que mis datos personales sean tratados de acuerdo con la política de tratamiento de datos personales de la Secretaría de Integración Social.
+                        </label>
                       </div>
                     </div>
                   </div>
