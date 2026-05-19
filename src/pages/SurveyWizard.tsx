@@ -194,6 +194,10 @@ export default function SurveyWizard() {
           setUploadedDocs(docsData);
         }
 
+        // 3. Fetch Habeas Data settings
+        const settingsRes = await fetch('/api/settings/habeas_data');
+        const settingsData = await settingsRes.json();
+        setHabeasDataUrl(settingsData.value);
       } catch (err) {
         console.error(err);
       } finally {
@@ -510,20 +514,19 @@ export default function SurveyWizard() {
                 <motion.button
                   key={step.id}
                   onClick={() => {
-                    // Temporalmente deshabilitada la validación de módulos
-                    // if (step.id > currentStep) {
-                    //   for (let s = currentStep; s < step.id; s++) {
-                    //     const missing = getMissingFields(s);
-                    //     if (missing.length > 0) {
-                    //       setValidationErrors(missing);
-                    //       return;
-                    //     }
-                    //   }
-                    //   setValidationErrors([]);
-                    // } else {
-                    //   setValidationErrors([]);
-                    // }
-                    setValidationErrors([]);
+                    if (step.id > currentStep) {
+                      for (let s = currentStep; s < step.id; s++) {
+                        const missing = getMissingFields(s);
+                        if (missing.length > 0) {
+                          setValidationErrors(missing);
+                          setShowErrorPopup(true);
+                          return;
+                        }
+                      }
+                      setValidationErrors([]);
+                    } else {
+                      setValidationErrors([]);
+                    }
                     setCurrentStep(step.id);
                     saveToBackend(step.id);
                     window.scrollTo(0, 0);

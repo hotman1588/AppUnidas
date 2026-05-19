@@ -709,6 +709,74 @@ app.post('/api/admin/surveys/:surveyId/review', authenticateToken, isAdmin, asyn
   }
 });
 
+app.post('/api/analyst/register-complete-characterization', authenticateToken, isAdmin, async (req: any, res: any) => {
+  const { user, answers } = req.body;
+  if (!user || !user.document_number || !user.full_name) {
+    return res.status(400).json({ error: 'Faltan datos requeridos del usuario' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Create or update the user
+    const hashed = bcrypt.hashSync(user.password || '123456', 10);
+    
+    // Check if user already exists
+    const checkUser = await client.query('SELECT id FROM users WHERE document_number = $1', [user.document_number]);
+    let userId: number;
+
+    if (checkUser.rows.length > 0) {
+      userId = checkUser.rows[0].id;
+      // Update existing user info
+      await client.query(
+        'UPDATE users SET full_name = $1, document_type = $2, phone = $3, email = $4, password = $5 WHERE id = $6',
+        [user.full_name, user.document_type || 'CC', user.phone, user.email, hashed, userId]
+      );
+    } else {
+      const userRes = await client.query(
+        'INSERT INTO users (full_name, document_type, document_number, phone, email, password, role) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+        [user.full_name, user.document_type || 'CC', user.document_number, user.phone, user.email, hashed, 'user']
+      );
+      userId = userRes.rows[0].id;
+    }
+
+    // 2. Create or update the survey (presential validation is automatically 'approved')
+    const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
+    await client.query(
+      'INSERT INTO surveys (user_id, answers, status, current_step, habeas_data_accepted) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (user_id) DO UPDATE SET answers = $2, status = $3, current_step = $4, habeas_data_accepted = $5, updated_at = CURRENT_TIMESTAMP',
+      [userId, answersJson, 'approved', 6, 1]
+    );
+
+    // 3. Write to survey history
+    await client.query(
+      'INSERT INTO survey_history (user_id, action, details) VALUES ($1, $2, $3)',
+      [userId, 'Registro Presencial', `Caracterización presencial completada y aprobada por el analista ${req.user.name}.`]
+    );
+
+    // 4. Insert documents if uploaded
+    if (answers && answers.documentos) {
+      for (const [type, url] of Object.entries(answers.documentos)) {
+        if (url && typeof url === 'string') {
+          const filename = url.split('/').pop() || url;
+          await client.query(
+            'INSERT INTO documents (user_id, type, file_path, status) VALUES ($1, $2, $3, $4)',
+            [userId, type, filename, 'approved']
+          ).catch(() => {});
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, userId });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 app.patch('/api/admin/users/:id/role', authenticateToken, isAdmin, async (req, res) => {
   await pool.query('UPDATE users SET role = $1 WHERE id = $2', [req.body.role, req.params.id]);
   res.json({ success: true });

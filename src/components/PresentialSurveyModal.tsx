@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
+import { DocumentViewer } from './DocumentViewer';
 
 interface PresentialSurveyModalProps {
   isOpen: boolean;
@@ -61,6 +62,9 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
+  const [showErrorPopup, setShowErrorPopup] = useState(false);
+  const [viewerConfig, setViewerConfig] = useState<{ url: string; title: string } | null>(null);
+  const [habeasDataUrl, setHabeasDataUrl] = useState<string | null>(null);
   
   const [userData, setUserData] = useState({
     full_name: '',
@@ -106,8 +110,24 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
   };
 
   useEffect(() => {
-    const age = calculateAge(birthDate.day, birthDate.month, birthDate.year);
-    if (age !== null) handleInputChange('socio', 'edad', age);
+    if (birthDate.day && birthDate.month && birthDate.year) {
+      const formattedDate = `${birthDate.year}-${birthDate.month}-${birthDate.day}`;
+      const age = calculateAge(birthDate.day, birthDate.month, birthDate.year);
+      setAnswers((prev: any) => {
+        const socio = prev.socio || {};
+        if (socio.fecha_nacimiento === formattedDate && socio.edad === age) {
+          return prev;
+        }
+        return {
+          ...prev,
+          socio: {
+            ...socio,
+            fecha_nacimiento: formattedDate,
+            edad: age ?? undefined
+          }
+        };
+      });
+    }
   }, [birthDate]);
 
   // --- PERSISTENCE LOGIC ---
@@ -116,6 +136,17 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
   // Load from localStorage on mount (when modal opens)
   useEffect(() => {
     if (isOpen) {
+      const fetchHabeas = async () => {
+        try {
+          const res = await fetch('/api/settings/habeas_data');
+          const data = await res.json();
+          setHabeasDataUrl(data.value);
+        } catch (e) {
+          console.error("Error fetching habeas path", e);
+        }
+      };
+      fetchHabeas();
+
       const cached = localStorage.getItem(PERSISTENCE_KEY);
       if (cached) {
         try {
@@ -223,7 +254,9 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       if (!answers.socio.fecha_nacimiento) missing.push('socio.fecha_nacimiento');
       if (!answers.socio.genero) missing.push('socio.genero');
       if (!answers.socio.barrio) missing.push('socio.barrio');
+      if (!answers.socio.upz) missing.push('socio.upz');
       if (!answers.socio.nivel_educativo) missing.push('socio.nivel_educativo');
+      if (!answers.socio.pertenencia || answers.socio.pertenencia.length === 0) missing.push('socio.pertenencia');
     } else if (currentStep === 2) {
       if (!answers.economia.ingresos) missing.push('economia.ingresos');
       if (!answers.economia.fuente_ingresos) missing.push('economia.fuente_ingresos');
@@ -239,12 +272,18 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       }
     } else if (currentStep === 4) {
       if (!answers.bienestar.seguridad_hogar) missing.push('bienestar.seguridad_hogar');
-      if (!answers.bienestar.violencia?.length) missing.push('bienestar.violencia');
+      if (!answers.bienestar.violencia || answers.bienestar.violencia.length === 0) missing.push('bienestar.violencia');
+      if (!answers.bienestar.factores_riesgo || answers.bienestar.factores_riesgo.length === 0) missing.push('bienestar.factores_riesgo');
       if (!answers.bienestar.participar) missing.push('bienestar.participar');
     } else if (currentStep === 5) {
       if (!answers.proyecciones.prioridad) missing.push('proyecciones.prioridad');
+      if (!answers.proyecciones.interes_formacion || answers.proyecciones.interes_formacion.length === 0) missing.push('proyecciones.interes_formacion');
+      if (!answers.proyecciones.bienestar_deseado || answers.proyecciones.bienestar_deseado.length === 0) missing.push('proyecciones.bienestar_deseado');
     } else if (currentStep === 6) {
       if (!habeasAccepted) missing.push('habeas');
+      if (!answers.documentos.id_frontal) missing.push('document.id_frontal');
+      if (!answers.documentos.id_reverso) missing.push('document.id_reverso');
+      if (!answers.documentos.utility_bill) missing.push('document.utility_bill');
     }
     
     setValidationErrors(missing);
@@ -252,13 +291,20 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
   };
 
   const nextStep = () => {
-    if (validateStep()) setCurrentStep(prev => prev + 1);
+    if (validateStep()) {
+      setCurrentStep(prev => prev + 1);
+    } else {
+      setShowErrorPopup(true);
+    }
   };
 
   const prevStep = () => setCurrentStep(prev => prev - 1);
 
   const handleSubmit = async () => {
-    if (!validateStep()) return;
+    if (!validateStep()) {
+      setShowErrorPopup(true);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -358,28 +404,65 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                 <StepHeader icon={HeartPulse} title="Perfil Sociodemográfico" color="blue" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Question 
-                    label="FECHA DE NACIMIENTO" type="date-split" 
+                    label="FECHA DE NACIMIENTO" 
+                    subtitle="Seleccione su fecha de nacimiento para calcular su edad."
+                    type="date-split" 
                     value={birthDate} 
                     onChange={(v: any) => {
                       setBirthDate(v);
-                      if (v.day && v.month && v.year) handleInputChange('socio', 'fecha_nacimiento', `${v.year}-${v.month}-${v.day}`);
                     }} 
                     error={validationErrors.includes('socio.fecha_nacimiento')}
                     ageDisplay={answers.socio?.edad ? `${answers.socio.edad} Años` : null}
                   />
-                  <Question label="IDENTIDAD DE GÉNERO" options={['Femenino', 'Masculino', 'No binario', 'Transgénero', 'Otro']} value={answers.socio.genero} onChange={(v: string) => handleInputChange('socio', 'genero', v)} error={validationErrors.includes('socio.genero')} />
-                  <Question label="BARRIO DE RESIDENCIA" type="select" options={ALL_BARRIOS} value={answers.socio.barrio} onChange={(v: string) => handleInputChange('socio', 'barrio', v)} error={validationErrors.includes('socio.barrio')} />
-                  <Question label="ZONA (UPL)" type="select" options={ALL_UPLS} value={answers.socio.upz} disabled={true} onChange={(v: string) => handleInputChange('socio', 'upz', v)} />
                   <Question 
-                    label="NIVEL EDUCATIVO" options={['Primaria', 'Secundaria', 'Técnico', 'Tecnólogo', 'Universitario', 'Posgrado', 'Ninguno', 'Otro']} 
-                    value={answers.socio.nivel_educativo} onChange={(v: string) => handleInputChange('socio', 'nivel_educativo', v)} 
-                    showOther={answers.socio.nivel_educativo === 'Otro'} otherValue={answers.socio.nivel_educativo_otro} onOtherChange={(v) => handleInputChange('socio', 'nivel_educativo_otro', v)}
+                    label="IDENTIDAD DE GÉNERO" 
+                    subtitle="Cómo se identifica actualmente."
+                    type="pills"
+                    options={['Femenino', 'Masculino', 'No binario', 'Transgénero', 'Otro']} 
+                    value={answers.socio.genero} 
+                    onChange={(v: string) => handleInputChange('socio', 'genero', v)} 
+                    error={validationErrors.includes('socio.genero')} 
+                  />
+                  <Question 
+                    label="BARRIO DE RESIDENCIA" 
+                    subtitle="Barrio donde vive actualmente en Barrios Unidos."
+                    type="select" 
+                    options={ALL_BARRIOS} 
+                    value={answers.socio.barrio} 
+                    onChange={(v: string) => handleInputChange('socio', 'barrio', v)} 
+                    error={validationErrors.includes('socio.barrio')} 
+                  />
+                  <Question 
+                    label="ZONA (UPL)" 
+                    subtitle="Zona geográfica detectada automáticamente."
+                    type="select" 
+                    options={ALL_UPLS} 
+                    value={answers.socio.upz} 
+                    disabled={true} 
+                    onChange={(v: string) => handleInputChange('socio', 'upz', v)} 
+                  />
+                  <Question 
+                    label="NIVEL EDUCATIVO" 
+                    subtitle="Escolaridad alcanzada."
+                    options={['Primaria', 'Secundaria', 'Técnico', 'Tecnólogo', 'Universitario', 'Posgrado', 'Ninguno', 'Otro']} 
+                    type="pills"
+                    value={answers.socio.nivel_educativo} 
+                    onChange={(v: string) => handleInputChange('socio', 'nivel_educativo', v)} 
+                    showOther={answers.socio.nivel_educativo === 'Otro'} 
+                    otherValue={answers.socio.nivel_educativo_otro} 
+                    onOtherChange={(v: string) => handleInputChange('socio', 'nivel_educativo_otro', v)}
                     error={validationErrors.includes('socio.nivel_educativo')} 
                   />
                   <Question 
-                    label="PERTENENCIA POBLACIONAL" type="checkbox-group" options={['Mujer Indígena', 'Afrodescendiente', 'Migrante', 'Persona con discapacidad', 'Víctima del conflicto', 'Ninguna', 'Otro']} 
-                    value={answers.socio.pertenencia || []} onChange={(v: string) => handleCheckboxChange('socio', 'pertenencia', v)} 
-                    showOther={answers.socio.pertenencia?.includes('Otro')} otherValue={answers.socio.pertenencia_otro} onOtherChange={(v) => handleInputChange('socio', 'pertenencia_otro', v)}
+                    label="PERTENENCIA POBLACIONAL" 
+                    subtitle="Grupos de identificación poblacional."
+                    type="checkbox-group" 
+                    options={['Mujer Indígena', 'Afrodescendiente', 'Migrante', 'Persona con discapacidad', 'Víctima del conflicto', 'Ninguna', 'Otro']} 
+                    value={answers.socio.pertenencia || []} 
+                    onChange={(v: string) => handleCheckboxChange('socio', 'pertenencia', v)} 
+                    showOther={answers.socio.pertenencia?.includes('Otro')} 
+                    otherValue={answers.socio.pertenencia_otro} 
+                    onOtherChange={(v: string) => handleInputChange('socio', 'pertenencia_otro', v)}
                   />
                 </div>
               </motion.div>
@@ -389,23 +472,52 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
               <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
                 <StepHeader icon={Wallet} title="Economía y Autonomía" color="green" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Question label="INGRESOS MENSUALES" type="range" min={0} max={5000000} step={50000} value={answers.economia.ingresos} onChange={(v: string) => handleInputChange('economia', 'ingresos', v)} error={validationErrors.includes('economia.ingresos')} />
                   <Question 
-                    label="FUENTE DE INGRESOS" options={['Trabajo formal', 'Trabajo informal', 'Apoyo familiar', 'Subsidios', 'Pensión', 'Otro']} 
-                    value={answers.economia.fuente_ingresos} onChange={(v: string) => handleInputChange('economia', 'fuente_ingresos', v)} 
-                    showOther={answers.economia.fuente_ingresos === 'Otro'} otherValue={answers.economia.fuente_ingresos_otro} onOtherChange={(v) => handleInputChange('economia', 'fuente_ingresos_otro', v)}
+                    label="INGRESOS MENSUALES" 
+                    subtitle="Promedio de ingresos personales al mes."
+                    type="range" 
+                    min={0} 
+                    max={5000000} 
+                    step={50000} 
+                    value={answers.economia.ingresos} 
+                    onChange={(v: string) => handleInputChange('economia', 'ingresos', v)} 
+                    error={validationErrors.includes('economia.ingresos')} 
+                  />
+                  <Question 
+                    label="FUENTE DE INGRESOS" 
+                    subtitle="Principal origen de sus recursos."
+                    type="pills"
+                    options={['Trabajo formal', 'Trabajo informal', 'Apoyo familiar', 'Subsidios', 'Pensión', 'Otro']} 
+                    value={answers.economia.fuente_ingresos} 
+                    onChange={(v: string) => handleInputChange('economia', 'fuente_ingresos', v)} 
+                    showOther={answers.economia.fuente_ingresos === 'Otro'} 
+                    otherValue={answers.economia.fuente_ingresos_otro} 
+                    onOtherChange={(v: string) => handleInputChange('economia', 'fuente_ingresos_otro', v)}
                     error={validationErrors.includes('economia.fuente_ingresos')} 
                   />
                   <Question 
-                    label="SITUACIÓN LABORAL" options={['Empleado', 'Independiente', 'Buscando empleo', 'Hogar', 'Estudiante', 'Jubilado', 'Otro']} 
-                    value={answers.economia.situacion_laboral} onChange={(v: string) => handleInputChange('economia', 'situacion_laboral', v)} 
-                    showOther={answers.economia.situacion_laboral === 'Otro'} otherValue={answers.economia.situacion_laboral_otro} onOtherChange={(v) => handleInputChange('economia', 'situacion_laboral_otro', v)}
-                    error={validationErrors.includes('economia.situacion_laboral')} className="md:col-span-2"
+                    label="SITUACIÓN LABORAL" 
+                    subtitle="Estado ocupacional actual."
+                    type="pills"
+                    options={['Empleado', 'Independiente', 'Buscando empleo', 'Hogar', 'Estudiante', 'Jubilado', 'Otro']} 
+                    value={answers.economia.situacion_laboral} 
+                    onChange={(v: string) => handleInputChange('economia', 'situacion_laboral', v)} 
+                    showOther={answers.economia.situacion_laboral === 'Otro'} 
+                    otherValue={answers.economia.situacion_laboral_otro} 
+                    onOtherChange={(v: string) => handleInputChange('economia', 'situacion_laboral_otro', v)}
+                    error={validationErrors.includes('economia.situacion_laboral')} 
+                    className="md:col-span-2"
                   />
                   <Question 
-                    label="TIPO DE VIVIENDA" options={['Propia', 'Arriendo', 'Compartida', 'Familiar', 'Otro']} 
-                    value={answers.economia.tipo_vivienda} onChange={(v: string) => handleInputChange('economia', 'tipo_vivienda', v)} 
-                    showOther={answers.economia.tipo_vivienda === 'Otro'} otherValue={answers.economia.tipo_vivienda_otro} onOtherChange={(v) => handleInputChange('economia', 'tipo_vivienda_otro', v)}
+                    label="TIPO DE VIVIENDA" 
+                    subtitle="Condición de residencia."
+                    type="pills"
+                    options={['Propia', 'Arriendo', 'Compartida', 'Familiar', 'Otro']} 
+                    value={answers.economia.tipo_vivienda} 
+                    onChange={(v: string) => handleInputChange('economia', 'tipo_vivienda', v)} 
+                    showOther={answers.economia.tipo_vivienda === 'Otro'} 
+                    otherValue={answers.economia.tipo_vivienda_otro} 
+                    onOtherChange={(v: string) => handleInputChange('economia', 'tipo_vivienda_otro', v)}
                   />
                 </div>
               </motion.div>
@@ -434,19 +546,80 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                   {answers.cuidado.es_cuidadora === 'Sí' && (
                     <>
                       <Question 
-                        label="POBLACIÓN BAJO CUIDADO" type="checkbox-group" 
-                        options={['Hijos, hijas o menores de edad', 'Personas mayores', 'Persona con discapacidad', 'Familiar con enfermedad', 'Varias personas del hogar', 'Otro']} 
-                        value={answers.cuidado.poblacion || []} onChange={(v: string) => handleCheckboxChange('cuidado', 'poblacion', v)} 
+                        label="POBLACIÓN BAJO CUIDADO" 
+                        subtitle="A quién brinda cuidado habitualmente."
+                        type="pills" 
+                        options={[
+                          'Hijos, hijas o menores de edad',
+                          'Personas mayores',
+                          'Persona con discapacidad',
+                          'Familiar con enfermedad',
+                          'Varias personas del hogar',
+                          'Cuidado del hogar o la casa',
+                          'Mascotas',
+                          'Plantas o huertas',
+                          'Otro'
+                        ]} 
+                        value={answers.cuidado.poblacion} 
+                        onChange={(v: string) => handleInputChange('cuidado', 'poblacion', v)} 
+                        showOther={answers.cuidado.poblacion === 'Otro'} 
+                        otherValue={answers.cuidado.poblacion_otro} 
+                        onOtherChange={(v: string) => handleInputChange('cuidado', 'poblacion_otro', v)}
                         error={validationErrors.includes('cuidado.poblacion')} 
                       />
-                      <Question label="HORAS DIARIAS" type="range" min={0} max={24} step={1} value={answers.cuidado.horas} onChange={(v: string) => handleInputChange('cuidado', 'horas', v)} error={validationErrors.includes('cuidado.horas')} />
-                      <Question label="CARGA EMOCIONAL" type="rating" value={answers.cuidado.carga_emocional} onChange={(v: string) => handleInputChange('cuidado', 'carga_emocional', v)} error={validationErrors.includes('cuidado.carga_emocional')} />
-                      <Question label="CONOCIMIENTO DE PROGRAMAS" options={['Sí', 'No']} value={answers.cuidado.conoce_programas} onChange={(v: string) => handleInputChange('cuidado', 'conoce_programas', v)} />
-                      <Question label="RECONOCIMIENTO PERCIBIDO" options={['Nada reconocida', 'Poco reconocida', 'Medianamente reconocida', 'Muy reconocida']} value={answers.cuidado.reconocimiento} onChange={(v: string) => handleInputChange('cuidado', 'reconocimiento', v)} error={validationErrors.includes('cuidado.reconocimiento')} />
                       <Question 
-                        label="SENTIMIENTO FRECUENTE" options={['Ira', 'Incertidumbre', 'Temor', 'Tranquilidad', 'Felicidad', 'Angustia', 'Tristeza', 'Otro']} 
-                        value={answers.cuidado.sentimiento} onChange={(v: string) => handleInputChange('cuidado', 'sentimiento', v)} 
-                        error={validationErrors.includes('cuidado.sentimiento')} className="md:col-span-2" 
+                        label="HORAS DIARIAS" 
+                        subtitle="Tiempo estimado al día dedicado a tareas de cuidado."
+                        type="range" 
+                        min={0} 
+                        max={24} 
+                        step={1} 
+                        suffix="HORAS"
+                        value={answers.cuidado.horas} 
+                        onChange={(v: string) => handleInputChange('cuidado', 'horas', v)} 
+                        error={validationErrors.includes('cuidado.horas')} 
+                      />
+                      <Question 
+                        label="CARGA EMOCIONAL" 
+                        subtitle="Agotamiento (1: Bajo, 5: Alto)."
+                        type="rating" 
+                        value={answers.cuidado.carga_emocional} 
+                        onChange={(v: string) => handleInputChange('cuidado', 'carga_emocional', v)} 
+                        error={validationErrors.includes('cuidado.carga_emocional')} 
+                      />
+                      <Question 
+                        label="CONOCIMIENTO DE PROGRAMAS" 
+                        subtitle="¿Conoce programas o servicios públicos para cuidadoras?"
+                        type="pills"
+                        options={['Sí', 'No']} 
+                        value={answers.cuidado.conoce_programas} 
+                        onChange={(v: string) => handleInputChange('cuidado', 'conoce_programas', v)} 
+                        showOther={answers.cuidado.conoce_programas === 'Sí'} 
+                        otherValue={answers.cuidado.cuales_programas} 
+                        onOtherChange={(v: string) => handleInputChange('cuidado', 'cuales_programas', v)}
+                        otherPlaceholder="¿Cuáles?"
+                      />
+                      <Question 
+                        label="RECONOCIMIENTO PERCIBIDO" 
+                        subtitle="¿Qué tanto reconocimiento percibe por las labores que realiza?"
+                        type="pills"
+                        options={['Nada reconocida', 'Poco reconocida', 'Medianamente reconocida', 'Muy reconocida']} 
+                        value={answers.cuidado.reconocimiento} 
+                        onChange={(v: string) => handleInputChange('cuidado', 'reconocimiento', v)} 
+                        error={validationErrors.includes('cuidado.reconocimiento')} 
+                      />
+                      <Question 
+                        label="SENTIMIENTO FRECUENTE" 
+                        subtitle="¿Qué sentimiento experimenta con más frecuencia al cuidar?"
+                        type="pills"
+                        options={['Ira', 'Incertidumbre', 'Temor', 'Tranquilidad', 'Felicidad', 'Angustia', 'Tristeza', 'Otro']} 
+                        value={answers.cuidado.sentimiento} 
+                        onChange={(v: string) => handleInputChange('cuidado', 'sentimiento', v)} 
+                        showOther={answers.cuidado.sentimiento === 'Otro'} 
+                        otherValue={answers.cuidado.sentimiento_otro} 
+                        onOtherChange={(v: string) => handleInputChange('cuidado', 'sentimiento_otro', v)}
+                        error={validationErrors.includes('cuidado.sentimiento')} 
+                        className="md:col-span-2" 
                       />
                     </>
                   )}
@@ -458,21 +631,59 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
               <motion.div key="step4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
                 <StepHeader icon={Shield} title="Bienestar y Seguridad" color="red" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Question label="SEGURIDAD EN HOGAR" options={['Siempre', 'Casi siempre', 'A veces', 'Nunca']} value={answers.bienestar.seguridad_hogar} onChange={(v: string) => handleInputChange('bienestar', 'seguridad_hogar', v)} error={validationErrors.includes('bienestar.seguridad_hogar')} />
                   <Question 
-                    label="TIPOS DE VIOLENCIA PERCIBIDA" type="checkbox-group" options={['Física', 'Psicológica', 'Económica', 'Sexual', 'Patrimonial', 'Digital', 'Intrafamiliar', 'Institucional', 'Otro']} 
-                    value={answers.bienestar.violencia || []} onChange={(v: string) => handleCheckboxChange('bienestar', 'violencia', v)} 
+                    label="SEGURIDAD EN HOGAR" 
+                    subtitle="Percepción de tranquilidad y protección en su vivienda."
+                    type="pills"
+                    options={['Siempre', 'Casi siempre', 'A veces', 'Nunca']} 
+                    value={answers.bienestar.seguridad_hogar} 
+                    onChange={(v: string) => handleInputChange('bienestar', 'seguridad_hogar', v)} 
+                    error={validationErrors.includes('bienestar.seguridad_hogar')} 
+                  />
+                  <Question 
+                    label="TIPOS DE VIOLENCIA PERCIBIDA" 
+                    subtitle="Identifique situaciones de vulneración experimentadas."
+                    type="checkbox-group" 
+                    options={['Física', 'Psicológica', 'Económica', 'Sexual', 'Patrimonial', 'Digital', 'Intrafamiliar', 'Institucional', 'Otro']} 
+                    value={answers.bienestar.violencia || []} 
+                    onChange={(v: string) => handleCheckboxChange('bienestar', 'violencia', v)} 
+                    showOther={answers.bienestar.violencia?.includes('Otro')} 
+                    otherValue={answers.bienestar.violencia_otro} 
+                    onOtherChange={(v) => handleInputChange('bienestar', 'violencia_otro', v)}
                     error={validationErrors.includes('bienestar.violencia')} 
                   />
                   <Question 
-                    label="FACTORES DE RIESGO" type="checkbox-group" options={['Desempleo', 'Consumo de sustancias SPA', 'Hacinamiento', 'Falta de apoyo familiar', 'Discriminación', 'Otro']} 
-                    value={answers.bienestar.factores_riesgo || []} onChange={(v: string) => handleCheckboxChange('bienestar', 'factores_riesgo', v)} 
+                    label="FACTORES DE RIESGO" 
+                    subtitle="Situaciones del entorno que afectan su calidad de vida."
+                    type="checkbox-group" 
+                    options={['Desempleo', 'Consumo de sustancias SPA', 'Hacinamiento', 'Falta de apoyo familiar', 'Discriminación', 'Otro']} 
+                    value={answers.bienestar.factores_riesgo || []} 
+                    onChange={(v: string) => handleCheckboxChange('bienestar', 'factores_riesgo', v)} 
+                    showOther={answers.bienestar.factores_riesgo?.includes('Otro')} 
+                    otherValue={answers.bienestar.factores_riesgo_otro} 
+                    onOtherChange={(v) => handleInputChange('bienestar', 'factores_riesgo_otro', v)}
                   />
-                  <Question label="PARTICIPACIÓN EN ACTIVIDADES" options={['Sí', 'No', 'Tal vez']} value={answers.bienestar.participar} onChange={(v: string) => handleInputChange('bienestar', 'participar', v)} error={validationErrors.includes('bienestar.participar')} />
+                  <Question 
+                    label="PARTICIPACIÓN EN ACTIVIDADES" 
+                    subtitle="¿Le gustaría participar en espacios para cuidadoras?"
+                    type="pills"
+                    options={['Sí', 'No', 'Tal vez']} 
+                    value={answers.bienestar.participar} 
+                    onChange={(v: string) => handleInputChange('bienestar', 'participar', v)} 
+                    showOther={answers.bienestar.participar === 'No'} 
+                    otherValue={answers.bienestar.participar_porque} 
+                    onOtherChange={(v) => handleInputChange('bienestar', 'participar_porque', v)}
+                    otherPlaceholder="¿Por qué?"
+                    error={validationErrors.includes('bienestar.participar')} 
+                  />
                   {(answers.bienestar.participar === 'Sí' || answers.bienestar.participar === 'Tal vez') && (
                     <Question 
-                      label="PRINCIPAL DIFICULTAD" options={['Tiempo', 'Movilidad', 'Motivación', 'Seguridad del sector', 'Prevención social', 'Falta de empatía']} 
-                      value={answers.bienestar.dificultad} onChange={(v: string) => handleInputChange('bienestar', 'dificultad', v)} 
+                      label="PRINCIPAL DIFICULTAD" 
+                      subtitle="¿Cuál sería el mayor obstáculo para su asistencia?"
+                      type="pills"
+                      options={['Tiempo', 'Movilidad', 'Motivación', 'Seguridad del sector', 'Prevención social', 'Falta de empatía']} 
+                      value={answers.bienestar.dificultad} 
+                      onChange={(v: string) => handleInputChange('bienestar', 'dificultad', v)} 
                       className="md:col-span-2"
                     />
                   )}
@@ -485,21 +696,59 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                 <StepHeader icon={Star} title="Sueños y Proyecciones" color="purple" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Question 
-                    label="PRIORIDAD URGENTE" options={['Salud', 'Empleo', 'Educación', 'Vivienda', 'Apoyo Psicosocial', 'Seguridad', 'Otro']} 
-                    value={answers.proyecciones.prioridad} onChange={(v: string) => handleInputChange('proyecciones', 'prioridad', v)} 
+                    label="PRIORIDAD URGENTE" 
+                    subtitle="Identifique su necesidad más inmediata para mejorar su bienestar."
+                    type="pills"
+                    options={['Salud', 'Empleo', 'Educación', 'Vivienda', 'Apoyo Psicosocial', 'Seguridad', 'Otro']} 
+                    value={answers.proyecciones.prioridad} 
+                    onChange={(v: string) => handleInputChange('proyecciones', 'prioridad', v)} 
+                    showOther={answers.proyecciones.prioridad === 'Otro'} 
+                    otherValue={answers.proyecciones.prioridad_otro} 
+                    onOtherChange={(v) => handleInputChange('proyecciones', 'prioridad_otro', v)}
                     error={validationErrors.includes('proyecciones.prioridad')} 
                   />
                   <Question 
-                    label="INTERÉS DE FORMACIÓN" type="checkbox-group" options={['Tecnología', 'Artes/Oficios', 'Emprendimiento', 'Gestión Financiera', 'Liderazgo', 'Otro']} 
-                    value={answers.proyecciones.interes_formacion || []} onChange={(v: string) => handleCheckboxChange('proyecciones', 'interes_formacion', v)} 
+                    label="INTERÉS DE FORMACIÓN" 
+                    subtitle="¿En qué áreas le gustaría adquirir nuevos conocimientos?"
+                    type="checkbox-group" 
+                    options={['Tecnología', 'Artes/Oficios', 'Emprendimiento', 'Gestión Financiera', 'Liderazgo', 'Otro']} 
+                    value={answers.proyecciones.interes_formacion || []} 
+                    onChange={(v) => handleCheckboxChange('proyecciones', 'interes_formacion', v)} 
+                    showOther={answers.proyecciones.interes_formacion?.includes('Otro')} 
+                    otherValue={answers.proyecciones.interes_formacion_otro} 
+                    onOtherChange={(v) => handleInputChange('proyecciones', 'interes_formacion_otro', v)}
                   />
                   <Question 
-                    label="BIENESTAR DESEADO" type="checkbox-group" options={['Yoga/Meditación', 'Deporte', 'Lectura', 'Espacios de escucha', 'Manualidades', 'Otro']} 
-                    value={answers.proyecciones.bienestar_deseado || []} onChange={(v: string) => handleCheckboxChange('proyecciones', 'bienestar_deseado', v)} 
+                    label="BIENESTAR DESEADO" 
+                    subtitle="Actividades que le gustaría realizar para su cuidado personal."
+                    type="checkbox-group" 
+                    options={['Yoga/Meditación', 'Deporte', 'Lectura', 'Espacios de escucha', 'Manualidades', 'Otro']} 
+                    value={answers.proyecciones.bienestar_deseado || []} 
+                    onChange={(v) => handleCheckboxChange('proyecciones', 'bienestar_deseado', v)} 
+                    showOther={answers.proyecciones.bienestar_deseado?.includes('Otro')} 
+                    otherValue={answers.proyecciones.bienestar_deseado_otro} 
+                    onOtherChange={(v) => handleInputChange('proyecciones', 'bienestar_deseado_otro', v)}
+                    className="md:col-span-2"
                   />
                   <Question 
-                    label="PROYECTOS IDEALES" type="checkbox-group" options={['Bienestar emocional', 'Autocuidado', 'Orientación psicológica/jurídica', 'Recreativas', 'Redes de apoyo', 'Derechos', 'Emprendimiento/Finanzas', 'Otro']} 
-                    value={answers.proyecciones.proyectos_ideales || []} onChange={(v: string) => handleCheckboxChange('proyecciones', 'proyectos_ideales', v)} 
+                    label="PROYECTOS IDEALES" 
+                    subtitle="¿Qué tipo de actividades espera encontrar en nuestros proyectos?"
+                    type="checkbox-group" 
+                    options={[
+                      'Bienestar emocional',
+                      'Autocuidado',
+                      'Orientación psicológica/jurídica',
+                      'Recreativas',
+                      'Redes de apoyo',
+                      'Derechos',
+                      'Emprendimiento/Finanzas',
+                      'Otro'
+                    ]} 
+                    value={answers.proyecciones.proyectos_ideales || []} 
+                    onChange={(v) => handleCheckboxChange('proyecciones', 'proyectos_ideales', v)} 
+                    showOther={answers.proyecciones.proyectos_ideales?.includes('Otro')} 
+                    otherValue={answers.proyecciones.proyectos_ideales_otro} 
+                    onOtherChange={(v) => handleInputChange('proyecciones', 'proyectos_ideales_otro', v)}
                     className="md:col-span-2"
                   />
                 </div>
@@ -510,9 +759,9 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
               <motion.div key="step6" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
                 <StepHeader icon={FileText} title="Documentos y Consentimiento" color="slate" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <DocUploadItem label="Cédula Frontal" type="id_frontal" onUpload={handleFileUpload} url={answers.documentos.id_frontal} uploading={uploading === 'id_frontal'} />
-                  <DocUploadItem label="Cédula Reverso" type="id_reverso" onUpload={handleFileUpload} url={answers.documentos.id_reverso} uploading={uploading === 'id_reverso'} />
-                  <DocUploadItem label="Recibo Público" type="utility_bill" onUpload={handleFileUpload} url={answers.documentos.utility_bill} uploading={uploading === 'utility_bill'} className="md:col-span-2" />
+                  <DocUploadItem label="Cédula Frontal" type="id_frontal" onUpload={handleFileUpload} url={answers.documentos.id_frontal} uploading={uploading === 'id_frontal'} hasError={validationErrors.includes('document.id_frontal')} />
+                  <DocUploadItem label="Cédula Reverso" type="id_reverso" onUpload={handleFileUpload} url={answers.documentos.id_reverso} uploading={uploading === 'id_reverso'} hasError={validationErrors.includes('document.id_reverso')} />
+                  <DocUploadItem label="Recibo Público" type="utility_bill" onUpload={handleFileUpload} url={answers.documentos.utility_bill} uploading={uploading === 'utility_bill'} className="md:col-span-2" hasError={validationErrors.includes('document.utility_bill')} />
                   
                   <div className={cn("md:col-span-2 p-8 rounded-[2rem] border transition-all", habeasAccepted ? "bg-unidas-primary/10 border-unidas-primary/20" : "bg-white/5 border-white/10", validationErrors.includes('habeas') && "border-red-500")}>
                     <div className="flex items-start space-x-4">
@@ -523,6 +772,18 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                       <div>
                         <p className="text-white font-black text-lg">Acepto la Política de Habeas Data</p>
                         <p className="text-white/40 text-xs mt-2 leading-relaxed font-medium italic">Autorizo el tratamiento de mis datos personales para fines institucionales según la Ley 1581 de 2012.</p>
+                        {habeasDataUrl && (
+                          <div className="mt-4 pt-4 border-t border-white/5">
+                            <button
+                              type="button"
+                              onClick={() => setViewerConfig({ url: habeasDataUrl, title: 'Política de Tratamiento de Datos' })}
+                              className="inline-flex items-center space-x-2 text-unidas-primary font-black uppercase tracking-widest text-[10px] hover:underline"
+                            >
+                              <FileText className="w-4 h-4" />
+                              <span>Ver Política de Tratamiento de Datos</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -563,6 +824,52 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
           </div>
         </div>
       </motion.div>
+
+      {/* Validation Error Popup */}
+      <AnimatePresence>
+        {showErrorPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-unidas-dark/80 backdrop-blur-md flex items-center justify-center p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="max-w-md w-full bg-white/5 border border-white/10 p-10 rounded-[3rem] text-center shadow-2xl relative overflow-hidden backdrop-blur-2xl"
+            >
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-red-500 via-unidas-secondary to-red-500 animate-pulse" />
+              <div className="w-20 h-20 bg-red-500/20 text-red-500 rounded-[1.75rem] flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-red-500/20">
+                <AlertCircle className="w-10 h-10 animate-bounce" />
+              </div>
+              <h2 className="text-2xl font-black text-white mb-3 font-display">Diligencia la encuesta completa</h2>
+              <p className="text-white/60 font-medium text-base leading-relaxed mb-8">
+                Por favor complete todos los campos resaltados en rojo para continuar.
+              </p>
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowErrorPopup(false)}
+                  className="px-10 py-4 bg-gradient-to-r from-red-500 to-unidas-secondary text-white font-black rounded-2xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-sm uppercase tracking-wider"
+                >
+                  Aceptar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Document Viewer Overlay */}
+      {viewerConfig && (
+        <DocumentViewer
+          url={viewerConfig.url}
+          title={viewerConfig.title}
+          onClose={() => setViewerConfig(null)}
+        />
+      )}
     </div>
   );
 }
@@ -610,91 +917,252 @@ function QuestionSelect({ label, name, value, options, onChange, className }: an
   );
 }
 
-function Question({ label, type = 'pills', options = [], value, onChange, placeholder, error, className, min, max, step, showOther, otherValue, onOtherChange, ageDisplay }: any) {
+function Question({
+  label, subtitle, type, value, onChange, options,
+  placeholder, className, disabled,
+  showOther, otherValue, onOtherChange, otherPlaceholder, error, ageDisplay,
+  min, max, step, suffix, labels
+}: any) {
   return (
-    <div className={cn("space-y-3 p-6 rounded-[2rem] transition-all notranslate", error ? "bg-red-500/5 border border-red-500/20" : "bg-white/5 border border-white/10", className)} translate="no">
-      <div className="flex justify-between items-center px-1">
-        <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">{label}</label>
-        {ageDisplay && <span className="text-[10px] font-black text-unidas-primary uppercase">{ageDisplay}</span>}
+    <div className={cn(
+      "bg-white/5 border p-3 rounded-2xl backdrop-blur-xl shadow-sm transition-all hover:bg-white/[0.08] group flex flex-col h-full min-h-[100px] notranslate",
+      error ? "border-red-500/50 bg-red-500/5" : "border-white/10",
+      className,
+      disabled && "opacity-60"
+    )} translate="no">
+      <div className="mb-2 border-b border-white/5 pb-2">
+        <label className="text-[11px] font-black text-white/70 uppercase tracking-[0.05em] block mb-0.5 group-hover:text-unidas-primary transition-colors">{label}</label>
+        {subtitle && <p className="text-[9px] text-white/30 font-medium italic leading-tight">{subtitle}</p>}
       </div>
-      
-      {type === 'pills' ? (
-        <div className="flex flex-wrap gap-2">
-          {options.map((opt: string) => (
-            <button
-              key={opt} type="button"
-              onClick={() => onChange(opt)}
-              className={cn(
-                "px-4 py-2.5 rounded-xl text-[11px] font-bold transition-all border",
-                value === opt ? "bg-unidas-primary/20 border-unidas-primary text-unidas-primary" : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
-              )}
+
+      <div className="flex-grow flex flex-col justify-center">
+
+        {type === 'pills' ? (
+          <div className="space-y-2">
+            <div className={cn("grid gap-1", options.length > 4 ? "grid-cols-1" : "grid-cols-2")}>
+              {options.map((opt: string) => (
+                <button
+                  key={opt}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onChange(opt)}
+                  className={cn(
+                    "py-1 px-1.5 rounded-lg text-[10px] font-bold transition-all border text-left flex items-center space-x-1.5",
+                    value === opt
+                      ? "bg-unidas-primary/20 border-unidas-primary text-unidas-primary"
+                      : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10",
+                    disabled && "cursor-not-allowed"
+                  )}
+                >
+                  <div className={cn(
+                    "w-2.5 h-2.5 rounded-full border shrink-0",
+                    value === opt ? "border-unidas-primary bg-unidas-primary" : "border-white/10"
+                  )} />
+                  <span className="truncate">{opt}</span>
+                </button>
+              ))}
+            </div>
+            {showOther && (
+              <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}>
+                <input
+                  type="text"
+                  placeholder={otherPlaceholder || "Especificar..."}
+                  value={otherValue || ''}
+                  onChange={(e) => onOtherChange(e.target.value)}
+                  disabled={disabled}
+                  className="w-full px-2 py-1 bg-white/5 border border-unidas-primary/30 focus:border-unidas-primary rounded-lg transition-all outline-none font-bold text-white placeholder:text-white/10 text-[10px]"
+                />
+              </motion.div>
+            )}
+          </div>
+        ) : type === 'checkbox-group' ? (
+          <div className="space-y-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {options.map((opt: string) => (
+                <label
+                  key={opt}
+                  className={cn(
+                    "flex items-center space-x-2 p-2 rounded-lg border transition-all cursor-pointer",
+                    value?.includes(opt)
+                      ? "bg-unidas-primary/10 border-unidas-primary text-unidas-primary"
+                      : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    disabled={disabled}
+                    checked={value?.includes(opt)}
+                    onChange={() => onChange(opt)}
+                    className="w-3.5 h-3.5 rounded bg-white/5 border-white/10 text-unidas-primary focus:ring-unidas-primary"
+                  />
+                  <span className="font-bold text-[10px] truncate">{opt}</span>
+                </label>
+              ))}
+            </div>
+            {showOther && (
+              <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}>
+                <input
+                  type="text"
+                  placeholder={otherPlaceholder || "Especificar..."}
+                  value={otherValue || ''}
+                  onChange={(e) => onOtherChange(e.target.value)}
+                  disabled={disabled}
+                  className="w-full px-2 py-1 bg-white/5 border border-unidas-primary/30 focus:border-unidas-primary rounded-lg transition-all outline-none font-bold text-white placeholder:text-white/10 text-[10px]"
+                />
+              </motion.div>
+            )}
+          </div>
+        ) : type === 'date-split' ? (
+          <div className="grid grid-cols-3 gap-2">
+            <div className="relative">
+              <label className="text-[9px] font-black text-white/40 uppercase tracking-widest block mb-0.5">Día</label>
+              <select
+                disabled={disabled}
+                value={value?.day || ''}
+                onChange={e => onChange({ ...value, day: e.target.value })}
+                className="w-full py-1 px-1 bg-white/5 border border-white/5 rounded-lg text-center text-white focus:border-unidas-primary outline-none transition-all font-bold disabled:cursor-not-allowed appearance-none text-[10px]"
+              >
+                <option value="" className="bg-unidas-dark">--</option>
+                {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                  <option key={day} value={String(day).padStart(2, '0')} className="bg-unidas-dark">
+                    {String(day).padStart(2, '0')}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="relative">
+              <label className="text-[9px] font-black text-white/40 uppercase tracking-widest block mb-0.5">Mes</label>
+              <select
+                disabled={disabled}
+                value={value?.month || ''}
+                onChange={e => onChange({ ...value, month: e.target.value })}
+                className="w-full py-1 px-1 bg-white/5 border border-white/5 rounded-lg text-center text-white focus:border-unidas-primary outline-none transition-all font-bold disabled:cursor-not-allowed appearance-none text-[10px]"
+              >
+                <option value="" className="bg-unidas-dark">--</option>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                  <option key={month} value={String(month).padStart(2, '0')} className="bg-unidas-dark">
+                    {String(month).padStart(2, '0')}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="relative">
+              <label className="text-[9px] font-black text-white/40 uppercase tracking-widest block mb-0.5">Año</label>
+              <select
+                disabled={disabled}
+                value={value?.year || ''}
+                onChange={e => onChange({ ...value, year: e.target.value })}
+                className="w-full py-1 px-1 bg-white/5 border border-white/5 rounded-lg text-center text-white focus:border-unidas-primary outline-none transition-all font-bold disabled:cursor-not-allowed appearance-none text-[10px]"
+              >
+                <option value="" className="bg-unidas-dark">--</option>
+                {Array.from({ length: 100 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                  <option key={year} value={String(year)} className="bg-unidas-dark">
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        ) : type === 'select' ? (
+          <div className="relative">
+            <select
+              value={value || ''}
+              disabled={disabled}
+              onChange={(e) => onChange(e.target.value)}
+              className="w-full px-2 py-1 bg-white/5 border border-white/5 focus:border-unidas-primary rounded-lg transition-all outline-none font-bold text-white appearance-none cursor-pointer disabled:cursor-not-allowed text-[10px]"
             >
-              {opt}
-            </button>
-          ))}
-        </div>
-      ) : type === 'checkbox-group' ? (
-        <div className="flex flex-wrap gap-2">
-          {options.map((opt: string) => (
-            <button
-              key={opt} type="button"
-              onClick={() => onChange(opt)}
-              className={cn(
-                "px-4 py-2.5 rounded-xl text-[11px] font-bold transition-all border",
-                value?.includes(opt) ? "bg-unidas-primary/20 border-unidas-primary text-unidas-primary" : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
-              )}
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
-      ) : type === 'range' ? (
-        <div className="space-y-4 px-2 py-2">
-          <input type="range" min={min} max={max} step={step} value={value || 0} onChange={(e) => onChange(e.target.value)} className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-unidas-primary" />
-          <div className="flex justify-between text-[10px] font-black text-white/20">
-            <span>{min.toLocaleString()}</span>
-            <span className="text-unidas-primary text-base">{Number(value || 0).toLocaleString()}</span>
-            <span>{max.toLocaleString()}</span>
+              <option value="" className="bg-unidas-dark">Seleccionar...</option>
+              {options.map((opt: string) => (
+                <option key={opt} value={opt} className="bg-unidas-dark">{opt}</option>
+              ))}
+            </select>
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-white/20">
+              <Info className="w-3 h-3" />
+            </div>
+          </div>
+        ) : type === 'range' ? (
+          <div className="space-y-2 py-1">
+            <div className="relative pt-2 pb-0.5">
+              <input
+                type="range"
+                min={min || 0}
+                max={max || 4000000}
+                step={step || 50000}
+                value={value || 0}
+                disabled={disabled}
+                onInput={(e: any) => onChange(e.target.value)}
+                onChange={(e: any) => onChange(e.target.value)}
+                className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-orange-500"
+              />
+              <div className="flex justify-between mt-1">
+                <span className="text-[7px] font-bold text-white/20 uppercase">{labels?.min || 'Min'}</span>
+                <span className="text-[7px] font-bold text-white/20 uppercase">{labels?.max || 'Max'}</span>
+              </div>
+            </div>
+            <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-1.5 flex items-center justify-center">
+              <div className="text-center">
+                <span className="text-[10px] font-black text-orange-500 uppercase tracking-wider leading-none">
+                  {suffix
+                    ? `${Number(value) || 0} ${suffix}`
+                    : new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(value) || 0)}
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : type === 'rating' ? (
+          <div className="space-y-2">
+            <div className="flex justify-between gap-1">
+              {[1, 2, 3, 4, 5].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onChange(String(num))}
+                  className={cn(
+                    "flex-1 py-1.5 rounded-lg text-sm font-black transition-all border",
+                    value === String(num)
+                      ? "bg-orange-500 border-orange-500 text-white shadow-sm"
+                      : "bg-white/5 border-white/5 text-white/20 hover:bg-white/10"
+                  )}
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+            <div className="flex justify-between px-1">
+              <span className="text-[7px] font-black text-white/20 uppercase tracking-widest">{labels?.min}</span>
+              <span className="text-[7px] font-black text-white/20 uppercase tracking-widest">{labels?.max}</span>
+            </div>
+          </div>
+        ) : (
+          <input
+            type={type}
+            disabled={disabled}
+            value={value || ''}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full px-2 py-1 bg-white/5 border border-white/5 focus:border-unidas-primary rounded-lg transition-all outline-none font-bold text-white placeholder:text-white/10 disabled:cursor-not-allowed text-[10px]"
+            placeholder={placeholder}
+          />
+        )}
+      </div>
+      {ageDisplay && (
+        <div className="mt-2 pt-2 border-t border-white/5">
+          <div className="inline-flex items-center px-2 py-0.5 bg-unidas-primary/20 rounded-full border border-unidas-primary/30">
+            <span className="text-[8px] font-black text-unidas-primary uppercase tracking-widest">{ageDisplay}</span>
           </div>
         </div>
-      ) : type === 'rating' ? (
-        <div className="flex items-center space-x-2 py-2">
-          {[1, 2, 3, 4, 5].map((star) => (
-            <button key={star} onClick={() => onChange(star)} className={cn("p-2 transition-transform hover:scale-110", star <= (value || 0) ? "text-amber-400" : "text-white/10")}>
-              <Star className="w-7 h-7 fill-current" />
-            </button>
-          ))}
-        </div>
-      ) : type === 'date-split' ? (
-        <div className="grid grid-cols-3 gap-2 py-1">
-          <input placeholder="DD" value={value?.day || ''} onChange={(e) => onChange({...value, day: e.target.value})} className="bg-white/5 border border-white/10 p-3.5 rounded-xl text-white text-center font-bold outline-none focus:border-unidas-primary" maxLength={2} />
-          <input placeholder="MM" value={value?.month || ''} onChange={(e) => onChange({...value, month: e.target.value})} className="bg-white/5 border border-white/10 p-3.5 rounded-xl text-white text-center font-bold outline-none focus:border-unidas-primary" maxLength={2} />
-          <input placeholder="AAAA" value={value?.year || ''} onChange={(e) => onChange({...value, year: e.target.value})} className="bg-white/5 border border-white/10 p-3.5 rounded-xl text-white text-center font-bold outline-none focus:border-unidas-primary" maxLength={4} />
-        </div>
-      ) : type === 'select' ? (
-        <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white outline-none focus:border-unidas-primary transition-all font-bold appearance-none">
-          <option value="" className="bg-unidas-dark">Seleccionar opción...</option>
-          {options.map((opt: string) => <option key={opt} value={opt} className="bg-unidas-dark">{opt}</option>)}
-        </select>
-      ) : (
-        <input type={type} value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white outline-none focus:border-unidas-primary transition-all font-bold" />
-      )}
-
-      {showOther && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mt-2">
-          <input 
-            type="text" value={otherValue || ''} onChange={(e) => onOtherChange(e.target.value)} placeholder="Especifique cuál..."
-            className="w-full bg-white/5 border border-unidas-primary/30 p-3 rounded-xl text-xs text-white outline-none italic font-medium"
-          />
-        </motion.div>
       )}
     </div>
   );
 }
 
-function DocUploadItem({ label, type, onUpload, url, uploading, className }: any) {
+function DocUploadItem({ label, type, onUpload, url, uploading, className, hasError }: any) {
   return (
-    <div className={cn("p-8 rounded-[2rem] bg-white/5 border border-white/10 flex flex-col items-center justify-center space-y-5 group transition-all hover:border-unidas-primary/40", className)}>
+    <div className={cn(
+      "p-8 rounded-[2rem] bg-white/5 border flex flex-col items-center justify-center space-y-5 group transition-all hover:border-unidas-primary/40",
+      hasError ? "border-red-500/50 bg-red-500/5" : "border-white/10",
+      className
+    )}>
       <div className="w-16 h-16 rounded-2xl bg-unidas-primary/10 flex items-center justify-center text-unidas-primary group-hover:scale-110 transition-transform border border-unidas-primary/20">
         {uploading ? <div className="w-6 h-6 border-2 border-unidas-primary border-t-transparent rounded-full animate-spin" /> : url ? <CheckCircle2 className="w-8 h-8" /> : <Upload className="w-8 h-8" />}
       </div>
