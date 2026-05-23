@@ -41,8 +41,12 @@ export default function AnalystDashboard() {
       const res = await fetch('/api/admin/surveys', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (res.status === 401 || res.status === 403) {
+        useAuthStore.getState().logout();
+        return;
+      }
       if (!res.ok) throw new Error('Error al cargar encuestas');
-      const data = await res.json();
+      const data = await res.ok ? await res.json() : [];
       setSurveys(data || []);
     } catch (err) {
       console.error(err);

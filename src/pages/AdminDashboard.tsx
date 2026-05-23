@@ -22,7 +22,14 @@ import { DocumentViewer } from '../components/DocumentViewer';
 
 export default function AdminDashboard() {
   const { token, user } = useAuthStore();
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<any>({
+    totalUsers: 0,
+    completedSurveys: 0,
+    pendingSurveys: 0,
+    registeredEvents: 0,
+    educationDist: [],
+    registryTrend: []
+  });
   const [surveys, setSurveys] = useState<any[]>([]);
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [newsList, setNewsList] = useState<any[]>([]);
@@ -86,7 +93,21 @@ export default function AdminDashboard() {
       const headers = { 'Authorization': `Bearer ${token}` };
       
       const statsRes = await fetch('/api/stats', { headers });
-      if (statsRes.ok) setStats(await statsRes.json());
+      if (statsRes.status === 401 || statsRes.status === 403) {
+        useAuthStore.getState().logout();
+        return;
+      }
+      if (statsRes.ok) {
+        const data = await statsRes.json();
+        setStats({
+          totalUsers: data.totalUsers ?? 0,
+          completedSurveys: data.completedSurveys ?? 0,
+          pendingSurveys: data.pendingSurveys ?? 0,
+          registeredEvents: data.registeredEvents ?? 0,
+          educationDist: data.educationDist || [],
+          registryTrend: data.registryTrend || []
+        });
+      }
 
       const surveysRes = await fetch('/api/admin/surveys', { headers });
       if (surveysRes.ok) setSurveys(await surveysRes.json());
@@ -104,8 +125,10 @@ export default function AdminDashboard() {
       if (analystsRes.ok) setAnalysts(await analystsRes.json());
 
       const settingsRes = await fetch('/api/settings/habeas_data');
-      const settingsData = await settingsRes.json();
-      setHabeasDataPath(settingsData.value);
+      if (settingsRes.ok) {
+        const settingsData = await settingsRes.json();
+        setHabeasDataPath(settingsData.value);
+      }
     } catch (err) {
       console.error('Fetch error:', err);
     } finally {
@@ -629,10 +652,10 @@ export default function AdminDashboard() {
             <div className="space-y-16">
               {/* KPIs */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                <StatCard icon={Users} color="bg-unidas-primary" label="Usuarios Totales" value={stats.totalUsers} trend="+12% mensual" />
-                <StatCard icon={ClipboardCheck} color="bg-unidas-accent" label="Encuestas Aprobadas" value={stats.completedSurveys} trend="+8% mensual" />
-                <StatCard icon={Clock} color="bg-amber-500" label="Pendientes Validación" value={stats.pendingSurveys} trend="-5% semanal" />
-                <StatCard icon={Calendar} color="bg-unidas-secondary" label="Eventos Activos" value={stats.registeredEvents} trend="Estable" />
+                <StatCard icon={Users} color="bg-unidas-primary" label="Usuarios Totales" value={stats?.totalUsers || 0} trend="+12% mensual" />
+                <StatCard icon={ClipboardCheck} color="bg-unidas-accent" label="Encuestas Aprobadas" value={stats?.completedSurveys || 0} trend="+8% mensual" />
+                <StatCard icon={Clock} color="bg-amber-500" label="Pendientes Validación" value={stats?.pendingSurveys || 0} trend="-5% semanal" />
+                <StatCard icon={Calendar} color="bg-unidas-secondary" label="Eventos Activos" value={stats?.registeredEvents || 0} trend="Estable" />
               </div>
 
               {/* Charts Row */}
@@ -685,7 +708,7 @@ export default function AdminDashboard() {
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
-                          data={stats.educationDist?.length ? stats.educationDist : [
+                          data={stats?.educationDist?.length ? stats.educationDist : [
                             { label: 'Primaria', value: 0 }, { label: 'Secundaria', value: 0 }, { label: 'Técnico', value: 0 }
                           ]}
                           innerRadius={80}
@@ -708,7 +731,7 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   <div className="mt-8 grid grid-cols-2 gap-4">
-                    {(stats.educationDist?.length ? stats.educationDist : [
+                    {(stats?.educationDist?.length ? stats.educationDist : [
                       { label: 'Primaria', value: 0 }, { label: 'Secundaria', value: 0 }, { label: 'Técnico', value: 0 }
                     ]).map((item: any, i: number) => (
                       <div key={i} className="flex items-center space-x-3 bg-white/5 p-3 rounded-2xl border border-white/5">

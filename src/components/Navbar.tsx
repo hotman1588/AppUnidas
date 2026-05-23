@@ -1,7 +1,7 @@
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { Menu, X, User, LogOut, Home, ClipboardList, BarChart3, LayoutDashboard, Heart, Settings, KeyRound, ChevronDown, XCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
 

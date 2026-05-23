@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   ClipboardList, Calendar, Bell, ShieldCheck, Clock, 
@@ -32,6 +32,10 @@ export default function UserDashboard() {
         const surveyRes = await fetch('/api/user/survey', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
+        if (surveyRes.status === 401 || surveyRes.status === 403) {
+          useAuthStore.getState().logout();
+          return;
+        }
         const surveyData = await surveyRes.json();
         setSurveyStatus(surveyData);
 
