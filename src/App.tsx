@@ -14,6 +14,7 @@ import UserDashboard from './pages/UserDashboard';
 import SurveyWizard from './pages/SurveyWizard';
 import AdminDashboard from './pages/AdminDashboard';
 import AnalystDashboard from './pages/AnalystDashboard';
+import NewsPage from './pages/NewsPage';
 import Footer from './components/Footer';
 
 function PrivateRoute({ children, role }: { children: React.ReactNode, role?: string }) {
@@ -45,6 +46,7 @@ export default function App() {
         <main className="flex-grow">
           <Routes>
             <Route path="/" element={<LandingPage />} />
+            <Route path="/news" element={<NewsPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             
