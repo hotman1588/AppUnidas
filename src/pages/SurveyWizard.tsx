@@ -77,6 +77,9 @@ export default function SurveyWizard() {
     const saved = localStorage.getItem('survey_habeas');
     return saved === 'true';
   });
+  const [hasViewedHabeas, setHasViewedHabeas] = useState(() => {
+    return localStorage.getItem('survey_habeas_viewed') === 'true';
+  });
   const [uploadedDocs, setUploadedDocs] = useState<any[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -1343,29 +1346,59 @@ export default function SurveyWizard() {
                         <div className="mt-4 pt-4 border-t border-white/5">
                           <button
                             type="button"
-                            onClick={() => setViewerConfig({ url: habeasDataUrl, title: 'Política de Tratamiento de Datos' })}
-                            className="inline-flex items-center space-x-2 text-unidas-primary font-black uppercase tracking-widest text-[10px] hover:underline"
+                            onClick={() => {
+                              setHasViewedHabeas(true);
+                              localStorage.setItem('survey_habeas_viewed', 'true');
+                              setViewerConfig({ url: habeasDataUrl, title: 'Política de Tratamiento de Datos' });
+                            }}
+                            className={cn(
+                              "inline-flex items-center space-x-2 font-black uppercase tracking-widest text-[10px] transition-all",
+                              hasViewedHabeas
+                                ? "text-green-400 hover:underline"
+                                : "text-unidas-primary animate-pulse hover:underline"
+                            )}
                           >
                             <FileText className="w-4 h-4" />
-                            <span>Ver Política de Tratamiento de Datos</span>
+                            <span>{hasViewedHabeas ? '✓ Política Leída – Ver de nuevo' : '⚠ Leer Política de Tratamiento de Datos (obligatorio)'}</span>
                           </button>
                         </div>
                       )}
                     </div>
+
+                    {/* Lock notice when document hasn't been viewed */}
+                    {!hasViewedHabeas && habeasDataUrl && (
+                      <div className="mb-4 flex items-center space-x-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
+                        <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                        <p className="text-xs font-bold text-amber-400 uppercase tracking-wide">
+                          Debe abrir y leer el documento de Política de Tratamiento de Datos antes de poder aceptar.
+                        </p>
+                      </div>
+                    )}
+
                     <div className={cn(
                       "bg-white/5 border p-8 rounded-[2.5rem] backdrop-blur-sm transition-all",
-                      validationErrors.includes('habeas_data') ? "border-red-500/50 bg-red-500/5" : "border-white/5"
+                      validationErrors.includes('habeas_data') ? "border-red-500/50 bg-red-500/5" : "border-white/5",
+                      (!hasViewedHabeas && habeasDataUrl) && "opacity-50"
                     )}>
                       <div className="flex items-start space-x-4">
                         <input
                           type="checkbox"
                           id="habeas"
                           checked={habeasAccepted}
-                          disabled={isLocked}
+                          disabled={isLocked || (!hasViewedHabeas && !!habeasDataUrl)}
                           onChange={(e) => setHabeasAccepted(e.target.checked)}
-                          className="w-6 h-6 mt-1 rounded border-white/10 text-unidas-primary focus:ring-unidas-primary bg-white/5"
+                          className={cn(
+                            "w-6 h-6 mt-1 rounded border-white/10 text-unidas-primary focus:ring-unidas-primary bg-white/5",
+                            (!hasViewedHabeas && habeasDataUrl) ? "cursor-not-allowed" : "cursor-pointer"
+                          )}
                         />
-                        <label htmlFor="habeas" className="text-sm text-white/60 font-medium leading-relaxed cursor-pointer">
+                        <label
+                          htmlFor="habeas"
+                          className={cn(
+                            "text-sm font-medium leading-relaxed select-none",
+                            (!hasViewedHabeas && habeasDataUrl) ? "text-white/30 cursor-not-allowed" : "text-white/60 cursor-pointer"
+                          )}
+                        >
                           Acepto que mis datos personales sean tratados de acuerdo con la política de tratamiento de datos personales de la Secretaría de Integración Social.
                         </label>
                       </div>
