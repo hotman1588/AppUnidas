@@ -1130,7 +1130,7 @@ export default function AdminDashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                 {newsList.map((n) => (
                   <div key={n.id} className="bg-white/5 rounded-[4rem] overflow-hidden border border-white/10 flex flex-col md:flex-row group relative backdrop-blur-xl hover:bg-white/10 transition-all">
-                    <div className="w-full md:w-56 h-64 md:h-auto overflow-hidden relative">
+                    <div className="w-full md:w-56 h-64 md:h-auto flex-shrink-0 overflow-hidden relative">
                       <img src={n.image_url} alt={n.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-60 group-hover:opacity-100" />
                       <div className="absolute inset-0 bg-gradient-to-t from-unidas-dark via-transparent to-transparent md:bg-gradient-to-r" />
                     </div>
