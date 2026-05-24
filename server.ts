@@ -911,6 +911,46 @@ app.delete('/api/admin/users/:id', authenticateToken, isAdmin, async (req, res) 
 });
 
 // Settings & Public
+app.post('/api/admin/settings/upload', authenticateToken, isAdmin, upload.single('file'), async (req: any, res: any) => {
+  if (!req.file) return res.status(400).json({ error: 'No file' });
+  const { key } = req.body;
+  try {
+    let fileUrl = `/api/documents/view/${req.file.filename}`;
+    
+    if (supabase) {
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const { error } = await supabase.storage
+        .from('documents')
+        .upload(req.file.filename, fileBuffer, {
+          contentType: req.file.mimetype,
+          upsert: true
+        });
+
+      if (error) {
+        console.error('Supabase storage settings upload failed:', error.message);
+      } else {
+        const { data } = supabase.storage
+          .from('documents')
+          .getPublicUrl(req.file.filename);
+        if (data?.publicUrl) {
+          fileUrl = data.publicUrl;
+        }
+      }
+    }
+
+    const settingKey = key || 'habeas_data';
+    await pool.query(
+      'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2',
+      [settingKey, fileUrl]
+    );
+
+    res.json({ path: fileUrl });
+  } catch (err: any) {
+    console.error('Settings upload error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/settings/habeas_data', async (req, res) => {
   const r = await pool.query("SELECT value FROM settings WHERE key = 'habeas_data'");
   res.json(r.rows[0] || { value: '/habeas_data.pdf' });
