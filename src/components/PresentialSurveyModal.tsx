@@ -203,11 +203,71 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
   };
 
   const handleInputChange = (module: string, key: string, value: any) => {
-    setAnswers((prev: any) => ({
-      ...prev,
-      [module]: { ...prev[module], [key]: value }
-    }));
-    setValidationErrors(prev => prev.filter(f => f !== `${module}.${key}`));
+    setAnswers((prev: any) => {
+      const newAnswers = {
+        ...prev,
+        [module]: {
+          ...(prev[module] || {}),
+          [key]: value
+        }
+      };
+
+      // Auto-select UPL if barrio is selected
+      if (module === 'socio' && key === 'barrio') {
+        const upl = BARRIO_TO_UPL[value];
+        if (upl) {
+          if (!newAnswers.socio) newAnswers.socio = {};
+          newAnswers.socio.upz = upl;
+        }
+      }
+
+      // Auto-select UPL for insecure barrio
+      if (module === 'bienestar' && key === 'barrio_inseguro') {
+        const upl = BARRIO_TO_UPL[value];
+        if (upl) {
+          if (!newAnswers.bienestar) newAnswers.bienestar = {};
+          newAnswers.bienestar.upl_inseguro = upl;
+        }
+      }
+
+      // Clear insecure barrio info if difficulty is changed away from Seguridad del sector
+      if (module === 'bienestar' && key === 'dificultad' && value !== 'Seguridad del sector') {
+        if (newAnswers.bienestar) {
+          delete newAnswers.bienestar.barrio_inseguro;
+          delete newAnswers.bienestar.upl_inseguro;
+        }
+      }
+
+      // Clear conditional sickness list if no longer diagnosed with sickness
+      if (module === 'bienestar' && key === 'enfermedad_diagnosticada' && value !== 'Sí') {
+        if (newAnswers.bienestar) {
+          delete newAnswers.bienestar.enfermedades_cuales;
+        }
+      }
+
+      // Clear conditional support list if no longer desiring support
+      if (module === 'proyecciones' && key === 'desea_mas_apoyo' && value !== 'Sí') {
+        if (newAnswers.proyecciones) {
+          delete newAnswers.proyecciones.apoyo_cuales;
+        }
+      }
+
+      return newAnswers;
+    });
+
+    setValidationErrors(prev => {
+      const cleared = prev.filter(f => f !== `${module}.${key}`);
+      if (module === 'bienestar' && key === 'dificultad' && value !== 'Seguridad del sector') {
+        return cleared.filter(f => f !== 'bienestar.barrio_inseguro' && f !== 'bienestar.upl_inseguro');
+      }
+      if (module === 'bienestar' && key === 'enfermedad_diagnosticada' && value !== 'Sí') {
+        return cleared.filter(f => f !== 'bienestar.enfermedades_cuales');
+      }
+      if (module === 'proyecciones' && key === 'desea_mas_apoyo' && value !== 'Sí') {
+        return cleared.filter(f => f !== 'proyecciones.apoyo_cuales');
+      }
+      return cleared;
+    });
   };
 
   const handleCheckboxChange = (module: string, key: string, value: string) => {
@@ -251,39 +311,64 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       if (!userData.document_number) missing.push('document_number');
       if (!userData.password) missing.push('password');
     } else if (currentStep === 1) {
-      if (!answers.socio.fecha_nacimiento) missing.push('socio.fecha_nacimiento');
-      if (!answers.socio.genero) missing.push('socio.genero');
-      if (!answers.socio.barrio) missing.push('socio.barrio');
-      if (!answers.socio.upz) missing.push('socio.upz');
-      if (!answers.socio.nivel_educativo) missing.push('socio.nivel_educativo');
-      if (!answers.socio.pertenencia || answers.socio.pertenencia.length === 0) missing.push('socio.pertenencia');
+      if (!answers.socio?.fecha_nacimiento) missing.push('socio.fecha_nacimiento');
+      if (!answers.socio?.genero) missing.push('socio.genero');
+      if (!answers.socio?.barrio) missing.push('socio.barrio');
+      if (!answers.socio?.upz) missing.push('socio.upz');
+      if (!answers.socio?.nivel_educativo) missing.push('socio.nivel_educativo');
+      if (!answers.socio?.pertenencia || answers.socio.pertenencia.length === 0) missing.push('socio.pertenencia');
     } else if (currentStep === 2) {
-      if (!answers.economia.ingresos) missing.push('economia.ingresos');
-      if (!answers.economia.fuente_ingresos) missing.push('economia.fuente_ingresos');
-      if (!answers.economia.situacion_laboral) missing.push('economia.situacion_laboral');
+      if (!answers.economia?.ingresos) missing.push('economia.ingresos');
+      if (!answers.economia?.fuente_ingresos) missing.push('economia.fuente_ingresos');
+      if (!answers.economia?.situacion_laboral) missing.push('economia.situacion_laboral');
     } else if (currentStep === 3) {
-      if (!answers.cuidado.es_cuidadora) missing.push('cuidado.es_cuidadora');
-      if (answers.cuidado.es_cuidadora === 'Sí') {
-        if (!answers.cuidado.poblacion) missing.push('cuidado.poblacion');
-        if (!answers.cuidado.horas) missing.push('cuidado.horas');
-        if (!answers.cuidado.carga_emocional) missing.push('cuidado.carga_emocional');
-        if (!answers.cuidado.reconocimiento) missing.push('cuidado.reconocimiento');
-        if (!answers.cuidado.sentimiento) missing.push('cuidado.sentimiento');
+      if (!answers.cuidado?.es_cuidadora) missing.push('cuidado.es_cuidadora');
+      if (answers.cuidado?.es_cuidadora === 'Sí') {
+        if (!answers.cuidado?.poblacion) missing.push('cuidado.poblacion');
+        if (!answers.cuidado?.horas) missing.push('cuidado.horas');
+        if (!answers.cuidado?.carga_emocional) missing.push('cuidado.carga_emocional');
+        if (!answers.cuidado?.reconocimiento) missing.push('cuidado.reconocimiento');
+        if (!answers.cuidado?.sentimiento) missing.push('cuidado.sentimiento');
+        if (!answers.cuidado?.cansancio_fisico) missing.push('cuidado.cansancio_fisico');
+        if (!answers.cuidado?.responsabilidades_excesivas) missing.push('cuidado.responsabilidades_excesivas');
+        if (!answers.cuidado?.poco_tiempo_autocuidado) missing.push('cuidado.poco_tiempo_autocuidado');
+        if (!answers.cuidado?.estres_constante) missing.push('cuidado.estres_constante');
+        if (!answers.cuidado?.agotamiento_emocional) missing.push('cuidado.agotamiento_emocional');
       }
     } else if (currentStep === 4) {
-      if (!answers.bienestar.seguridad_hogar) missing.push('bienestar.seguridad_hogar');
-      if (!answers.bienestar.violencia || answers.bienestar.violencia.length === 0) missing.push('bienestar.violencia');
-      if (!answers.bienestar.factores_riesgo || answers.bienestar.factores_riesgo.length === 0) missing.push('bienestar.factores_riesgo');
-      if (!answers.bienestar.participar) missing.push('bienestar.participar');
+      if (!answers.bienestar?.seguridad_hogar) missing.push('bienestar.seguridad_hogar');
+      if (!answers.bienestar?.violencia || answers.bienestar.violencia.length === 0) missing.push('bienestar.violencia');
+      if (!answers.bienestar?.factores_riesgo || answers.bienestar.factores_riesgo.length === 0) missing.push('bienestar.factores_riesgo');
+      if (!answers.bienestar?.participar) missing.push('bienestar.participar');
+      if (!answers.bienestar?.tiempo_cuidado_mayor_parte) missing.push('bienestar.tiempo_cuidado_mayor_parte');
+      if (!answers.bienestar?.poco_apoyo_familiar) missing.push('bienestar.poco_apoyo_familiar');
+      if (!answers.bienestar?.afectacion_sueño) missing.push('bienestar.afectacion_sueño');
+      if (!answers.bienestar?.enfermedad_diagnosticada) missing.push('bienestar.enfermedad_diagnosticada');
+      if (!answers.bienestar?.afectacion_vida_social) missing.push('bienestar.afectacion_vida_social');
+      if (answers.bienestar?.participar === 'Sí' || answers.bienestar?.participar === 'Tal vez') {
+        if (!answers.bienestar?.dificultad) missing.push('bienestar.dificultad');
+      }
+      if (answers.bienestar?.dificultad === 'Seguridad del sector') {
+        if (!answers.bienestar?.barrio_inseguro) missing.push('bienestar.barrio_inseguro');
+        if (!answers.bienestar?.upl_inseguro) missing.push('bienestar.upl_inseguro');
+      }
+      if (answers.bienestar?.enfermedad_diagnosticada === 'Sí') {
+        if (!answers.bienestar?.enfermedades_cuales) missing.push('bienestar.enfermedades_cuales');
+      }
     } else if (currentStep === 5) {
-      if (!answers.proyecciones.prioridad) missing.push('proyecciones.prioridad');
-      if (!answers.proyecciones.interes_formacion || answers.proyecciones.interes_formacion.length === 0) missing.push('proyecciones.interes_formacion');
-      if (!answers.proyecciones.bienestar_deseado || answers.proyecciones.bienestar_deseado.length === 0) missing.push('proyecciones.bienestar_deseado');
+      if (!answers.proyecciones?.prioridad) missing.push('proyecciones.prioridad');
+      if (!answers.proyecciones?.interes_formacion || answers.proyecciones.interes_formacion.length === 0) missing.push('proyecciones.interes_formacion');
+      if (!answers.proyecciones?.bienestar_deseado || answers.proyecciones.bienestar_deseado.length === 0) missing.push('proyecciones.bienestar_deseado');
+      if (!answers.proyecciones?.dificultades_actividades_cotidianas) missing.push('proyecciones.dificultades_actividades_cotidianas');
+      if (!answers.proyecciones?.desea_mas_apoyo) missing.push('proyecciones.desea_mas_apoyo');
+      if (answers.proyecciones?.desea_mas_apoyo === 'Sí') {
+        if (!answers.proyecciones?.apoyo_cuales) missing.push('proyecciones.apoyo_cuales');
+      }
     } else if (currentStep === 6) {
       if (!habeasAccepted) missing.push('habeas');
-      if (!answers.documentos.id_frontal) missing.push('document.id_frontal');
-      if (!answers.documentos.id_reverso) missing.push('document.id_reverso');
-      if (!answers.documentos.utility_bill) missing.push('document.utility_bill');
+      if (!answers.documentos?.id_frontal) missing.push('document.id_frontal');
+      if (!answers.documentos?.id_reverso) missing.push('document.id_reverso');
+      if (!answers.documentos?.utility_bill) missing.push('document.utility_bill');
     }
     
     setValidationErrors(missing);
@@ -633,6 +718,52 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                         error={validationErrors.includes('cuidado.sentimiento')} 
                         className="md:col-span-2" 
                       />
+                      <Question
+                        label="CANSANCIO FÍSICO"
+                        subtitle="¿Siente cansancio físico por las labores de cuidado?"
+                        type="pills"
+                        options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                        value={answers.cuidado?.cansancio_fisico}
+                        onChange={(v: string) => handleInputChange('cuidado', 'cansancio_fisico', v)}
+                        error={validationErrors.includes('cuidado.cansancio_fisico')}
+                      />
+                      <Question
+                        label="RESPONSABILIDADES EXCESIVAS"
+                        subtitle="¿Siente que las responsabilidades del hogar y cuidado son excesivas para usted?"
+                        type="pills"
+                        options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                        value={answers.cuidado?.responsabilidades_excesivas}
+                        onChange={(v: string) => handleInputChange('cuidado', 'responsabilidades_excesivas', v)}
+                        error={validationErrors.includes('cuidado.responsabilidades_excesivas')}
+                      />
+                      <Question
+                        label="POCO TIEMPO DE AUTOCUIDADO"
+                        subtitle="¿Considera que tiene poco tiempo para cuidar de sí misma/o?"
+                        type="pills"
+                        options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                        value={answers.cuidado?.poco_tiempo_autocuidado}
+                        onChange={(v: string) => handleInputChange('cuidado', 'poco_tiempo_autocuidado', v)}
+                        error={validationErrors.includes('cuidado.poco_tiempo_autocuidado')}
+                      />
+                      <Question
+                        label="ESTRÉS CONSTANTE"
+                        subtitle="¿Siente estrés o preocupación constante relacionado con las tareas de cuidado?"
+                        type="pills"
+                        options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                        value={answers.cuidado?.estres_constante}
+                        onChange={(v: string) => handleInputChange('cuidado', 'estres_constante', v)}
+                        error={validationErrors.includes('cuidado.estres_constante')}
+                      />
+                      <Question
+                        label="AGOTAMIENTO EMOCIONAL"
+                        subtitle="¿Se siente emocionalmente agotada/o por las responsabilidades de cuidado?"
+                        type="pills"
+                        options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                        value={answers.cuidado?.agotamiento_emocional}
+                        onChange={(v: string) => handleInputChange('cuidado', 'agotamiento_emocional', v)}
+                        error={validationErrors.includes('cuidado.agotamiento_emocional')}
+                        className="md:col-span-2"
+                      />
                     </>
                   )}
                 </div>
@@ -656,7 +787,7 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                     label="TIPOS DE VIOLENCIA PERCIBIDA" 
                     subtitle="Identifique situaciones de vulneración experimentadas."
                     type="checkbox-group" 
-                    options={['Física', 'Psicológica', 'Económica', 'Sexual', 'Patrimonial', 'Digital', 'Intrafamiliar', 'Institucional', 'Otro']} 
+                    options={['Física', 'Psicológica', 'Vicaria', 'Económica', 'Sexual', 'Patrimonial', 'Digital', 'Intrafamiliar', 'Institucional', 'Otro']} 
                     value={answers.bienestar.violencia || []} 
                     onChange={(v: string) => handleCheckboxChange('bienestar', 'violencia', v)} 
                     showOther={answers.bienestar.violencia?.includes('Otro')} 
@@ -699,6 +830,82 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                       className="md:col-span-2"
                     />
                   )}
+
+                  {answers.bienestar?.dificultad === 'Seguridad del sector' && (
+                    <>
+                      <Question
+                        label="BARRIO DE INSEGURIDAD"
+                        subtitle="Seleccione el barrio que considera inseguro."
+                        type="select"
+                        options={ALL_BARRIOS}
+                        value={answers.bienestar?.barrio_inseguro}
+                        onChange={(v: string) => handleInputChange('bienestar', 'barrio_inseguro', v)}
+                        error={validationErrors.includes('bienestar.barrio_inseguro')}
+                      />
+                      <Question
+                        label="ZONA UPL (INSEGURIDAD)"
+                        subtitle="UPL correspondiente al barrio de inseguridad."
+                        type="select"
+                        options={ALL_UPLS}
+                        value={answers.bienestar?.upl_inseguro}
+                        onChange={(v) => handleInputChange('bienestar', 'upl_inseguro', v)}
+                        disabled={true}
+                        error={validationErrors.includes('bienestar.upl_inseguro')}
+                        placeholder="Automático"
+                      />
+                    </>
+                  )}
+
+                  <Question
+                    label="TIEMPO DEDICADO AL CUIDADO"
+                    subtitle="¿Considera que dedica la mayor parte de su tiempo al cuidado de otra persona?"
+                    type="pills"
+                    options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                    value={answers.bienestar?.tiempo_cuidado_mayor_parte}
+                    onChange={(v: string) => handleInputChange('bienestar', 'tiempo_cuidado_mayor_parte', v)}
+                    error={validationErrors.includes('bienestar.tiempo_cuidado_mayor_parte')}
+                  />
+                  <Question
+                    label="APOYO PERCIBIDO"
+                    subtitle="¿Considera que recibe poco apoyo de familiares o personas cercanas?"
+                    type="pills"
+                    options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                    value={answers.bienestar?.poco_apoyo_familiar}
+                    onChange={(v: string) => handleInputChange('bienestar', 'poco_apoyo_familiar', v)}
+                    error={validationErrors.includes('bienestar.poco_apoyo_familiar')}
+                  />
+                  <Question
+                    label="AFECTACIÓN DEL DESCANSO"
+                    subtitle="¿Las responsabilidades de cuidado afectan su descanso o calidad del sueño?"
+                    type="pills"
+                    options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                    value={answers.bienestar?.afectacion_sueño}
+                    onChange={(v: string) => handleInputChange('bienestar', 'afectacion_sueño', v)}
+                    error={validationErrors.includes('bienestar.afectacion_sueño')}
+                  />
+                  <Question
+                    label="ENFERMEDAD POR LABORES DE CUIDADO"
+                    subtitle="¿Le han dicho o diagnosticado alguna enfermedad a causa de sus labores de cuidado?"
+                    type="pills"
+                    options={['Sí', 'No', 'Tal vez']}
+                    value={answers.bienestar?.enfermedad_diagnosticada}
+                    onChange={(v: string) => handleInputChange('bienestar', 'enfermedad_diagnosticada', v)}
+                    error={validationErrors.includes('bienestar.enfermedad_diagnosticada')}
+                    showOther={answers.bienestar?.enfermedad_diagnosticada === 'Sí'}
+                    otherValue={answers.bienestar?.enfermedades_cuales}
+                    onOtherChange={(v: string) => handleInputChange('bienestar', 'enfermedades_cuales', v)}
+                    otherPlaceholder="¿Cuáles enfermedades?"
+                  />
+                  <Question
+                    label="AFECTACIÓN SOCIAL O FAMILIAR"
+                    subtitle="¿Considera que las labores de cuidado afectan su vida social o familiar?"
+                    type="pills"
+                    options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                    value={answers.bienestar?.afectacion_vida_social}
+                    onChange={(v: string) => handleInputChange('bienestar', 'afectacion_vida_social', v)}
+                    error={validationErrors.includes('bienestar.afectacion_vida_social')}
+                    className="md:col-span-2"
+                  />
                 </div>
               </motion.div>
             )}
@@ -762,6 +969,29 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                     otherValue={answers.proyecciones.proyectos_ideales_otro} 
                     onOtherChange={(v) => handleInputChange('proyecciones', 'proyectos_ideales_otro', v)}
                     className="md:col-span-2"
+                  />
+
+                  <Question
+                    label="DIFICULTAD EN ACTIVIDADES"
+                    subtitle="¿Ha tenido dificultades para trabajar, estudiar o realizar actividades cotidianas debido a las labores de cuidado?"
+                    type="pills"
+                    options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                    value={answers.proyecciones?.dificultades_actividades_cotidianas}
+                    onChange={(v: string) => handleInputChange('proyecciones', 'dificultades_actividades_cotidianas', v)}
+                    error={validationErrors.includes('proyecciones.dificultades_actividades_cotidianas')}
+                  />
+                  <Question
+                    label="APOYO O ACOMPAÑAMIENTO DESEADO"
+                    subtitle="¿Le gustaría recibir más apoyo, orientación o acompañamiento para las labores de cuidado?"
+                    type="pills"
+                    options={['Sí', 'No', 'Tal vez']}
+                    value={answers.proyecciones?.desea_mas_apoyo}
+                    onChange={(v) => handleInputChange('proyecciones', 'desea_mas_apoyo', v)}
+                    error={validationErrors.includes('proyecciones.desea_mas_apoyo')}
+                    showOther={answers.proyecciones?.desea_mas_apoyo === 'Sí'}
+                    otherValue={answers.proyecciones?.apoyo_cuales}
+                    onOtherChange={(v) => handleInputChange('proyecciones', 'apoyo_cuales', v)}
+                    otherPlaceholder="¿Cuáles apoyos o acompañamientos?"
                   />
                 </div>
               </motion.div>

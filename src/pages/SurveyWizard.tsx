@@ -254,6 +254,37 @@ export default function SurveyWizard() {
         }
       }
 
+      // Auto-select UPL for insecure barrio
+      if (module === 'bienestar' && question === 'barrio_inseguro') {
+        const upl = BARRIO_TO_UPL[value];
+        if (upl) {
+          if (!newAnswers.bienestar) newAnswers.bienestar = {};
+          newAnswers.bienestar.upl_inseguro = upl;
+        }
+      }
+
+      // Clear insecure barrio info if difficulty is changed away from Seguridad del sector
+      if (module === 'bienestar' && question === 'dificultad' && value !== 'Seguridad del sector') {
+        if (newAnswers.bienestar) {
+          delete newAnswers.bienestar.barrio_inseguro;
+          delete newAnswers.bienestar.upl_inseguro;
+        }
+      }
+
+      // Clear conditional sickness list if no longer diagnosed with sickness
+      if (module === 'bienestar' && question === 'enfermedad_diagnosticada' && value !== 'Sí') {
+        if (newAnswers.bienestar) {
+          delete newAnswers.bienestar.enfermedades_cuales;
+        }
+      }
+
+      // Clear conditional support list if no longer desiring support
+      if (module === 'proyecciones' && question === 'desea_mas_apoyo' && value !== 'Sí') {
+        if (newAnswers.proyecciones) {
+          delete newAnswers.proyecciones.apoyo_cuales;
+        }
+      }
+
       return newAnswers;
     });
   };
@@ -279,9 +310,20 @@ export default function SurveyWizard() {
     const required: Record<number, string[]> = {
       1: ['socio.fecha_nacimiento', 'socio.genero', 'socio.barrio', 'socio.upz', 'socio.nivel_educativo', 'socio.pertenencia'],
       2: ['economia.ingresos', 'economia.fuente_ingresos', 'economia.situacion_laboral'],
-      3: ['cuidado.es_cuidadora', ...(answers.cuidado?.es_cuidadora === 'Sí' ? ['cuidado.poblacion', 'cuidado.horas', 'cuidado.carga_emocional', 'cuidado.reconocimiento', 'cuidado.sentimiento'] : [])],
-      4: ['bienestar.seguridad_hogar', 'bienestar.violencia', 'bienestar.factores_riesgo', 'bienestar.participar'],
-      5: ['proyecciones.prioridad', 'proyecciones.interes_formacion', 'proyecciones.bienestar_deseado'],
+      3: ['cuidado.es_cuidadora', ...(answers.cuidado?.es_cuidadora === 'Sí' ? ['cuidado.poblacion', 'cuidado.horas', 'cuidado.carga_emocional', 'cuidado.reconocimiento', 'cuidado.sentimiento', 'cuidado.cansancio_fisico', 'cuidado.responsabilidades_excesivas', 'cuidado.poco_tiempo_autocuidado', 'cuidado.estres_constante', 'cuidado.agotamiento_emocional'] : [])],
+      4: [
+        'bienestar.seguridad_hogar', 'bienestar.violencia', 'bienestar.factores_riesgo', 'bienestar.participar',
+        'bienestar.tiempo_cuidado_mayor_parte', 'bienestar.poco_apoyo_familiar', 'bienestar.afectacion_sueño',
+        'bienestar.enfermedad_diagnosticada', 'bienestar.afectacion_vida_social',
+        ...(answers.bienestar?.participar === 'Sí' || answers.bienestar?.participar === 'Tal vez' ? ['bienestar.dificultad'] : []),
+        ...(answers.bienestar?.dificultad === 'Seguridad del sector' ? ['bienestar.barrio_inseguro', 'bienestar.upl_inseguro'] : []),
+        ...(answers.bienestar?.enfermedad_diagnosticada === 'Sí' ? ['bienestar.enfermedades_cuales'] : [])
+      ],
+      5: [
+        'proyecciones.prioridad', 'proyecciones.interes_formacion', 'proyecciones.bienestar_deseado',
+        'proyecciones.dificultades_actividades_cotidianas', 'proyecciones.desea_mas_apoyo',
+        ...(answers.proyecciones?.desea_mas_apoyo === 'Sí' ? ['proyecciones.apoyo_cuales'] : [])
+      ],
       6: ['habeas_data']
     };
 
@@ -933,6 +975,57 @@ export default function SurveyWizard() {
                         disabled={isLocked}
                         className="md:col-span-2"
                       />
+                      <Question
+                        label="CANSANCIO FÍSICO"
+                        subtitle="¿Siente cansancio físico por las labores de cuidado?"
+                        type="pills"
+                        options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                        value={answers.cuidado?.cansancio_fisico}
+                        onChange={(v: string) => handleInputChange('cuidado', 'cansancio_fisico', v)}
+                        error={validationErrors.includes('cuidado.cansancio_fisico')}
+                        disabled={isLocked}
+                      />
+                      <Question
+                        label="RESPONSABILIDADES EXCESIVAS"
+                        subtitle="¿Siente que las responsabilidades del hogar y cuidado son excesivas para usted?"
+                        type="pills"
+                        options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                        value={answers.cuidado?.responsabilidades_excesivas}
+                        onChange={(v: string) => handleInputChange('cuidado', 'responsabilidades_excesivas', v)}
+                        error={validationErrors.includes('cuidado.responsabilidades_excesivas')}
+                        disabled={isLocked}
+                      />
+                      <Question
+                        label="POCO TIEMPO DE AUTOCUIDADO"
+                        subtitle="¿Considera que tiene poco tiempo para cuidar de sí misma/o?"
+                        type="pills"
+                        options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                        value={answers.cuidado?.poco_tiempo_autocuidado}
+                        onChange={(v: string) => handleInputChange('cuidado', 'poco_tiempo_autocuidado', v)}
+                        error={validationErrors.includes('cuidado.poco_tiempo_autocuidado')}
+                        disabled={isLocked}
+                      />
+                      <Question
+                        label="ESTRÉS CONSTANTE"
+                        subtitle="¿Siente estrés o preocupación constante relacionado con las tareas de cuidado?"
+                        type="pills"
+                        options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                        value={answers.cuidado?.estres_constante}
+                        onChange={(v: string) => handleInputChange('cuidado', 'estres_constante', v)}
+                        error={validationErrors.includes('cuidado.estres_constante')}
+                        disabled={isLocked}
+                      />
+                      <Question
+                        label="AGOTAMIENTO EMOCIONAL"
+                        subtitle="¿Se siente emocionalmente agotada/o por las responsabilidades de cuidado?"
+                        type="pills"
+                        options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                        value={answers.cuidado?.agotamiento_emocional}
+                        onChange={(v: string) => handleInputChange('cuidado', 'agotamiento_emocional', v)}
+                        error={validationErrors.includes('cuidado.agotamiento_emocional')}
+                        disabled={isLocked}
+                        className="md:col-span-2"
+                      />
                     </>
                   )}
                 </>
@@ -955,7 +1048,7 @@ export default function SurveyWizard() {
                     label="TIPOS DE VIOLENCIA PERCIBIDA"
                     subtitle="Identifique situaciones de vulneración experimentadas."
                     type="checkbox-group"
-                    options={['Física', 'Psicológica', 'Económica', 'Sexual', 'Patrimonial', 'Digital', 'Intrafamiliar', 'Institucional', 'Otro']}
+                    options={['Física', 'Psicológica', 'Vicaria', 'Económica', 'Sexual', 'Patrimonial', 'Digital', 'Intrafamiliar', 'Institucional', 'Otro']}
                     value={answers.bienestar?.violencia || []}
                     onChange={(v) => handleCheckboxChange('bienestar', 'violencia', v)}
                     error={validationErrors.includes('bienestar.violencia')}
@@ -1006,6 +1099,88 @@ export default function SurveyWizard() {
                       className="md:col-span-2"
                     />
                   )}
+
+                  {answers.bienestar?.dificultad === 'Seguridad del sector' && (
+                    <>
+                      <Question
+                        label="BARRIO DE INSEGURIDAD"
+                        subtitle="Seleccione el barrio que considera inseguro."
+                        type="select"
+                        options={ALL_BARRIOS}
+                        value={answers.bienestar?.barrio_inseguro}
+                        onChange={(v: string) => handleInputChange('bienestar', 'barrio_inseguro', v)}
+                        error={validationErrors.includes('bienestar.barrio_inseguro')}
+                        disabled={isLocked}
+                      />
+                      <Question
+                        label="ZONA UPL (INSEGURIDAD)"
+                        subtitle="UPL correspondiente al barrio de inseguridad."
+                        type="select"
+                        options={ALL_UPLS}
+                        value={answers.bienestar?.upl_inseguro}
+                        onChange={(v) => handleInputChange('bienestar', 'upl_inseguro', v)}
+                        disabled={true}
+                        error={validationErrors.includes('bienestar.upl_inseguro')}
+                        placeholder="Automático"
+                      />
+                    </>
+                  )}
+
+                  <Question
+                    label="TIEMPO DEDICADO AL CUIDADO"
+                    subtitle="¿Considera que dedica la mayor parte de su tiempo al cuidado de otra persona?"
+                    type="pills"
+                    options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                    value={answers.bienestar?.tiempo_cuidado_mayor_parte}
+                    onChange={(v) => handleInputChange('bienestar', 'tiempo_cuidado_mayor_parte', v)}
+                    error={validationErrors.includes('bienestar.tiempo_cuidado_mayor_parte')}
+                    disabled={isLocked}
+                  />
+                  <Question
+                    label="APOYO PERCIBIDO"
+                    subtitle="¿Considera que recibe poco apoyo de familiares o personas cercanas?"
+                    type="pills"
+                    options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                    value={answers.bienestar?.poco_apoyo_familiar}
+                    onChange={(v) => handleInputChange('bienestar', 'poco_apoyo_familiar', v)}
+                    error={validationErrors.includes('bienestar.poco_apoyo_familiar')}
+                    disabled={isLocked}
+                  />
+                  <Question
+                    label="AFECTACIÓN DEL DESCANSO"
+                    subtitle="¿Las responsabilidades de cuidado afectan su descanso o calidad del sueño?"
+                    type="pills"
+                    options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                    value={answers.bienestar?.afectacion_sueño}
+                    onChange={(v) => handleInputChange('bienestar', 'afectacion_sueño', v)}
+                    error={validationErrors.includes('bienestar.afectacion_sueño')}
+                    disabled={isLocked}
+                  />
+                  <Question
+                    label="ENFERMEDAD POR LABORES DE CUIDADO"
+                    subtitle="¿Le han dicho o diagnosticado alguna enfermedad a causa de sus labores de cuidado?"
+                    type="pills"
+                    options={['Sí', 'No', 'Tal vez']}
+                    value={answers.bienestar?.enfermedad_diagnosticada}
+                    onChange={(v) => handleInputChange('bienestar', 'enfermedad_diagnosticada', v)}
+                    error={validationErrors.includes('bienestar.enfermedad_diagnosticada')}
+                    showOther={answers.bienestar?.enfermedad_diagnosticada === 'Sí'}
+                    otherValue={answers.bienestar?.enfermedades_cuales}
+                    onOtherChange={(v) => handleInputChange('bienestar', 'enfermedades_cuales', v)}
+                    otherPlaceholder="¿Cuáles enfermedades?"
+                    disabled={isLocked}
+                  />
+                  <Question
+                    label="AFECTACIÓN SOCIAL O FAMILIAR"
+                    subtitle="¿Considera que las labores de cuidado afectan su vida social o familiar?"
+                    type="pills"
+                    options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                    value={answers.bienestar?.afectacion_vida_social}
+                    onChange={(v) => handleInputChange('bienestar', 'afectacion_vida_social', v)}
+                    error={validationErrors.includes('bienestar.afectacion_vida_social')}
+                    disabled={isLocked}
+                    className="md:col-span-2"
+                  />
                 </>
               )}
 
@@ -1075,6 +1250,31 @@ export default function SurveyWizard() {
                     onOtherChange={(v) => handleInputChange('proyecciones', 'proyectos_ideales_otro', v)}
                     disabled={isLocked}
                     className="md:col-span-2"
+                  />
+
+                  <Question
+                    label="DIFICULTAD EN ACTIVIDADES"
+                    subtitle="¿Ha tenido dificultades para trabajar, estudiar o realizar actividades cotidianas debido a las labores de cuidado?"
+                    type="pills"
+                    options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                    value={answers.proyecciones?.dificultades_actividades_cotidianas}
+                    onChange={(v: string) => handleInputChange('proyecciones', 'dificultades_actividades_cotidianas', v)}
+                    error={validationErrors.includes('proyecciones.dificultades_actividades_cotidianas')}
+                    disabled={isLocked}
+                  />
+                  <Question
+                    label="APOYO O ACOMPAÑAMIENTO DESEADO"
+                    subtitle="¿Le gustaría recibir más apoyo, orientación o acompañamiento para las labores de cuidado?"
+                    type="pills"
+                    options={['Sí', 'No', 'Tal vez']}
+                    value={answers.proyecciones?.desea_mas_apoyo}
+                    onChange={(v) => handleInputChange('proyecciones', 'desea_mas_apoyo', v)}
+                    error={validationErrors.includes('proyecciones.desea_mas_apoyo')}
+                    showOther={answers.proyecciones?.desea_mas_apoyo === 'Sí'}
+                    otherValue={answers.proyecciones?.apoyo_cuales}
+                    onOtherChange={(v) => handleInputChange('proyecciones', 'apoyo_cuales', v)}
+                    otherPlaceholder="¿Cuáles apoyos o acompañamientos?"
+                    disabled={isLocked}
                   />
                 </>
               )}
