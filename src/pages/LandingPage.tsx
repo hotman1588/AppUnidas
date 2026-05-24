@@ -1,5 +1,5 @@
-import { motion } from 'framer-motion';
-import { ChevronRight, Heart, Users, Star, ArrowRight, Newspaper, Calendar, TrendingUp } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronRight, Heart, Users, Star, ArrowRight, Newspaper, Calendar, TrendingUp, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { cn } from '../lib/utils';
@@ -11,6 +11,7 @@ export default function LandingPage() {
     registeredEvents: 0
   });
   const [news, setNews] = useState<any[]>([]);
+  const [selectedNews, setSelectedNews] = useState<any>(null);
 
   useEffect(() => {
     fetch('/api/stats')
@@ -195,25 +196,119 @@ export default function LandingPage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-            {news.map((item) => (
-              <div key={item.id} className="group cursor-pointer">
-                <div className="aspect-[16/10] bg-white/5 rounded-[2.5rem] overflow-hidden mb-8 shadow-2xl border border-white/10 group-hover:shadow-unidas-primary/20 transition-all duration-500">
-                  <img src={item.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-80 group-hover:opacity-100" />
+          {news.length > 0 && (
+            <div className="space-y-12">
+              {/* Hero News (First Item) */}
+              <div 
+                onClick={() => setSelectedNews(news[0])}
+                className="group cursor-pointer bg-white/5 rounded-[3rem] border border-white/10 overflow-hidden shadow-2xl hover:shadow-unidas-primary/20 transition-all duration-500 flex flex-col lg:flex-row items-center"
+              >
+                <div className="w-full lg:w-1/2 p-6 lg:p-12">
+                  <div className="flex items-center space-x-3 text-[12px] font-bold text-unidas-primary uppercase tracking-widest mb-6">
+                    <Calendar className="w-5 h-5" />
+                    <span>{new Date(news[0].created_at).toLocaleDateString()}</span>
+                  </div>
+                  <h3 className="text-3xl lg:text-5xl font-black text-white mb-6 group-hover:text-unidas-primary transition-colors leading-tight">
+                    {news[0].title}
+                  </h3>
+                  <p className="text-white/50 text-lg leading-relaxed font-medium mb-8">
+                    {news[0].content.length > 200 ? news[0].content.substring(0, 200) + '...' : news[0].content}
+                  </p>
+                  <div className="inline-flex items-center space-x-2 text-unidas-secondary font-bold group-hover:translate-x-2 transition-transform">
+                    <span>Leer nota completa</span>
+                    <ArrowRight className="w-5 h-5" />
+                  </div>
                 </div>
-                <div className="flex items-center space-x-3 text-[10px] font-bold text-unidas-primary uppercase tracking-widest mb-4">
-                  <Calendar className="w-4 h-4" />
-                  <span>{new Date(item.created_at).toLocaleDateString()}</span>
+                <div className="w-full lg:w-1/2 bg-black/40 p-4">
+                  <img src={news[0].image_url} className="w-full h-auto max-h-[500px] object-contain rounded-[2rem] group-hover:scale-[1.02] transition-transform duration-700" alt={news[0].title} />
                 </div>
-                <h3 className="text-2xl font-black text-white mb-4 group-hover:text-unidas-primary transition-colors">
-                  {item.title}
-                </h3>
-                <p className="text-white/40 line-clamp-2 leading-relaxed font-medium">
-                  {item.content}
-                </p>
               </div>
-            ))}
-          </div>
+
+              {/* Grid News (Remaining Items) */}
+              {news.length > 1 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                  {news.slice(1).map((item) => (
+                    <div key={item.id} onClick={() => setSelectedNews(item)} className="group cursor-pointer bg-white/5 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl hover:shadow-unidas-primary/20 transition-all duration-500 flex flex-col">
+                      <div className="bg-black/40 p-4">
+                        <img src={item.image_url} className="w-full h-auto max-h-[250px] object-contain rounded-2xl group-hover:scale-[1.05] transition-transform duration-700" alt={item.title} />
+                      </div>
+                      <div className="p-8 flex-grow flex flex-col">
+                        <div className="flex items-center space-x-3 text-[10px] font-bold text-unidas-primary uppercase tracking-widest mb-4">
+                          <Calendar className="w-4 h-4" />
+                          <span>{new Date(item.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <h3 className="text-2xl font-black text-white mb-4 group-hover:text-unidas-primary transition-colors leading-snug">
+                          {item.title}
+                        </h3>
+                        <p className="text-white/40 leading-relaxed font-medium mb-6 flex-grow">
+                          {item.content.length > 120 ? item.content.substring(0, 120) + '...' : item.content}
+                        </p>
+                        <div className="inline-flex items-center space-x-2 text-unidas-secondary font-bold text-sm group-hover:translate-x-2 transition-transform">
+                          <span>Leer nota completa</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <AnimatePresence>
+            {selectedNews && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-sm"
+              >
+                <motion.div 
+                  initial={{ scale: 0.95, y: 20 }}
+                  animate={{ scale: 1, y: 0 }}
+                  exit={{ scale: 0.95, y: 20 }}
+                  className="bg-[#13111C] w-full max-w-5xl max-h-[90vh] rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden flex flex-col"
+                >
+                  <div className="flex justify-between items-center p-6 border-b border-white/10 shrink-0">
+                    <div className="flex items-center space-x-3 text-unidas-primary font-bold uppercase tracking-widest text-[10px]">
+                      <Newspaper className="w-5 h-5" />
+                      <span>Noticias y Convocatorias</span>
+                    </div>
+                    <button 
+                      onClick={() => setSelectedNews(null)}
+                      className="p-3 bg-white/5 hover:bg-white/10 rounded-xl text-white/40 hover:text-white transition-all"
+                    >
+                      <X className="w-6 h-6" />
+                    </button>
+                  </div>
+                  
+                  <div className="overflow-y-auto custom-scrollbar p-8 lg:p-12 space-y-10">
+                    <div className="text-center">
+                      <div className="inline-flex items-center space-x-3 text-sm font-bold text-unidas-secondary uppercase tracking-widest mb-6 bg-unidas-secondary/10 px-6 py-2 rounded-full">
+                        <Calendar className="w-5 h-5" />
+                        <span>{new Date(selectedNews.created_at).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                      </div>
+                      <h2 className="text-3xl md:text-5xl font-black text-white leading-tight max-w-4xl mx-auto">
+                        {selectedNews.title}
+                      </h2>
+                    </div>
+
+                    <div className="bg-black/40 rounded-[2.5rem] p-4 mx-auto max-w-4xl">
+                      <img 
+                        src={selectedNews.image_url} 
+                        className="w-full h-auto max-h-[600px] object-contain rounded-3xl" 
+                        alt={selectedNews.title} 
+                      />
+                    </div>
+
+                    <div className="max-w-4xl mx-auto text-lg md:text-xl text-white/70 leading-relaxed font-medium whitespace-pre-wrap">
+                      {selectedNews.content}
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </section>
 
