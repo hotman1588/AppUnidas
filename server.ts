@@ -900,6 +900,30 @@ app.post('/api/analyst/register-complete-characterization', authenticateToken, i
   }
 });
 
+app.patch('/api/admin/users/:id', authenticateToken, isAdmin, async (req: any, res: any) => {
+  const { full_name, document_type, document_number, phone, email, password, role } = req.body;
+  try {
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await pool.query(
+        'UPDATE users SET full_name = $1, document_type = $2, document_number = $3, phone = $4, email = $5, password_hash = $6, role = $7 WHERE id = $8',
+        [full_name, document_type, document_number, phone, email, hashedPassword, role, req.params.id]
+      );
+    } else {
+      await pool.query(
+        'UPDATE users SET full_name = $1, document_type = $2, document_number = $3, phone = $4, email = $5, role = $6 WHERE id = $7',
+        [full_name, document_type, document_number, phone, email, role, req.params.id]
+      );
+    }
+    res.json({ success: true });
+  } catch (err: any) {
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'El documento o email ya está registrado' });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.patch('/api/admin/users/:id/role', authenticateToken, isAdmin, async (req, res) => {
   await pool.query('UPDATE users SET role = $1 WHERE id = $2', [req.body.role, req.params.id]);
   res.json({ success: true });
