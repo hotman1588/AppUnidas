@@ -67,7 +67,7 @@ const Insight = ({emoji,text,highlight,color=P.primary}: any) => (
 const HBar = ({data,title,note,total}: any) => (
   <Card title={title}>
     {note && <div style={{fontSize:11,color:"#94A3B8",marginBottom:8,fontStyle:"italic"}}>{note}</div>}
-    <ResponsiveContainer width="100%" height={Math.max((data?.length || 0)*34+20, 100)}>
+    <ResponsiveContainer minWidth={0} minHeight={0} width="100%" height={Math.max((data?.length || 0)*34+20, 100)}>
       <BarChart data={data} layout="vertical" margin={{left:4,right:24,top:2,bottom:2}}>
         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F1F5F9"/>
         <XAxis type="number" tick={{fontSize:10.5}} tickLine={false} axisLine={false}/>
@@ -83,7 +83,7 @@ const HBar = ({data,title,note,total}: any) => (
 
 const SmallPie = ({data,title,total}: any) => (
   <Card title={title}>
-    <ResponsiveContainer width="100%" height={200}>
+    <ResponsiveContainer minWidth={0} minHeight={0} width="100%" height={200}>
       <PieChart>
         <Pie data={data} cx="50%" cy="50%" innerRadius={48} outerRadius={78} dataKey="value" paddingAngle={3}>
           {data?.map((_: any,i: number)=><Cell key={i} fill={PIE[i%PIE.length]}/>)}
@@ -97,7 +97,7 @@ const SmallPie = ({data,title,total}: any) => (
 
 const FreqBar = ({data,title,color=P.primary}: any) => (
   <Card title={title}>
-    <ResponsiveContainer width="100%" height={155}>
+    <ResponsiveContainer minWidth={0} minHeight={0} width="100%" height={155}>
       <BarChart data={data} margin={{left:0,right:6,top:2,bottom:2}}>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9"/>
         <XAxis dataKey="freq" tick={{fontSize:9.5,fill:P.slate}} tickLine={false} axisLine={false}/>
@@ -513,7 +513,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
               <SmallPie data={data.upzData} title="Distribución por UPZ" total={TOTAL}/>
               <Card title="Radar de Carga de Cuidado (escala 1–5)">
-                <ResponsiveContainer width="100%" height={210}>
+                <ResponsiveContainer minWidth={0} minHeight={0} width="100%" height={210}>
                   <RadarChart data={data.radarCarga}>
                     <PolarGrid stroke={P.muted}/>
                     <PolarAngleAxis dataKey="item" tick={{fontSize:10,fill:P.slate}}/>
@@ -560,7 +560,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
               <HBar data={data.pertData} title="Grupo Étnico / Pertenencia" note="Multi-selección" total={TOTAL}/>
             </div>
             <Card title="Grupos Etarios">
-              <ResponsiveContainer width="100%" height={130}>
+              <ResponsiveContainer minWidth={0} minHeight={0} width="100%" height={130}>
                 <BarChart data={data.edadGrupos} margin={{left:0,right:8,top:2,bottom:2}}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9"/>
                   <XAxis dataKey="name" tick={{fontSize:10.5}} tickLine={false} axisLine={false}/>
@@ -591,7 +591,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
               <Card title="Rangos de Ingresos Mensuales (COP)">
-                <ResponsiveContainer width="100%" height={170}>
+                <ResponsiveContainer minWidth={0} minHeight={0} width="100%" height={170}>
                   <BarChart data={data.ingresosData} margin={{left:0,right:8,top:2,bottom:2}}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9"/>
                     <XAxis dataKey="name" tick={{fontSize:10.5}} tickLine={false} axisLine={false}/>
@@ -620,7 +620,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
               <Card title="Radar de Indicadores de Carga (escala 1–5)">
-                <ResponsiveContainer width="100%" height={240}>
+                <ResponsiveContainer minWidth={0} minHeight={0} width="100%" height={240}>
                   <RadarChart data={data.radarCarga}>
                     <PolarGrid stroke={P.muted}/>
                     <PolarAngleAxis dataKey="item" tick={{fontSize:10.5,fill:P.slate}}/>
