@@ -19,6 +19,45 @@ import { useAuthStore } from '../store/useAuthStore';
 import { cn } from '../lib/utils';
 import * as XLSX from 'xlsx';
 import { DocumentViewer } from '../components/DocumentViewer';
+import { SURVEY_QUESTIONS } from '../lib/surveyQuestions';
+import AnalyticsDashboard from '../components/AnalyticsDashboard';
+
+const BARRIO_TO_UPL: Record<string, string> = {
+  '7 de Agosto': 'Doce de Octubre',
+  'Alcázares Norte': 'Los Alcázares',
+  'Andes': 'Los Andes',
+  'Andes Norte': 'Los Andes',
+  'Baquero': 'Los Alcázares',
+  'Benjamín Herrera': 'Doce de Octubre',
+  'Colombia': 'Los Alcázares',
+  'Doce de Octubre': 'Doce de Octubre',
+  'El Labrador': 'Doce de Octubre',
+  'El Rosario': 'Doce de Octubre',
+  'Entre Ríos': 'Los Alcázares',
+  'Escuela Militar': 'Los Alcázares',
+  'Jorge Eliécer Gaitán': 'Doce de Octubre',
+  'José Joaquín Vargas': 'Doce de Octubre',
+  'Julio Flórez': 'Los Andes',
+  'La Castellana': 'Los Andes',
+  'La Esperanza': 'Doce de Octubre',
+  'La Libertad': 'Doce de Octubre',
+  'Los Alcázares': 'Los Alcázares',
+  'Los Andes': 'Los Andes',
+  'Metrópolis': 'Los Alcázares',
+  'Modelo Norte': 'Los Alcázares',
+  'Parque Salitre': 'Parque Salitre',
+  'Polo Club': 'Los Alcázares',
+  'Popular Modelo': 'Los Alcázares',
+  'Quinta Mutis': 'Parque Salitre',
+  'Rafael Uribe Uribe': 'Parque Salitre',
+  'Rincón del Salitre': 'Parque Salitre',
+  'Rionegro': 'Los Andes',
+  'San Felipe': 'Los Alcázares',
+  'San Fernando': 'Doce de Octubre',
+  'San Fernando Occidental': 'Doce de Octubre',
+  'San Miguel': 'Los Andes',
+  'Simón Bolívar': 'Parque Salitre',
+};
 
 export default function AdminDashboard() {
   const { token, user } = useAuthStore();
@@ -244,7 +283,16 @@ export default function AdminDashboard() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
-      setSurveyAnswers(data.answers || {});
+      
+      const loadedAnswers = data.answers || {};
+      if (loadedAnswers.bienestar && loadedAnswers.bienestar.barrio_inseguro && !loadedAnswers.bienestar.upl_inseguro) {
+        const barrio = loadedAnswers.bienestar.barrio_inseguro;
+        if (BARRIO_TO_UPL[barrio]) {
+          loadedAnswers.bienestar.upl_inseguro = BARRIO_TO_UPL[barrio];
+        }
+      }
+      
+      setSurveyAnswers(loadedAnswers);
       
       const docRes = await fetch(`/api/admin/users/${survey.user_id}/documents`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -505,7 +553,6 @@ export default function AdminDashboard() {
 
     // 1. Definir el orden lógico de los metadatos y de los módulos de la encuesta
     const baseHeaders = ['ID Encuesta', 'Nombre Cuidadora', 'Documento', 'Rol Activo', 'Estado', 'Fecha Actualización'];
-    const moduleOrder = ['socio', 'economia', 'cuidado', 'bienestar', 'proyecciones', 'documentos'];
     const moduleLabels: Record<string, string> = {
       socio: 'PERFIL SOCIODEMOGRÁFICO',
       economia: 'ECONOMÍA Y AUTONOMÍA',
@@ -515,45 +562,30 @@ export default function AdminDashboard() {
       documentos: 'DOCUMENTOS DE SOPORTE'
     };
 
-    // Colección de preguntas únicas detectadas por cada módulo
-    const moduleColumns: Record<string, Set<string>> = {
-      socio: new Set(),
-      economia: new Set(),
-      cuidado: new Set(),
-      bienestar: new Set(),
-      proyecciones: new Set(),
-      documentos: new Set()
-    };
+    // 2. Crear un listado ordenado de encabezados basado en SURVEY_QUESTIONS
+    const orderedHeaders = [...baseHeaders];
+    const questionMap: Record<string, string> = {}; // Mapea ej. 'socio.upz' -> 'PERFIL SOCIODEMOGRÁFICO - ZONA (UPL)'
 
-    // 2. Escanear todas las encuestas para recopilar el universo completo de preguntas existentes
-    surveys.forEach(s => {
-      if (s.answers && typeof s.answers === 'object') {
-        Object.entries(s.answers).forEach(([module, questions]: [string, any]) => {
-          const modKey = module.toLowerCase();
-          if (moduleColumns[modKey] && questions && typeof questions === 'object') {
-            Object.keys(questions).forEach(q => {
-              // Convertir "campo_de_ejemplo" a "Campo De Ejemplo" para presentación premium
-              const cleanQuestion = q.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-              const prefix = moduleLabels[modKey] || module.toUpperCase();
-              moduleColumns[modKey].add(`${prefix} - ${cleanQuestion}`);
-            });
-          }
-        });
+    SURVEY_QUESTIONS.forEach(q => {
+      const parts = q.fieldName.split('.');
+      if (parts.length === 2) {
+        const moduleKey = parts[0];
+        const prefix = moduleLabels[moduleKey] || q.module.toUpperCase();
+        const colName = `${prefix} - ${q.question}`;
+        
+        // Evitar duplicados si hay preguntas con el mismo texto (aunque no debería)
+        if (!orderedHeaders.includes(colName)) {
+          orderedHeaders.push(colName);
+        }
+        questionMap[q.fieldName] = colName;
       }
     });
 
-    // 3. Crear el listado final y ordenado de encabezados para el reporte Excel
-    const orderedHeaders = [...baseHeaders];
-    moduleOrder.forEach(mod => {
-      const sortedCols = Array.from(moduleColumns[mod]).sort();
-      orderedHeaders.push(...sortedCols);
-    });
-
-    // 4. Mapear cada encuesta a un objeto plano con las columnas estructuradas
+    // 3. Mapear cada encuesta a un objeto plano usando el questionMap
     const flattenedData = surveys.map(s => {
       const flat: any = {
         'ID Encuesta': s.id,
-        'Nombre Cuidadora': s.user_name,
+        'Nombre Cuidadora': s.user_name || s.full_name,
         'Documento': s.document_number,
         'Rol Activo': s.user_role === 'admin' ? 'Administrador' : s.user_role === 'analyst' ? 'Analista' : 'Cuidadora',
         'Estado': s.status === 'approved' ? 'Aprobada' : s.status === 'pending' ? 'Pendiente' : 'Borrador',
@@ -561,13 +593,35 @@ export default function AdminDashboard() {
       };
 
       if (s.answers && typeof s.answers === 'object') {
-        Object.entries(s.answers).forEach(([module, questions]: [string, any]) => {
-          const modKey = module.toLowerCase();
+        // Asegurar que exista la UPL insegura si hay un barrio inseguro (para reportes históricos)
+        if (s.answers.bienestar && s.answers.bienestar.barrio_inseguro && !s.answers.bienestar.upl_inseguro) {
+          const barrio = s.answers.bienestar.barrio_inseguro;
+          if (BARRIO_TO_UPL[barrio]) {
+            s.answers.bienestar.upl_inseguro = BARRIO_TO_UPL[barrio];
+          }
+        }
+
+        Object.entries(s.answers).forEach(([moduleKey, questions]: [string, any]) => {
           if (questions && typeof questions === 'object') {
-            Object.entries(questions).forEach(([q, a]: [string, any]) => {
-              const cleanQuestion = q.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-              const prefix = moduleLabels[modKey] || module.toUpperCase();
-              flat[`${prefix} - ${cleanQuestion}`] = String(a);
+            Object.entries(questions).forEach(([fieldKey, a]: [string, any]) => {
+              const fullFieldKey = `${moduleKey}.${fieldKey}`;
+              const colName = questionMap[fullFieldKey];
+              
+              const val = Array.isArray(a) ? a.join(', ') : String(a);
+
+              if (colName) {
+                flat[colName] = val;
+              } else {
+                // Si la base de datos tiene campos antiguos/extras que no están en SURVEY_QUESTIONS
+                const cleanQuestion = fieldKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                const prefix = moduleLabels[moduleKey.toLowerCase()] || moduleKey.toUpperCase();
+                const fallbackColName = `${prefix} - ${cleanQuestion}`;
+                flat[fallbackColName] = val;
+                
+                if (!orderedHeaders.includes(fallbackColName)) {
+                  orderedHeaders.push(fallbackColName);
+                }
+              }
             });
           }
         });
@@ -576,7 +630,7 @@ export default function AdminDashboard() {
       return flat;
     });
 
-    // 5. Crear la hoja de cálculo con la ordenación estricta de encabezados por módulo
+    // 4. Crear la hoja de cálculo con la ordenación estricta de encabezados
     const ws = XLSX.utils.json_to_sheet(flattenedData, { header: orderedHeaders });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Respuestas Consolidadas");
@@ -604,6 +658,7 @@ export default function AdminDashboard() {
         </div>
         <div className="space-y-4">
           <SidebarItem active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} icon={BarChart3} label="Vista General" />
+          <SidebarItem active={activeTab === 'analytics'} onClick={() => setActiveTab('analytics')} icon={PieIcon} label="Panel Analítico" />
           <SidebarItem active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={Users} label="Usuarios y Roles" />
           <SidebarItem active={activeTab === 'caracterizacion'} onClick={() => setActiveTab('caracterizacion')} icon={ClipboardCheck} label="Encuesta" />
           <SidebarItem active={activeTab === 'events'} onClick={() => setActiveTab('events')} icon={Calendar} label="Eventos" />
@@ -647,6 +702,10 @@ export default function AdminDashboard() {
               </button>
             )}
           </div>
+
+          {activeTab === 'analytics' && (
+            <AnalyticsDashboard surveys={surveys} />
+          )}
 
           {activeTab === 'overview' && (
             <div className="space-y-16">
@@ -1859,6 +1918,7 @@ export default function AdminDashboard() {
               </div>
               <div className="space-y-4">
                 <SidebarItem active={activeTab === 'overview'} onClick={() => { setActiveTab('overview'); setMobileMenuOpen(false); }} icon={BarChart3} label="Vista General" />
+                <SidebarItem active={activeTab === 'analytics'} onClick={() => { setActiveTab('analytics'); setMobileMenuOpen(false); }} icon={PieIcon} label="Panel Analítico" />
                 <SidebarItem active={activeTab === 'users'} onClick={() => { setActiveTab('users'); setMobileMenuOpen(false); }} icon={Users} label="Usuarios y Roles" />
                 <SidebarItem active={activeTab === 'caracterizacion'} onClick={() => { setActiveTab('caracterizacion'); setMobileMenuOpen(false); }} icon={ClipboardCheck} label="Encuesta" />
                 <SidebarItem active={activeTab === 'events'} onClick={() => { setActiveTab('events'); setMobileMenuOpen(false); }} icon={Calendar} label="Eventos" />

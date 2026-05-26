@@ -165,10 +165,10 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     id: '4.1',
     module: 'Bienestar y Seguridad',
     moduleNumber: 4,
-    question: 'SEGURIDAD EN EL HOGAR',
-    subtitle: 'Indica tu nivel de seguridad en el hogar.',
+    question: 'SEGURIDAD EN HOGAR',
+    subtitle: 'Percepción de tranquilidad y protección en su vivienda.',
     type: 'select',
-    options: ['Muy segura', 'Segura', 'Neutral', 'Insegura', 'Muy insegura'],
+    options: ['Siempre', 'Casi siempre', 'A veces', 'Nunca'],
     required: true,
     fieldName: 'bienestar.seguridad_hogar'
   },
@@ -176,12 +176,120 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     id: '4.2',
     module: 'Bienestar y Seguridad',
     moduleNumber: 4,
-    question: 'TIPOS DE VIOLENCIA EXPERIMENTADA',
-    subtitle: 'Selecciona los tipos de violencia que hayas experimentado.',
+    question: 'TIPOS DE VIOLENCIA PERCIBIDA',
+    subtitle: 'Identifique situaciones de vulneración experimentadas.',
     type: 'checkbox',
-    options: ['Violencia física', 'Violencia psicológica', 'Violencia verbal', 'Violencia económica', 'Violencia sexual', 'Discriminación', 'Ninguna'],
+    options: ['Física', 'Psicológica', 'Vicaria', 'Económica', 'Sexual', 'Patrimonial', 'Digital', 'Intrafamiliar', 'Institucional', 'Otro'],
     required: false,
-    fieldName: 'bienestar.tipos_violencia'
+    fieldName: 'bienestar.violencia'
+  },
+  {
+    id: '4.3',
+    module: 'Bienestar y Seguridad',
+    moduleNumber: 4,
+    question: 'FACTORES DE RIESGO',
+    subtitle: 'Situaciones del entorno que afectan su calidad de vida.',
+    type: 'checkbox',
+    options: ['Desempleo', 'Consumo de sustancias SPA', 'Hacinamiento', 'Falta de apoyo familiar', 'Discriminación', 'Otro'],
+    required: false,
+    fieldName: 'bienestar.factores_riesgo'
+  },
+  {
+    id: '4.4',
+    module: 'Bienestar y Seguridad',
+    moduleNumber: 4,
+    question: 'PARTICIPACIÓN EN ACTIVIDADES',
+    subtitle: '¿Le gustaría participar en espacios para cuidadoras?',
+    type: 'select',
+    options: ['Sí', 'No', 'Tal vez'],
+    required: false,
+    fieldName: 'bienestar.participar'
+  },
+  {
+    id: '4.5',
+    module: 'Bienestar y Seguridad',
+    moduleNumber: 4,
+    question: 'PRINCIPAL DIFICULTAD',
+    subtitle: '¿Cuál sería el mayor obstáculo para su asistencia?',
+    type: 'select',
+    options: ['Tiempo', 'Movilidad', 'Motivación', 'Seguridad del sector', 'Prevención social', 'Falta de empatía'],
+    required: false,
+    fieldName: 'bienestar.dificultad'
+  },
+  {
+    id: '4.6',
+    module: 'Bienestar y Seguridad',
+    moduleNumber: 4,
+    question: 'BARRIO DE INSEGURIDAD',
+    subtitle: 'Seleccione el barrio que considera inseguro.',
+    type: 'select',
+    required: false,
+    fieldName: 'bienestar.barrio_inseguro'
+  },
+  {
+    id: '4.7',
+    module: 'Bienestar y Seguridad',
+    moduleNumber: 4,
+    question: 'ZONA UPL (INSEGURIDAD)',
+    subtitle: 'UPL correspondiente al barrio de inseguridad.',
+    type: 'select',
+    required: false,
+    fieldName: 'bienestar.upl_inseguro'
+  },
+  {
+    id: '4.8',
+    module: 'Bienestar y Seguridad',
+    moduleNumber: 4,
+    question: 'TIEMPO DEDICADO AL CUIDADO',
+    subtitle: '¿Considera que dedica la mayor parte de su tiempo al cuidado de otra persona?',
+    type: 'select',
+    options: ['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre'],
+    required: false,
+    fieldName: 'bienestar.tiempo_cuidado_mayor_parte'
+  },
+  {
+    id: '4.9',
+    module: 'Bienestar y Seguridad',
+    moduleNumber: 4,
+    question: 'APOYO PERCIBIDO',
+    subtitle: '¿Considera que recibe poco apoyo de familiares o personas cercanas?',
+    type: 'select',
+    options: ['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre'],
+    required: false,
+    fieldName: 'bienestar.poco_apoyo_familiar'
+  },
+  {
+    id: '4.10',
+    module: 'Bienestar y Seguridad',
+    moduleNumber: 4,
+    question: 'AFECTACIÓN DEL DESCANSO',
+    subtitle: '¿Las responsabilidades de cuidado afectan su descanso o calidad del sueño?',
+    type: 'select',
+    options: ['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre'],
+    required: false,
+    fieldName: 'bienestar.afectacion_sueño'
+  },
+  {
+    id: '4.11',
+    module: 'Bienestar y Seguridad',
+    moduleNumber: 4,
+    question: 'ENFERMEDAD POR LABORES DE CUIDADO',
+    subtitle: '¿Le han dicho o diagnosticado alguna enfermedad a causa de sus labores de cuidado?',
+    type: 'select',
+    options: ['Sí', 'No', 'Tal vez'],
+    required: false,
+    fieldName: 'bienestar.enfermedad_diagnosticada'
+  },
+  {
+    id: '4.12',
+    module: 'Bienestar y Seguridad',
+    moduleNumber: 4,
+    question: 'AFECTACIÓN SOCIAL O FAMILIAR',
+    subtitle: '¿Considera que las labores de cuidado afectan su vida social o familiar?',
+    type: 'select',
+    options: ['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre'],
+    required: false,
+    fieldName: 'bienestar.afectacion_vida_social'
   },
 
   // Módulo 5: Sueños y Proyecciones
