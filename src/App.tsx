@@ -6,6 +6,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/useAuthStore';
+import { useEnvironmentStore } from './store/useEnvironmentStore';
 import Navbar from './components/Navbar';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
@@ -32,12 +33,26 @@ function PrivateRoute({ children, role }: { children: React.ReactNode, role?: st
 }
 
 export default function App() {
-  const { setUser, setLoading } = useAuthStore();
+  const { setUser, setLoading: setAuthLoading } = useAuthStore();
+  const { fetchEnvironments, loading: envLoading } = useEnvironmentStore();
 
   useEffect(() => {
-    // Load user from localStorage (handled by Zustand persist)
-    setLoading(false);
-  }, [setLoading]);
+    // Load environment context globally before the app mounts
+    fetchEnvironments().then(() => {
+      setAuthLoading(false);
+    });
+  }, [fetchEnvironments, setAuthLoading]);
+
+  if (envLoading) {
+    return (
+      <div className="min-h-screen bg-unidas-dark flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-12 h-12 border-4 border-unidas-primary/30 border-t-unidas-primary rounded-full animate-spin" />
+          <p className="text-white/50 text-sm font-black uppercase tracking-widest animate-pulse">Cargando Entorno...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Router>

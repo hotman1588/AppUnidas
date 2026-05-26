@@ -21,6 +21,7 @@ import * as XLSX from 'xlsx';
 import { DocumentViewer } from '../components/DocumentViewer';
 import { SURVEY_QUESTIONS } from '../lib/surveyQuestions';
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
+import { useEnvironmentStore } from '../store/useEnvironmentStore';
 
 const BARRIO_TO_UPL: Record<string, string> = {
   '7 de Agosto': 'Doce de Octubre',
@@ -99,6 +100,7 @@ export default function AdminDashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [surveyHistory, setSurveyHistory] = useState<any[]>([]);
   const [reviewForm, setReviewForm] = useState({ status: 'approved', observations: '' });
+  const { environments, activeEnvironment, setActiveEnvironment, loading: envLoading } = useEnvironmentStore();
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -129,7 +131,13 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      const headers = { 'Authorization': `Bearer ${token}` };
+      const headers: Record<string, string> = { 
+        'Authorization': `Bearer ${token}` 
+      };
+      if (activeEnvironment?.id) {
+        headers['X-Environment-Id'] = activeEnvironment.id;
+      }
+
       
       const statsRes = await fetch('/api/stats', { headers });
       if (statsRes.status === 401 || statsRes.status === 403) {
@@ -1290,18 +1298,71 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <div className="bg-white/5 p-12 rounded-[4rem] border border-white/10 backdrop-blur-xl opacity-50">
-                  <div className="flex items-center space-x-6 mb-10">
-                    <div className="w-16 h-16 bg-white/5 rounded-3xl flex items-center justify-center text-white/20">
-                      <Lock className="w-8 h-8" />
-                    </div>
-                    <div>
-                      <h4 className="text-2xl font-black text-white/40 mb-1">Más Configuraciones</h4>
-                      <p className="text-white/10 text-xs font-medium italic">Próximamente: Términos y Condiciones generales</p>
+                <div className="bg-white/5 p-12 rounded-[4rem] border border-unidas-primary/30 backdrop-blur-xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-unidas-primary/10 rounded-bl-[4rem] blur-xl pointer-events-none" />
+                  <div className="flex items-center justify-between mb-8 relative z-10">
+                    <div className="flex items-center space-x-6">
+                      <div className="w-16 h-16 bg-unidas-primary/20 rounded-3xl flex items-center justify-center text-unidas-primary border border-unidas-primary/40">
+                        <Settings className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <h4 className="text-2xl font-black text-white mb-1">Macro Módulos</h4>
+                        <p className="text-white/40 text-xs font-medium italic">Gestión de Inquilino Global (Multi-Tenant)</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="h-40 flex items-center justify-center border-2 border-dashed border-white/5 rounded-3xl">
-                     <span className="text-[10px] font-black text-white/10 uppercase tracking-[0.3em]">Modulo en desarrollo</span>
+
+                  <div className="space-y-4 relative z-10">
+                    <p className="text-[10px] text-white/40 uppercase tracking-widest font-black mb-6">Entornos Disponibles</p>
+                    
+                    {envLoading ? (
+                      <div className="flex justify-center p-8">
+                        <div className="w-8 h-8 border-4 border-unidas-primary/30 border-t-unidas-primary rounded-full animate-spin" />
+                      </div>
+                    ) : (
+                      environments.map((env) => (
+                        <div 
+                          key={env.id}
+                          className={cn(
+                            "p-6 rounded-3xl border transition-all flex flex-col space-y-4 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between",
+                            env.is_active_globally 
+                              ? "bg-unidas-primary/10 border-unidas-primary/50 shadow-lg shadow-unidas-primary/20" 
+                              : "bg-white/5 border-white/10 hover:border-white/20"
+                          )}
+                        >
+                          <div>
+                            <h5 className="text-white font-black text-lg flex items-center space-x-3">
+                              <span>{env.name}</span>
+                              {env.is_active_globally && (
+                                <span className="bg-unidas-primary text-white text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider">Activo</span>
+                              )}
+                            </h5>
+                            <p className="text-white/30 text-[10px] font-mono mt-1">Slug: {env.slug}</p>
+                          </div>
+                          
+                          {!env.is_active_globally && (
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`¿Estás seguro de activar globalmente el entorno "${env.name}"? Esto cambiará la interfaz y los datos para todos los usuarios.`)) {
+                                  setActiveEnvironment(env.id);
+                                }
+                              }}
+                              className="px-6 py-3 bg-white/10 hover:bg-unidas-primary hover:text-white text-white/60 font-black rounded-xl transition-all border border-white/5 hover:border-unidas-primary text-xs uppercase tracking-widest whitespace-nowrap"
+                            >
+                              Activar Globalmente
+                            </button>
+                          )}
+                        </div>
+                      ))
+                    )}
+                    
+                    <div className="mt-8 p-6 bg-red-500/10 border border-red-500/20 rounded-3xl flex items-start space-x-4">
+                      <AlertCircle className="w-6 h-6 text-red-400 shrink-0 mt-1" />
+                      <p className="text-xs text-red-200/70 font-medium leading-relaxed">
+                        <strong className="text-red-400 block mb-1">Impacto Global Inmediato</strong>
+                        Cambiar el entorno activo recargará la aplicación para todos los usuarios conectados y aislará los registros de encuestas, usuarios y noticias a este nuevo entorno.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>

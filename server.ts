@@ -206,6 +206,10 @@ const isAdmin = (req: any, res: any, next: any) => {
   else res.status(403).json({ error: 'Denied' });
 };
 
+const getEnvId = (req: any) => {
+  return req.headers['x-environment-id'] || null;
+};
+
 // --- AUTH ---
 app.post(['/api/auth/register', '/api/auth/registro'], async (req, res) => {
   const { full_name, document_type, document_number, phone, email, password } = req.body;
@@ -401,10 +405,18 @@ app.get('/api/documents/view/:filename', authenticateToken, async (req, res) => 
 // --- ADMIN ---
 app.get('/api/stats', authenticateToken, async (req, res) => {
   try {
-    const u = await pool.query("SELECT COUNT(*) FROM users WHERE role = 'user'");
-    const s = await pool.query("SELECT COUNT(*) FROM surveys WHERE status = 'pending'");
-    const c = await pool.query("SELECT COUNT(*) FROM surveys WHERE status = 'approved'");
-    const e = await pool.query("SELECT COUNT(*) FROM events WHERE is_active = 1");
+    const envId = getEnvId(req);
+    const envFilter = envId ? `AND environment_id = $1` : '';
+    const params = envId ? [envId] : [];
+
+    const u = await pool.query(`SELECT COUNT(*) FROM users WHERE role = 'user' ${envFilter}`, params);
+    const s = await pool.query(`SELECT COUNT(*) FROM surveys WHERE status = 'pending' ${envFilter}`, params);
+    const c = await pool.query(`SELECT COUNT(*) FROM surveys WHERE status = 'approved' ${envFilter}`, params);
+    
+    const eQuery = envId 
+      ? `SELECT COUNT(*) FROM events WHERE is_active = 1 AND environment_id = $1`
+      : `SELECT COUNT(*) FROM events WHERE is_active = 1`;
+    const e = await pool.query(eQuery, params);
 
     // 1. Dynamic Education distribution from surveys JSONB answers
     const eduRes = await pool.query(`
@@ -412,8 +424,9 @@ app.get('/api/stats', authenticateToken, async (req, res) => {
         COALESCE(answers->'socio'->>'nivel_educativo', 'No especificado') AS level,
         COUNT(*) AS count
       FROM surveys
+      WHERE 1=1 ${envFilter}
       GROUP BY level
-    `);
+    `, params);
     const educationDist = eduRes.rows.map(row => ({
       label: row.level,
       value: parseInt(row.count) || 0
@@ -425,10 +438,10 @@ app.get('/api/stats', authenticateToken, async (req, res) => {
         DATE(created_at) AS reg_date,
         COUNT(*) AS count
       FROM users
-      WHERE role = 'user' AND created_at >= CURRENT_DATE - INTERVAL '6 days'
+      WHERE role = 'user' AND created_at >= CURRENT_DATE - INTERVAL '6 days' ${envFilter}
       GROUP BY reg_date
       ORDER BY reg_date
-    `);
+    `, params);
     
     const trendMap: Record<string, number> = {};
     const datesList: string[] = [];
@@ -472,18 +485,34 @@ app.get('/api/stats', authenticateToken, async (req, res) => {
 });
 
 app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
-  const r = await pool.query('SELECT id, full_name, document_type, document_number, phone, email, role, created_at FROM users ORDER BY created_at DESC');
+  const envId = getEnvId(req);
+  const q = envId 
+    ? 'SELECT id, full_name, document_type, document_number, phone, email, role, created_at FROM users WHERE environment_id = $1 ORDER BY created_at DESC'
+    : 'SELECT id, full_name, document_type, document_number, phone, email, role, created_at FROM users ORDER BY created_at DESC';
+  const params = envId ? [envId] : [];
+  const r = await pool.query(q, params);
   res.json(r.rows);
 });
 
 app.get('/api/admin/surveys', authenticateToken, isAdmin, async (req, res) => {
   try {
-    const surveyRes = await pool.query(`
-      SELECT s.*, u.full_name, u.full_name as user_name, u.document_number, u.role as user_role 
-      FROM surveys s 
-      JOIN users u ON s.user_id = u.id 
-      ORDER BY s.updated_at DESC
-    `);
+    const envId = getEnvId(req);
+    const q = envId
+      ? `
+        SELECT s.*, u.full_name, u.full_name as user_name, u.document_number, u.role as user_role 
+        FROM surveys s 
+        JOIN users u ON s.user_id = u.id 
+        WHERE s.environment_id = $1
+        ORDER BY s.updated_at DESC
+      `
+      : `
+        SELECT s.*, u.full_name, u.full_name as user_name, u.document_number, u.role as user_role 
+        FROM surveys s 
+        JOIN users u ON s.user_id = u.id 
+        ORDER BY s.updated_at DESC
+      `;
+    const params = envId ? [envId] : [];
+    const surveyRes = await pool.query(q, params);
     
     const docRes = await pool.query('SELECT * FROM documents');
     const allDocs = docRes.rows;
@@ -530,12 +559,22 @@ app.get('/api/admin/surveys', authenticateToken, isAdmin, async (req, res) => {
 });
 
 app.get('/api/admin/news', authenticateToken, isAdmin, async (req, res) => {
-  const r = await pool.query('SELECT * FROM news ORDER BY created_at DESC');
+  const envId = getEnvId(req);
+  const q = envId 
+    ? 'SELECT * FROM news WHERE environment_id = $1 ORDER BY created_at DESC'
+    : 'SELECT * FROM news ORDER BY created_at DESC';
+  const params = envId ? [envId] : [];
+  const r = await pool.query(q, params);
   res.json(r.rows);
 });
 
 app.get('/api/admin/events', authenticateToken, isAdmin, async (req, res) => {
-  const r = await pool.query('SELECT * FROM events ORDER BY date DESC');
+  const envId = getEnvId(req);
+  const q = envId 
+    ? 'SELECT * FROM events WHERE environment_id = $1 ORDER BY date DESC'
+    : 'SELECT * FROM events ORDER BY date DESC';
+  const params = envId ? [envId] : [];
+  const r = await pool.query(q, params);
   res.json(r.rows);
 });
 

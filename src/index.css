@@ -1,15 +1,23 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
-@theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Outfit", sans-serif;
-  
+:root {
   --color-unidas-primary: #ec4899;
   --color-unidas-secondary: #9333ea;
   --color-unidas-accent: #f472b6;
   --color-unidas-dark: #1e052d;
   --color-unidas-bg: #fff;
+}
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", sans-serif;
+  
+  --color-unidas-primary: var(--color-unidas-primary);
+  --color-unidas-secondary: var(--color-unidas-secondary);
+  --color-unidas-accent: var(--color-unidas-accent);
+  --color-unidas-dark: var(--color-unidas-dark);
+  --color-unidas-bg: var(--color-unidas-bg);
 }
 
 @layer base {
