@@ -704,7 +704,8 @@ export default function SurveyWizard() {
                         currentStep === 3 ? 'Identificamos la intensidad de tu labor para ofrecerte espacios de relevo.' :
                           currentStep === 4 ? 'Tu bienestar emocional y seguridad son nuestra mayor prioridad institucional.' :
                             currentStep === 5 ? 'Proyectamos tus metas para acompañarte en el cumplimiento de tus sueños.' :
-                              'Formalizamos tu proceso mediante la verificación documental necesaria.'
+                              currentStep === 6 ? 'Comprendemos la estructura y dinámica de tu hogar para fortalecer tu red de apoyo.' :
+                                'Formalizamos tu proceso mediante la verificación documental necesaria.'
                   }</p>
                 </div>
               </div>

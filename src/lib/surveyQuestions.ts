@@ -297,22 +297,67 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     id: '5.1',
     module: 'Sueños y Proyecciones',
     moduleNumber: 5,
-    question: 'INTERÉS DE FORMACIÓN',
-    subtitle: 'Selecciona áreas de formación que te interesan.',
-    type: 'checkbox',
-    options: ['Educación formal', 'Capacitación técnica', 'Emprendimiento', 'Desarrollo personal', 'Tecnología', 'Salud y bienestar', 'Otra'],
-    required: false,
-    fieldName: 'suenos.interes_formacion'
+    question: 'PRIORIDAD URGENTE',
+    subtitle: 'Identifique su necesidad más inmediata para mejorar su bienestar.',
+    type: 'pills',
+    options: ['Salud', 'Empleo', 'Educación', 'Vivienda', 'Apoyo Psicosocial', 'Seguridad', 'Otro'],
+    required: true,
+    fieldName: 'proyecciones.prioridad'
   },
   {
     id: '5.2',
     module: 'Sueños y Proyecciones',
     moduleNumber: 5,
-    question: 'PRIORIDAD URGENTE',
-    subtitle: 'Describe tu prioridad más urgente en este momento.',
-    type: 'textarea',
+    question: 'INTERÉS DE FORMACIÓN',
+    subtitle: '¿En qué áreas le gustaría adquirir nuevos conocimientos?',
+    type: 'checkbox',
+    options: ['Tecnología', 'Artes/Oficios', 'Emprendimiento', 'Gestión Financiera', 'Liderazgo', 'Otro'],
+    required: true,
+    fieldName: 'proyecciones.interes_formacion'
+  },
+  {
+    id: '5.3',
+    module: 'Sueños y Proyecciones',
+    moduleNumber: 5,
+    question: 'BIENESTAR DESEADO',
+    subtitle: 'Actividades que le gustaría realizar para su cuidado personal.',
+    type: 'checkbox',
+    options: ['Yoga/Meditación', 'Deporte', 'Lectura', 'Espacios de escucha', 'Manualidades', 'Otro'],
+    required: true,
+    fieldName: 'proyecciones.bienestar_deseado'
+  },
+  {
+    id: '5.4',
+    module: 'Sueños y Proyecciones',
+    moduleNumber: 5,
+    question: 'PROYECTOS IDEALES',
+    subtitle: '¿Qué tipo de actividades espera encontrar en nuestros proyectos?',
+    type: 'checkbox',
+    options: ['Bienestar emocional', 'Autocuidado', 'Orientación psicológica/jurídica', 'Recreativas', 'Redes de apoyo', 'Derechos', 'Emprendimiento/Finanzas', 'Otro'],
     required: false,
-    fieldName: 'suenos.prioridad_urgente'
+    fieldName: 'proyecciones.proyectos_ideales'
+  },
+  {
+    id: '5.5',
+    module: 'Sueños y Proyecciones',
+    moduleNumber: 5,
+    question: 'DIFICULTAD EN ACTIVIDADES',
+    subtitle: '¿Ha tenido dificultades para trabajar, estudiar o realizar actividades cotidianas debido a las labores de cuidado?',
+    type: 'pills',
+    options: ['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre'],
+    required: true,
+    fieldName: 'proyecciones.dificultades_actividades_cotidianas'
+  },
+  {
+    id: '5.6',
+    module: 'Sueños y Proyecciones',
+    moduleNumber: 5,
+    question: 'APOYO O ACOMPAÑAMIENTO DESEADO',
+    subtitle: '¿Le gustaría recibir más apoyo, orientación o acompañamiento para las labores de cuidado?',
+    type: 'pills',
+    options: ['Sí', 'No', 'Tal vez'],
+    required: true,
+    fieldName: 'proyecciones.desea_mas_apoyo'
   },
 
   // Módulo 6: Dinámica Familiar
