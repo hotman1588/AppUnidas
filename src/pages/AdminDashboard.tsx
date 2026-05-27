@@ -567,6 +567,7 @@ export default function AdminDashboard() {
       cuidado: 'CARGA DE CUIDADO',
       bienestar: 'BIENESTAR Y SEGURIDAD',
       proyecciones: 'SUEÑOS Y PROYECCIONES',
+      dinamica_familiar: 'DINÁMICA FAMILIAR',
       documentos: 'DOCUMENTOS DE SOPORTE'
     };
 

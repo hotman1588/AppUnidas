@@ -315,11 +315,78 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     fieldName: 'suenos.prioridad_urgente'
   },
 
-  // Módulo 6: Documentos y Consentimiento
+  // Módulo 6: Dinámica Familiar
   {
     id: '6.1',
-    module: 'Documentos y Consentimiento',
+    module: 'Dinámica Familiar',
     moduleNumber: 6,
+    question: 'ESTRUCTURA FAMILIAR',
+    subtitle: '¿Cuál de las siguientes opciones describe mejor su familia?',
+    type: 'pills',
+    options: ['Vive sola', 'Madre con hijos(as) y sin pareja en el hogar', 'Pareja con hijos(as)', 'Pareja sin hijos(as)', 'Familia extensa (incluye abuelos, tíos, sobrinos u otros familiares)', 'Familia reconstituida (pareja con hijos de relaciones anteriores)', 'Otra'],
+    required: true,
+    fieldName: 'dinamica_familiar.estructura'
+  },
+  {
+    id: '6.2',
+    module: 'Dinámica Familiar',
+    moduleNumber: 6,
+    question: 'PERSONAS EN EL HOGAR',
+    subtitle: '¿Cuántas personas viven actualmente en su hogar, incluyéndose usted?',
+    type: 'number',
+    required: true,
+    fieldName: 'dinamica_familiar.personas_hogar'
+  },
+  {
+    id: '6.3',
+    module: 'Dinámica Familiar',
+    moduleNumber: 6,
+    question: 'RELACIONES EN EL HOGAR',
+    subtitle: 'En general, ¿cómo son las relaciones entre las personas que viven en su hogar?',
+    type: 'pills',
+    options: ['Muy buenas', 'Buenas', 'Regulares', 'Difíciles', 'Muy difíciles'],
+    required: true,
+    fieldName: 'dinamica_familiar.relaciones'
+  },
+  {
+    id: '6.4',
+    module: 'Dinámica Familiar',
+    moduleNumber: 6,
+    question: 'HABILIDADES PARA COMPARTIR',
+    subtitle: '¿Considera que tiene habilidades o conocimientos que podría compartir con otras mujeres cuidadoras?',
+    type: 'pills',
+    options: ['Sí', 'No'],
+    required: true,
+    fieldName: 'dinamica_familiar.compartir_habilidades'
+  },
+  {
+    id: '6.5',
+    module: 'Dinámica Familiar',
+    moduleNumber: 6,
+    question: 'APOYO EN EMERGENCIAS',
+    subtitle: 'Cuando tiene una emergencia o necesita apoyo, ¿quién suele ayudarle?',
+    type: 'pills',
+    options: ['Pareja', 'Hijos o hijas', 'Padres o familiares', 'Amigos', 'Vecinos', 'Líderes comunitarios', 'Nadie', 'Otro'],
+    required: true,
+    fieldName: 'dinamica_familiar.apoyo_emergencia'
+  },
+  {
+    id: '6.6',
+    module: 'Dinámica Familiar',
+    moduleNumber: 6,
+    question: 'PARTICIPACIÓN SOCIAL',
+    subtitle: '¿Participa en grupos, organizaciones, iglesias, actividades comunitarias o redes de apoyo?',
+    type: 'pills',
+    options: ['Sí, frecuentemente', 'Algunas veces', 'Muy pocas veces', 'No participa'],
+    required: true,
+    fieldName: 'dinamica_familiar.participacion_social'
+  },
+
+  // Módulo 7: Documentos y Consentimiento
+  {
+    id: '7.1',
+    module: 'Documentos y Consentimiento',
+    moduleNumber: 7,
     question: 'CÉDULA FRONTAL',
     subtitle: 'Sube una fotografía clara de tu cédula (lado frontal).',
     type: 'document',
@@ -327,9 +394,9 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     fieldName: 'documentos.cedula_frontal'
   },
   {
-    id: '6.2',
+    id: '7.2',
     module: 'Documentos y Consentimiento',
-    moduleNumber: 6,
+    moduleNumber: 7,
     question: 'CÉDULA REVERSO',
     subtitle: 'Sube una fotografía clara de tu cédula (lado reverso).',
     type: 'document',
@@ -337,9 +404,9 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     fieldName: 'documentos.cedula_reverso'
   },
   {
-    id: '6.3',
+    id: '7.3',
     module: 'Documentos y Consentimiento',
-    moduleNumber: 6,
+    moduleNumber: 7,
     question: 'RECIBO DE SERVICIO PÚBLICO',
     subtitle: 'Sube un recibo de servicio público a tu nombre (agua, luz, etc).',
     type: 'document',
@@ -347,9 +414,9 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     fieldName: 'documentos.recibo_publico'
   },
   {
-    id: '6.4',
+    id: '7.4',
     module: 'Documentos y Consentimiento',
-    moduleNumber: 6,
+    moduleNumber: 7,
     question: 'HABEAS DATA',
     subtitle: 'Acepta la política de tratamiento de datos personales.',
     type: 'checkbox',

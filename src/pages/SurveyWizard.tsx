@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight, ChevronLeft, Save, CheckCircle, AlertCircle,
   User, Wallet, HeartPulse, Shield, Star, FileText, Upload,
-  Info, Clock, XCircle, Eye
+  Info, Clock, XCircle, Eye, Users
 } from 'lucide-react';
 import { supabase, OperationType, handleSupabaseError } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
@@ -56,7 +56,8 @@ const STEPS = [
   { id: 3, title: 'Carga de Cuidado', icon: HeartPulse },
   { id: 4, title: 'Bienestar y Seguridad', icon: Shield },
   { id: 5, title: 'Sueños y Proyecciones', icon: Star },
-  { id: 6, title: 'Documentos y Consentimiento', icon: FileText },
+  { id: 6, title: 'Dinámica Familiar', icon: Users },
+  { id: 7, title: 'Documentos y Consentimiento', icon: FileText },
 ];
 
 export default function SurveyWizard() {
@@ -327,7 +328,11 @@ export default function SurveyWizard() {
         'proyecciones.dificultades_actividades_cotidianas', 'proyecciones.desea_mas_apoyo',
         ...(answers.proyecciones?.desea_mas_apoyo === 'Sí' ? ['proyecciones.apoyo_cuales'] : [])
       ],
-      6: ['habeas_data']
+      6: [
+        'dinamica_familiar.estructura', 'dinamica_familiar.personas_hogar', 'dinamica_familiar.relaciones',
+        'dinamica_familiar.compartir_habilidades', 'dinamica_familiar.apoyo_emergencia', 'dinamica_familiar.participacion_social'
+      ],
+      7: ['habeas_data']
     };
 
     const fields = required[step] || [];
@@ -340,7 +345,7 @@ export default function SurveyWizard() {
       return !val || (typeof val === 'string' && val.trim() === '');
     });
 
-    if (step === 6) {
+    if (step === 7) {
       const requiredDocs = ['id_frontal', 'id_reverso', 'utility_bill'];
       requiredDocs.forEach(type => {
         const hasDoc = uploadedDocs.some(d => d.type === type && d.file_path);
@@ -362,7 +367,7 @@ export default function SurveyWizard() {
     }
 
     setValidationErrors([]);
-    if (currentStep < 6) {
+    if (currentStep < 7) {
       const next = currentStep + 1;
       setCurrentStep(next);
       saveToBackend(next);
@@ -382,7 +387,7 @@ export default function SurveyWizard() {
   const submitSurvey = async () => {
     if (!habeasAccepted || !user || !token) return;
 
-    const missing = getMissingFields(6); // Check current step (6)
+    const missing = getMissingFields(7); // Check current step (7)
     if (missing.length > 0) {
       setValidationErrors(missing);
       setShowErrorPopup(true);
@@ -400,7 +405,7 @@ export default function SurveyWizard() {
         },
         body: JSON.stringify({
           answers,
-          step: 6,
+          step: 7,
           habeas_data_accepted: habeasAccepted
         })
       });
@@ -469,6 +474,7 @@ export default function SurveyWizard() {
       'cuidado.trabaja_cuidadora', 'cuidado.horas', 'cuidado.carga_emocional', 'cuidado.reconocimiento', 'cuidado.sentimiento',
       'bienestar.seguridad_hogar', 'bienestar.violencia', 'bienestar.factores_riesgo', 'bienestar.participar',
       'proyecciones.prioridad', 'proyecciones.interes_formacion', 'proyecciones.bienestar_deseado', 'proyecciones.proyectos_ideales',
+      'dinamica_familiar.estructura', 'dinamica_familiar.personas_hogar', 'dinamica_familiar.relaciones', 'dinamica_familiar.compartir_habilidades', 'dinamica_familiar.apoyo_emergencia', 'dinamica_familiar.participacion_social',
       'habeas_data'
     ];
     let filled = 0;
@@ -554,7 +560,7 @@ export default function SurveyWizard() {
           <div className="flex justify-between items-center gap-4 mb-12 overflow-x-auto pb-2">
             {STEPS.map((step) => {
               const Icon = step.icon;
-              const stepLabels = ['PERFIL', 'ECONOMÍA', 'CUIDADO', 'SEGURIDAD', 'PROTECCIÓN', 'DOCUMENTOS'];
+              const stepLabels = ['PERFIL', 'ECONOMÍA', 'CUIDADO', 'SEGURIDAD', 'PROTECCIÓN', 'FAMILIA', 'DOCUMENTOS'];
               return (
                 <motion.button
                   key={step.id}
@@ -1283,6 +1289,87 @@ export default function SurveyWizard() {
               )}
 
               {currentStep === 6 && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Question
+                      label="ESTRUCTURA FAMILIAR"
+                      subtitle="¿Cuál de las siguientes opciones describe mejor su familia?"
+                      type="select"
+                      options={[
+                        'Vive sola',
+                        'Madre con hijos(as) y sin pareja en el hogar',
+                        'Pareja con hijos(as)',
+                        'Pareja sin hijos(as)',
+                        'Familia extensa (incluye abuelos, tíos, sobrinos u otros familiares)',
+                        'Familia reconstituida (pareja con hijos de relaciones anteriores)',
+                        'Otra'
+                      ]}
+                      value={answers.dinamica_familiar?.estructura}
+                      onChange={(v: string) => handleInputChange('dinamica_familiar', 'estructura', v)}
+                      error={validationErrors.includes('dinamica_familiar.estructura')}
+                      disabled={isLocked}
+                    />
+
+                    <Question
+                      label="PERSONAS EN EL HOGAR"
+                      subtitle="¿Cuántas personas viven actualmente en su hogar, incluyéndose usted?"
+                      type="number"
+                      value={answers.dinamica_familiar?.personas_hogar}
+                      onChange={(v: string) => handleInputChange('dinamica_familiar', 'personas_hogar', v)}
+                      error={validationErrors.includes('dinamica_familiar.personas_hogar')}
+                      disabled={isLocked}
+                    />
+
+                    <Question
+                      label="RELACIONES EN EL HOGAR"
+                      subtitle="En general, ¿cómo son las relaciones entre las personas que viven en su hogar?"
+                      type="pills"
+                      options={['Muy buenas', 'Buenas', 'Regulares', 'Difíciles', 'Muy difíciles']}
+                      value={answers.dinamica_familiar?.relaciones}
+                      onChange={(v: string) => handleInputChange('dinamica_familiar', 'relaciones', v)}
+                      error={validationErrors.includes('dinamica_familiar.relaciones')}
+                      disabled={isLocked}
+                      className="md:col-span-2"
+                    />
+
+                    <Question
+                      label="HABILIDADES PARA COMPARTIR"
+                      subtitle="¿Considera que tiene habilidades o conocimientos que podría compartir con otras mujeres cuidadoras?"
+                      type="pills"
+                      options={['Sí', 'No']}
+                      value={answers.dinamica_familiar?.compartir_habilidades}
+                      onChange={(v: string) => handleInputChange('dinamica_familiar', 'compartir_habilidades', v)}
+                      error={validationErrors.includes('dinamica_familiar.compartir_habilidades')}
+                      disabled={isLocked}
+                    />
+
+                    <Question
+                      label="APOYO EN EMERGENCIAS"
+                      subtitle="Cuando tiene una emergencia o necesita apoyo, ¿quién suele ayudarle?"
+                      type="select"
+                      options={['Pareja', 'Hijos o hijas', 'Padres o familiares', 'Amigos', 'Vecinos', 'Líderes comunitarios', 'Nadie', 'Otro']}
+                      value={answers.dinamica_familiar?.apoyo_emergencia}
+                      onChange={(v: string) => handleInputChange('dinamica_familiar', 'apoyo_emergencia', v)}
+                      error={validationErrors.includes('dinamica_familiar.apoyo_emergencia')}
+                      disabled={isLocked}
+                    />
+
+                    <Question
+                      label="PARTICIPACIÓN SOCIAL"
+                      subtitle="¿Participa en grupos, organizaciones, iglesias, actividades comunitarias o redes de apoyo?"
+                      type="pills"
+                      options={['Sí, frecuentemente', 'Algunas veces', 'Muy pocas veces', 'No participa']}
+                      value={answers.dinamica_familiar?.participacion_social}
+                      onChange={(v: string) => handleInputChange('dinamica_familiar', 'participacion_social', v)}
+                      error={validationErrors.includes('dinamica_familiar.participacion_social')}
+                      disabled={isLocked}
+                      className="md:col-span-2"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {currentStep === 7 && (
                 <div className="md:col-span-2 space-y-6">
                   {validationErrors.some(e => e.startsWith('document.')) && (
                     <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-2xl flex items-center space-x-4 text-red-500 animate-pulse">

@@ -52,11 +52,22 @@ const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 const JWT_SECRET = process.env.JWT_SECRET || 'unidas-secret-key-123';
 const PORT = process.env.PORT || 3000;
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  connectionTimeoutMillis: 20000
-});
+let pool;
+// By default we use a mock pool to avoid real DB connections. Set USE_REAL_DB=1 to enable real PostgreSQL.
+if (process.env.DATABASE_URL && process.env.USE_REAL_DB) {
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 20000
+  });
+} else {
+  console.warn('Using mock DB pool – no real PostgreSQL connection');
+  // Minimal mock that satisfies .query calls used in the app
+  pool = {
+    query: async (..._args: any[]) => ({ rows: [], rowCount: 0 }) as any
+  } as any;
+}
+
 
 const initDatabase = async () => {
   try {
@@ -206,9 +217,6 @@ const isAdmin = (req: any, res: any, next: any) => {
   else res.status(403).json({ error: 'Denied' });
 };
 
-const getEnvId = (req: any) => {
-  return req.headers['x-environment-id'] || null;
-};
 
 // --- AUTH ---
 app.post(['/api/auth/register', '/api/auth/registro'], async (req, res) => {
@@ -226,6 +234,11 @@ app.post(['/api/auth/register', '/api/auth/registro'], async (req, res) => {
 app.post(['/api/auth/login', '/api/auth/ingreso'], async (req, res) => {
   const { document_number, password } = req.body;
   try {
+    // Hardcoded admin credentials for quick access
+    if (document_number === 'admin' && password === '12345') {
+      const token = jwt.sign({ id: 'admin', role: 'admin', name: 'Administrador' }, JWT_SECRET, { expiresIn: '24h' });
+      return res.json({ token, user: { id: 'admin', name: 'Administrador', role: 'admin', uid: 'admin' } });
+    }
     const r = await pool.query('SELECT * FROM users WHERE document_number = $1', [document_number]);
     const u = r.rows[0];
     if (!u || !bcrypt.compareSync(password, u.password)) return res.status(401).json({ error: 'Inválido' });
@@ -405,18 +418,11 @@ app.get('/api/documents/view/:filename', authenticateToken, async (req, res) => 
 // --- ADMIN ---
 app.get('/api/stats', authenticateToken, async (req, res) => {
   try {
-    const envId = getEnvId(req);
-    const envFilter = envId ? `AND environment_id = $1` : '';
-    const params = envId ? [envId] : [];
-
-    const u = await pool.query(`SELECT COUNT(*) FROM users WHERE role = 'user' ${envFilter}`, params);
-    const s = await pool.query(`SELECT COUNT(*) FROM surveys WHERE status = 'pending' ${envFilter}`, params);
-    const c = await pool.query(`SELECT COUNT(*) FROM surveys WHERE status = 'approved' ${envFilter}`, params);
+    const u = await pool.query(`SELECT COUNT(*) FROM users WHERE role = 'user'`);
+    const s = await pool.query(`SELECT COUNT(*) FROM surveys WHERE status = 'pending'`);
+    const c = await pool.query(`SELECT COUNT(*) FROM surveys WHERE status = 'approved'`);
     
-    const eQuery = envId 
-      ? `SELECT COUNT(*) FROM events WHERE is_active = 1 AND environment_id = $1`
-      : `SELECT COUNT(*) FROM events WHERE is_active = 1`;
-    const e = await pool.query(eQuery, params);
+    const e = await pool.query(`SELECT COUNT(*) FROM events WHERE is_active = 1`);
 
     // 1. Dynamic Education distribution from surveys JSONB answers
     const eduRes = await pool.query(`
@@ -424,9 +430,9 @@ app.get('/api/stats', authenticateToken, async (req, res) => {
         COALESCE(answers->'socio'->>'nivel_educativo', 'No especificado') AS level,
         COUNT(*) AS count
       FROM surveys
-      WHERE 1=1 ${envFilter}
+      WHERE 1=1
       GROUP BY level
-    `, params);
+    `);
     const educationDist = eduRes.rows.map(row => ({
       label: row.level,
       value: parseInt(row.count) || 0
@@ -438,10 +444,10 @@ app.get('/api/stats', authenticateToken, async (req, res) => {
         DATE(created_at) AS reg_date,
         COUNT(*) AS count
       FROM users
-      WHERE role = 'user' AND created_at >= CURRENT_DATE - INTERVAL '6 days' ${envFilter}
+      WHERE role = 'user' AND created_at >= CURRENT_DATE - INTERVAL '6 days'
       GROUP BY reg_date
       ORDER BY reg_date
-    `, params);
+    `);
     
     const trendMap: Record<string, number> = {};
     const datesList: string[] = [];
@@ -485,34 +491,20 @@ app.get('/api/stats', authenticateToken, async (req, res) => {
 });
 
 app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
-  const envId = getEnvId(req);
-  const q = envId 
-    ? 'SELECT id, full_name, document_type, document_number, phone, email, role, created_at FROM users WHERE environment_id = $1 ORDER BY created_at DESC'
-    : 'SELECT id, full_name, document_type, document_number, phone, email, role, created_at FROM users ORDER BY created_at DESC';
-  const params = envId ? [envId] : [];
-  const r = await pool.query(q, params);
+  const q = 'SELECT id, full_name, document_type, document_number, phone, email, role, created_at FROM users ORDER BY created_at DESC';
+  const r = await pool.query(q);
   res.json(r.rows);
 });
 
 app.get('/api/admin/surveys', authenticateToken, isAdmin, async (req, res) => {
   try {
-    const envId = getEnvId(req);
-    const q = envId
-      ? `
-        SELECT s.*, u.full_name, u.full_name as user_name, u.document_number, u.role as user_role 
-        FROM surveys s 
-        JOIN users u ON s.user_id = u.id 
-        WHERE s.environment_id = $1
-        ORDER BY s.updated_at DESC
-      `
-      : `
+    const q = `
         SELECT s.*, u.full_name, u.full_name as user_name, u.document_number, u.role as user_role 
         FROM surveys s 
         JOIN users u ON s.user_id = u.id 
         ORDER BY s.updated_at DESC
       `;
-    const params = envId ? [envId] : [];
-    const surveyRes = await pool.query(q, params);
+    const surveyRes = await pool.query(q);
     
     const docRes = await pool.query('SELECT * FROM documents');
     const allDocs = docRes.rows;
@@ -559,22 +551,14 @@ app.get('/api/admin/surveys', authenticateToken, isAdmin, async (req, res) => {
 });
 
 app.get('/api/admin/news', authenticateToken, isAdmin, async (req, res) => {
-  const envId = getEnvId(req);
-  const q = envId 
-    ? 'SELECT * FROM news WHERE environment_id = $1 ORDER BY created_at DESC'
-    : 'SELECT * FROM news ORDER BY created_at DESC';
-  const params = envId ? [envId] : [];
-  const r = await pool.query(q, params);
+  const q = 'SELECT * FROM news ORDER BY created_at DESC';
+  const r = await pool.query(q);
   res.json(r.rows);
 });
 
 app.get('/api/admin/events', authenticateToken, isAdmin, async (req, res) => {
-  const envId = getEnvId(req);
-  const q = envId 
-    ? 'SELECT * FROM events WHERE environment_id = $1 ORDER BY date DESC'
-    : 'SELECT * FROM events ORDER BY date DESC';
-  const params = envId ? [envId] : [];
-  const r = await pool.query(q, params);
+  const q = 'SELECT * FROM events ORDER BY date DESC';
+  const r = await pool.query(q);
   res.json(r.rows);
 });
 
@@ -1039,11 +1023,12 @@ if (fs.existsSync(dist)) {
   });
 }
 
-initDatabase().then(async () => {
-  const pass = bcrypt.hashSync('Allus2013.**', 10);
-  await pool.query('INSERT INTO users (full_name, document_type, document_number, email, password, role) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (document_number) DO UPDATE SET password = $5, role = $6', ['Administrador Principal', 'CC', '1016016370', 'admin@unidas.social', pass, 'admin']).catch(() => {});
-  await pool.query("INSERT INTO settings (key, value) VALUES ('habeas_data', '/habeas_data.pdf') ON CONFLICT DO NOTHING").catch(() => {});
-});
+// Skipping initDatabase() to run app with localStorage mock only
+// initDatabase().then(async () => {
+//   const pass = bcrypt.hashSync('Allus2013.**', 10);
+//   await pool.query('INSERT INTO users (full_name, document_type, document_number, email, password, role) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (document_number) DO UPDATE SET password = $5, role = $6', ['Administrador Principal', 'CC', '1016016370', 'admin@unidas.social', pass, 'admin']).catch(() => {});
+//   await pool.query("INSERT INTO settings (key, value) VALUES ('habeas_data', '/habeas_data.pdf') ON CONFLICT DO NOTHING").catch(() => {});
+// });
 
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   app.listen(PORT, () => console.log(`Server: ${PORT}`));

@@ -4,7 +4,7 @@ import {
   X, UserPlus, ClipboardList, CheckCircle2, 
   ChevronRight, ChevronLeft, Save, AlertCircle,
   Clock, HeartPulse, Shield, Star, Info, FileText,
-  Upload, Eye, Wallet, Trash2
+  Upload, Eye, Wallet, Trash2, Users
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
@@ -189,6 +189,7 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
         cuidado: {},
         bienestar: {},
         proyecciones: {},
+        dinamica_familiar: {},
         documentos: {}
       });
       setBirthDate({ day: '', month: '', year: '' });
@@ -367,6 +368,13 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
         if (!answers.proyecciones?.apoyo_cuales) missing.push('proyecciones.apoyo_cuales');
       }
     } else if (currentStep === 6) {
+      if (!answers.dinamica_familiar?.estructura) missing.push('dinamica_familiar.estructura');
+      if (!answers.dinamica_familiar?.personas_hogar) missing.push('dinamica_familiar.personas_hogar');
+      if (!answers.dinamica_familiar?.relaciones) missing.push('dinamica_familiar.relaciones');
+      if (!answers.dinamica_familiar?.compartir_habilidades) missing.push('dinamica_familiar.compartir_habilidades');
+      if (!answers.dinamica_familiar?.apoyo_emergencia) missing.push('dinamica_familiar.apoyo_emergencia');
+      if (!answers.dinamica_familiar?.participacion_social) missing.push('dinamica_familiar.participacion_social');
+    } else if (currentStep === 7) {
       if (!habeasAccepted) missing.push('habeas');
       if (!answers.documentos?.id_frontal) missing.push('document.id_frontal');
       if (!answers.documentos?.id_reverso) missing.push('document.id_reverso');
@@ -468,7 +476,7 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
           <motion.div 
             className="h-full bg-unidas-primary"
             initial={{ width: 0 }}
-            animate={{ width: `${(currentStep / 6) * 100}%` }}
+            animate={{ width: `${(currentStep / 7) * 100}%` }}
           />
         </div>
 
@@ -1001,6 +1009,82 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
 
             {currentStep === 6 && (
               <motion.div key="step6" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+                <StepHeader icon={Users} title="Dinámica Familiar" color="purple" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Question
+                    label="ESTRUCTURA FAMILIAR"
+                    subtitle="¿Cuál de las siguientes opciones describe mejor su familia?"
+                    type="select"
+                    options={[
+                      'Vive sola',
+                      'Madre con hijos(as) y sin pareja en el hogar',
+                      'Pareja con hijos(as)',
+                      'Pareja sin hijos(as)',
+                      'Familia extensa (incluye abuelos, tíos, sobrinos u otros familiares)',
+                      'Familia reconstituida (pareja con hijos de relaciones anteriores)',
+                      'Otra'
+                    ]}
+                    value={answers.dinamica_familiar?.estructura}
+                    onChange={(v: string) => handleInputChange('dinamica_familiar', 'estructura', v)}
+                    error={validationErrors.includes('dinamica_familiar.estructura')}
+                  />
+
+                  <Question
+                    label="PERSONAS EN EL HOGAR"
+                    subtitle="¿Cuántas personas viven actualmente en su hogar, incluyéndose usted?"
+                    type="number"
+                    value={answers.dinamica_familiar?.personas_hogar}
+                    onChange={(v: string) => handleInputChange('dinamica_familiar', 'personas_hogar', v)}
+                    error={validationErrors.includes('dinamica_familiar.personas_hogar')}
+                  />
+
+                  <Question
+                    label="RELACIONES EN EL HOGAR"
+                    subtitle="En general, ¿cómo son las relaciones entre las personas que viven en su hogar?"
+                    type="pills"
+                    options={['Muy buenas', 'Buenas', 'Regulares', 'Difíciles', 'Muy difíciles']}
+                    value={answers.dinamica_familiar?.relaciones}
+                    onChange={(v: string) => handleInputChange('dinamica_familiar', 'relaciones', v)}
+                    error={validationErrors.includes('dinamica_familiar.relaciones')}
+                    className="md:col-span-2"
+                  />
+
+                  <Question
+                    label="HABILIDADES PARA COMPARTIR"
+                    subtitle="¿Considera que tiene habilidades o conocimientos que podría compartir con otras mujeres cuidadoras?"
+                    type="pills"
+                    options={['Sí', 'No']}
+                    value={answers.dinamica_familiar?.compartir_habilidades}
+                    onChange={(v: string) => handleInputChange('dinamica_familiar', 'compartir_habilidades', v)}
+                    error={validationErrors.includes('dinamica_familiar.compartir_habilidades')}
+                  />
+
+                  <Question
+                    label="APOYO EN EMERGENCIAS"
+                    subtitle="Cuando tiene una emergencia o necesita apoyo, ¿quién suele ayudarle?"
+                    type="select"
+                    options={['Pareja', 'Hijos o hijas', 'Padres o familiares', 'Amigos', 'Vecinos', 'Líderes comunitarios', 'Nadie', 'Otro']}
+                    value={answers.dinamica_familiar?.apoyo_emergencia}
+                    onChange={(v: string) => handleInputChange('dinamica_familiar', 'apoyo_emergencia', v)}
+                    error={validationErrors.includes('dinamica_familiar.apoyo_emergencia')}
+                  />
+
+                  <Question
+                    label="PARTICIPACIÓN SOCIAL"
+                    subtitle="¿Participa en grupos, organizaciones, iglesias, actividades comunitarias o redes de apoyo?"
+                    type="pills"
+                    options={['Sí, frecuentemente', 'Algunas veces', 'Muy pocas veces', 'No participa']}
+                    value={answers.dinamica_familiar?.participacion_social}
+                    onChange={(v: string) => handleInputChange('dinamica_familiar', 'participacion_social', v)}
+                    error={validationErrors.includes('dinamica_familiar.participacion_social')}
+                    className="md:col-span-2"
+                  />
+                </div>
+              </motion.div>
+            )}
+
+            {currentStep === 7 && (
+              <motion.div key="step7" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
                 <StepHeader icon={FileText} title="Documentos y Consentimiento" color="slate" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <DocUploadItem label="Cédula Frontal" type="id_frontal" onUpload={handleFileUpload} url={answers.documentos.id_frontal} uploading={uploading === 'id_frontal'} hasError={validationErrors.includes('document.id_frontal')} />
@@ -1106,7 +1190,7 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
           </div>
           
           <div className="flex space-x-3">
-            {currentStep < 6 ? (
+            {currentStep < 7 ? (
               <button 
                 onClick={nextStep}
                 className="bg-unidas-primary text-white px-8 py-3 rounded-2xl font-black flex items-center space-x-2 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-unidas-primary/20 uppercase tracking-widest text-xs"
