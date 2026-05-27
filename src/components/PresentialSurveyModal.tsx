@@ -255,6 +255,13 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
         }
       }
 
+      // Clear habilidades detail if answer changes to No
+      if (module === 'dinamica_familiar' && key === 'compartir_habilidades' && value !== 'Sí') {
+        if (newAnswers.dinamica_familiar) {
+          delete newAnswers.dinamica_familiar.compartir_habilidades_cuales;
+        }
+      }
+
       return newAnswers;
     });
 
@@ -372,6 +379,7 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       if (!answers.dinamica_familiar?.personas_hogar) missing.push('dinamica_familiar.personas_hogar');
       if (!answers.dinamica_familiar?.relaciones) missing.push('dinamica_familiar.relaciones');
       if (!answers.dinamica_familiar?.compartir_habilidades) missing.push('dinamica_familiar.compartir_habilidades');
+      if (answers.dinamica_familiar?.compartir_habilidades === 'Sí' && !answers.dinamica_familiar?.compartir_habilidades_cuales) missing.push('dinamica_familiar.compartir_habilidades_cuales');
       if (!answers.dinamica_familiar?.apoyo_emergencia) missing.push('dinamica_familiar.apoyo_emergencia');
       if (!answers.dinamica_familiar?.participacion_social) missing.push('dinamica_familiar.participacion_social');
     } else if (currentStep === 7) {
@@ -1047,6 +1055,10 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                     value={answers.dinamica_familiar?.compartir_habilidades}
                     onChange={(v: string) => handleInputChange('dinamica_familiar', 'compartir_habilidades', v)}
                     error={validationErrors.includes('dinamica_familiar.compartir_habilidades')}
+                    showOther={answers.dinamica_familiar?.compartir_habilidades === 'Sí'}
+                    otherValue={answers.dinamica_familiar?.compartir_habilidades_cuales}
+                    onOtherChange={(v: string) => handleInputChange('dinamica_familiar', 'compartir_habilidades_cuales', v)}
+                    otherPlaceholder="¿Cuáles habilidades o conocimientos?"
                   />
 
                   <Question

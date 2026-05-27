@@ -289,6 +289,13 @@ export default function SurveyWizard() {
         }
       }
 
+      // Clear habilidades detail if answer changes to No
+      if (module === 'dinamica_familiar' && question === 'compartir_habilidades' && value !== 'Sí') {
+        if (newAnswers.dinamica_familiar) {
+          delete newAnswers.dinamica_familiar.compartir_habilidades_cuales;
+        }
+      }
+
       return newAnswers;
     });
   };
@@ -330,7 +337,8 @@ export default function SurveyWizard() {
       ],
       6: [
         'dinamica_familiar.estructura', 'dinamica_familiar.personas_hogar', 'dinamica_familiar.relaciones',
-        'dinamica_familiar.compartir_habilidades', 'dinamica_familiar.apoyo_emergencia', 'dinamica_familiar.participacion_social'
+        'dinamica_familiar.compartir_habilidades', 'dinamica_familiar.apoyo_emergencia', 'dinamica_familiar.participacion_social',
+        ...(answers.dinamica_familiar?.compartir_habilidades === 'Sí' ? ['dinamica_familiar.compartir_habilidades_cuales'] : [])
       ],
       7: ['habeas_data']
     };
@@ -1329,6 +1337,10 @@ export default function SurveyWizard() {
                     value={answers.dinamica_familiar?.compartir_habilidades}
                     onChange={(v: string) => handleInputChange('dinamica_familiar', 'compartir_habilidades', v)}
                     error={validationErrors.includes('dinamica_familiar.compartir_habilidades')}
+                    showOther={answers.dinamica_familiar?.compartir_habilidades === 'Sí'}
+                    otherValue={answers.dinamica_familiar?.compartir_habilidades_cuales}
+                    onOtherChange={(v: string) => handleInputChange('dinamica_familiar', 'compartir_habilidades_cuales', v)}
+                    otherPlaceholder="¿Cuáles habilidades o conocimientos?"
                     disabled={isLocked}
                   />
 
