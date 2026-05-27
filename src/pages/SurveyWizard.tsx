@@ -1290,84 +1290,84 @@ export default function SurveyWizard() {
               )}
 
               {currentStep === 6 && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Question
-                      label="ESTRUCTURA FAMILIAR"
-                      subtitle="¿Cuál de las siguientes opciones describe mejor su familia?"
-                      type="select"
-                      options={[
-                        'Vive sola',
-                        'Madre con hijos(as) y sin pareja en el hogar',
-                        'Pareja con hijos(as)',
-                        'Pareja sin hijos(as)',
-                        'Familia extensa (incluye abuelos, tíos, sobrinos u otros familiares)',
-                        'Familia reconstituida (pareja con hijos de relaciones anteriores)',
-                        'Otra'
-                      ]}
-                      value={answers.dinamica_familiar?.estructura}
-                      onChange={(v: string) => handleInputChange('dinamica_familiar', 'estructura', v)}
-                      error={validationErrors.includes('dinamica_familiar.estructura')}
-                      disabled={isLocked}
-                    />
+                <>
+                  <Question
+                    label="ESTRUCTURA FAMILIAR"
+                    subtitle="¿Cuál de las siguientes opciones describe mejor su familia?"
+                    type="pills"
+                    options={[
+                      'Vive sola',
+                      'Madre con hijos(as) y sin pareja en el hogar',
+                      'Pareja con hijos(as)',
+                      'Pareja sin hijos(as)',
+                      'Familia extensa (abuelos, tíos, sobrinos u otros)',
+                      'Familia reconstituida (hijos de relaciones anteriores)',
+                      'Otra'
+                    ]}
+                    value={answers.dinamica_familiar?.estructura}
+                    onChange={(v: string) => handleInputChange('dinamica_familiar', 'estructura', v)}
+                    error={validationErrors.includes('dinamica_familiar.estructura')}
+                    disabled={isLocked}
+                    className="md:col-span-2"
+                  />
 
-                    <Question
-                      label="PERSONAS EN EL HOGAR"
-                      subtitle="¿Cuántas personas viven actualmente en su hogar, incluyéndose usted?"
-                      type="number"
-                      value={answers.dinamica_familiar?.personas_hogar}
-                      onChange={(v: string) => handleInputChange('dinamica_familiar', 'personas_hogar', v)}
-                      error={validationErrors.includes('dinamica_familiar.personas_hogar')}
-                      disabled={isLocked}
-                    />
+                  <Question
+                    label="PERSONAS EN EL HOGAR"
+                    subtitle="¿Cuántas personas viven actualmente en su hogar, incluyéndose usted?"
+                    type="number"
+                    value={answers.dinamica_familiar?.personas_hogar}
+                    onChange={(v: string) => handleInputChange('dinamica_familiar', 'personas_hogar', v)}
+                    error={validationErrors.includes('dinamica_familiar.personas_hogar')}
+                    disabled={isLocked}
+                  />
 
-                    <Question
-                      label="RELACIONES EN EL HOGAR"
-                      subtitle="En general, ¿cómo son las relaciones entre las personas que viven en su hogar?"
-                      type="pills"
-                      options={['Muy buenas', 'Buenas', 'Regulares', 'Difíciles', 'Muy difíciles']}
-                      value={answers.dinamica_familiar?.relaciones}
-                      onChange={(v: string) => handleInputChange('dinamica_familiar', 'relaciones', v)}
-                      error={validationErrors.includes('dinamica_familiar.relaciones')}
-                      disabled={isLocked}
-                      className="md:col-span-2"
-                    />
+                  <Question
+                    label="HABILIDADES PARA COMPARTIR"
+                    subtitle="¿Considera que tiene habilidades o conocimientos que podría compartir con otras mujeres cuidadoras?"
+                    type="pills"
+                    options={['Sí', 'No']}
+                    value={answers.dinamica_familiar?.compartir_habilidades}
+                    onChange={(v: string) => handleInputChange('dinamica_familiar', 'compartir_habilidades', v)}
+                    error={validationErrors.includes('dinamica_familiar.compartir_habilidades')}
+                    disabled={isLocked}
+                  />
 
-                    <Question
-                      label="HABILIDADES PARA COMPARTIR"
-                      subtitle="¿Considera que tiene habilidades o conocimientos que podría compartir con otras mujeres cuidadoras?"
-                      type="pills"
-                      options={['Sí', 'No']}
-                      value={answers.dinamica_familiar?.compartir_habilidades}
-                      onChange={(v: string) => handleInputChange('dinamica_familiar', 'compartir_habilidades', v)}
-                      error={validationErrors.includes('dinamica_familiar.compartir_habilidades')}
-                      disabled={isLocked}
-                    />
+                  <Question
+                    label="RELACIONES EN EL HOGAR"
+                    subtitle="En general, ¿cómo son las relaciones entre las personas que viven en su hogar?"
+                    type="pills"
+                    options={['Muy buenas', 'Buenas', 'Regulares', 'Difíciles', 'Muy difíciles']}
+                    value={answers.dinamica_familiar?.relaciones}
+                    onChange={(v: string) => handleInputChange('dinamica_familiar', 'relaciones', v)}
+                    error={validationErrors.includes('dinamica_familiar.relaciones')}
+                    disabled={isLocked}
+                    className="md:col-span-2"
+                  />
 
-                    <Question
-                      label="APOYO EN EMERGENCIAS"
-                      subtitle="Cuando tiene una emergencia o necesita apoyo, ¿quién suele ayudarle?"
-                      type="select"
-                      options={['Pareja', 'Hijos o hijas', 'Padres o familiares', 'Amigos', 'Vecinos', 'Líderes comunitarios', 'Nadie', 'Otro']}
-                      value={answers.dinamica_familiar?.apoyo_emergencia}
-                      onChange={(v: string) => handleInputChange('dinamica_familiar', 'apoyo_emergencia', v)}
-                      error={validationErrors.includes('dinamica_familiar.apoyo_emergencia')}
-                      disabled={isLocked}
-                    />
+                  <Question
+                    label="APOYO EN EMERGENCIAS"
+                    subtitle="Cuando tiene una emergencia o necesita apoyo, ¿quién suele ayudarle?"
+                    type="pills"
+                    options={['Pareja', 'Hijos o hijas', 'Padres o familiares', 'Amigos', 'Vecinos', 'Líderes comunitarios', 'Nadie', 'Otro']}
+                    value={answers.dinamica_familiar?.apoyo_emergencia}
+                    onChange={(v: string) => handleInputChange('dinamica_familiar', 'apoyo_emergencia', v)}
+                    error={validationErrors.includes('dinamica_familiar.apoyo_emergencia')}
+                    disabled={isLocked}
+                    className="md:col-span-2"
+                  />
 
-                    <Question
-                      label="PARTICIPACIÓN SOCIAL"
-                      subtitle="¿Participa en grupos, organizaciones, iglesias, actividades comunitarias o redes de apoyo?"
-                      type="pills"
-                      options={['Sí, frecuentemente', 'Algunas veces', 'Muy pocas veces', 'No participa']}
-                      value={answers.dinamica_familiar?.participacion_social}
-                      onChange={(v: string) => handleInputChange('dinamica_familiar', 'participacion_social', v)}
-                      error={validationErrors.includes('dinamica_familiar.participacion_social')}
-                      disabled={isLocked}
-                      className="md:col-span-2"
-                    />
-                  </div>
-                </div>
+                  <Question
+                    label="PARTICIPACIÓN SOCIAL"
+                    subtitle="¿Participa en grupos, organizaciones, iglesias, actividades comunitarias o redes de apoyo?"
+                    type="pills"
+                    options={['Sí, frecuentemente', 'Algunas veces', 'Muy pocas veces', 'No participa']}
+                    value={answers.dinamica_familiar?.participacion_social}
+                    onChange={(v: string) => handleInputChange('dinamica_familiar', 'participacion_social', v)}
+                    error={validationErrors.includes('dinamica_familiar.participacion_social')}
+                    disabled={isLocked}
+                    className="md:col-span-2"
+                  />
+                </>
               )}
 
               {currentStep === 7 && (

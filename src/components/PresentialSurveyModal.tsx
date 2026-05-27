@@ -1014,19 +1014,20 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                   <Question
                     label="ESTRUCTURA FAMILIAR"
                     subtitle="¿Cuál de las siguientes opciones describe mejor su familia?"
-                    type="select"
+                    type="pills"
                     options={[
                       'Vive sola',
                       'Madre con hijos(as) y sin pareja en el hogar',
                       'Pareja con hijos(as)',
                       'Pareja sin hijos(as)',
-                      'Familia extensa (incluye abuelos, tíos, sobrinos u otros familiares)',
-                      'Familia reconstituida (pareja con hijos de relaciones anteriores)',
+                      'Familia extensa (abuelos, tíos, sobrinos u otros)',
+                      'Familia reconstituida (hijos de relaciones anteriores)',
                       'Otra'
                     ]}
                     value={answers.dinamica_familiar?.estructura}
                     onChange={(v: string) => handleInputChange('dinamica_familiar', 'estructura', v)}
                     error={validationErrors.includes('dinamica_familiar.estructura')}
+                    className="md:col-span-2"
                   />
 
                   <Question
@@ -1036,6 +1037,16 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                     value={answers.dinamica_familiar?.personas_hogar}
                     onChange={(v: string) => handleInputChange('dinamica_familiar', 'personas_hogar', v)}
                     error={validationErrors.includes('dinamica_familiar.personas_hogar')}
+                  />
+
+                  <Question
+                    label="HABILIDADES PARA COMPARTIR"
+                    subtitle="¿Considera que tiene habilidades o conocimientos que podría compartir con otras mujeres cuidadoras?"
+                    type="pills"
+                    options={['Sí', 'No']}
+                    value={answers.dinamica_familiar?.compartir_habilidades}
+                    onChange={(v: string) => handleInputChange('dinamica_familiar', 'compartir_habilidades', v)}
+                    error={validationErrors.includes('dinamica_familiar.compartir_habilidades')}
                   />
 
                   <Question
@@ -1050,23 +1061,14 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                   />
 
                   <Question
-                    label="HABILIDADES PARA COMPARTIR"
-                    subtitle="¿Considera que tiene habilidades o conocimientos que podría compartir con otras mujeres cuidadoras?"
-                    type="pills"
-                    options={['Sí', 'No']}
-                    value={answers.dinamica_familiar?.compartir_habilidades}
-                    onChange={(v: string) => handleInputChange('dinamica_familiar', 'compartir_habilidades', v)}
-                    error={validationErrors.includes('dinamica_familiar.compartir_habilidades')}
-                  />
-
-                  <Question
                     label="APOYO EN EMERGENCIAS"
                     subtitle="Cuando tiene una emergencia o necesita apoyo, ¿quién suele ayudarle?"
-                    type="select"
+                    type="pills"
                     options={['Pareja', 'Hijos o hijas', 'Padres o familiares', 'Amigos', 'Vecinos', 'Líderes comunitarios', 'Nadie', 'Otro']}
                     value={answers.dinamica_familiar?.apoyo_emergencia}
                     onChange={(v: string) => handleInputChange('dinamica_familiar', 'apoyo_emergencia', v)}
                     error={validationErrors.includes('dinamica_familiar.apoyo_emergencia')}
+                    className="md:col-span-2"
                   />
 
                   <Question
