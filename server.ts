@@ -212,6 +212,73 @@ const isAdmin = (req: any, res: any, next: any) => {
   else res.status(403).json({ error: 'Denied' });
 };
 
+const requireAdminOnly = (req: any, res: any, next: any) => {
+  if (req.user && req.user.role === 'admin') next();
+  else res.status(403).json({ error: 'Solo los administradores pueden realizar esta acción' });
+};
+
+const cleanupUserFiles = async (filePaths: string[]) => {
+  const uniqueFiles = Array.from(new Set(filePaths.filter(Boolean)));
+
+  await Promise.all(uniqueFiles.map(async (filePath) => {
+    const filename = path.basename(filePath);
+    const localPath = path.join(uploadsDir, filename);
+
+    try {
+      if (fs.existsSync(localPath)) {
+        fs.unlinkSync(localPath);
+      }
+    } catch (err: any) {
+      console.error('Error deleting local user file:', err.message);
+    }
+
+    if (supabase) {
+      try {
+        await supabase.storage.from('documents').remove([filename]);
+      } catch (err: any) {
+        console.error('Error deleting Supabase user file:', err.message);
+      }
+    }
+  }));
+};
+
+const deleteUsersWithRecords = async (userIds: string[]) => {
+  const normalizedIds = Array.from(new Set(
+    userIds
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0)
+  ));
+
+  if (normalizedIds.length === 0) {
+    return { deletedCount: 0, filePaths: [] as string[] };
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const docs = await client.query('SELECT file_path FROM documents WHERE user_id = ANY($1::int[])', [normalizedIds]);
+
+    await client.query('DELETE FROM event_attendees WHERE user_id = ANY($1::int[])', [normalizedIds]);
+    await client.query('DELETE FROM survey_history WHERE user_id = ANY($1::int[])', [normalizedIds]);
+    await client.query('DELETE FROM documents WHERE user_id = ANY($1::int[])', [normalizedIds]);
+    await client.query('DELETE FROM surveys WHERE user_id = ANY($1::int[])', [normalizedIds]);
+    const deleted = await client.query('DELETE FROM users WHERE id = ANY($1::int[]) RETURNING id', [normalizedIds]);
+
+    await client.query('COMMIT');
+
+    return {
+      deletedCount: deleted.rowCount || 0,
+      filePaths: docs.rows.map((doc) => doc.file_path)
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
 
 // --- AUTH ---
 app.post(['/api/auth/register', '/api/auth/registro'], async (req, res) => {
@@ -947,9 +1014,26 @@ app.patch('/api/admin/users/:id/role', authenticateToken, isAdmin, async (req, r
   res.json({ success: true });
 });
 
-app.delete('/api/admin/users/:id', authenticateToken, isAdmin, async (req, res) => {
-  await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
-  res.json({ success: true });
+app.delete('/api/admin/users/bulk', authenticateToken, requireAdminOnly, async (req: any, res: any) => {
+  const userIds = Array.isArray(req.body?.userIds) ? req.body.userIds : [];
+
+  try {
+    const result = await deleteUsersWithRecords(userIds);
+    await cleanupUserFiles(result.filePaths);
+    res.json({ success: true, deletedCount: result.deletedCount });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/users/:id', authenticateToken, requireAdminOnly, async (req: any, res: any) => {
+  try {
+    const result = await deleteUsersWithRecords([req.params.id]);
+    await cleanupUserFiles(result.filePaths);
+    res.json({ success: true, deletedCount: result.deletedCount });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Settings & Public

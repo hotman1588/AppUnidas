@@ -72,6 +72,8 @@ export default function AdminDashboard() {
   });
   const [surveys, setSurveys] = useState<any[]>([]);
   const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [bulkDeletingUsers, setBulkDeletingUsers] = useState(false);
   const [newsList, setNewsList] = useState<any[]>([]);
   const [eventsList, setEventsList] = useState<any[]>([]);
   const [analysts, setAnalysts] = useState<any[]>([]);
@@ -160,7 +162,11 @@ export default function AdminDashboard() {
       if (surveysRes.ok) setSurveys(await surveysRes.json());
 
       const usersRes = await fetch('/api/admin/users', { headers });
-      if (usersRes.ok) setAllUsers(await usersRes.json());
+      if (usersRes.ok) {
+        const users = await usersRes.json();
+        setAllUsers(users);
+        setSelectedUserIds((current) => current.filter((id) => users.some((u: any) => String(u.id) === id)));
+      }
 
       const newsRes = await fetch('/api/admin/news', { headers });
       if (newsRes.ok) setNewsList(await newsRes.json());
@@ -210,9 +216,59 @@ export default function AdminDashboard() {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (res.ok) fetchData();
+      if (res.ok) {
+        setSelectedUserIds((current) => current.filter((id) => id !== String(userId)));
+        fetchData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'No se pudo eliminar el usuario.');
+      }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUserIds((current) =>
+      current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
+    );
+  };
+
+  const toggleAllUserSelection = () => {
+    const allVisibleIds = allUsers.map((u) => String(u.id));
+    const allSelected = allVisibleIds.length > 0 && allVisibleIds.every((id) => selectedUserIds.includes(id));
+    setSelectedUserIds(allSelected ? [] : allVisibleIds);
+  };
+
+  const handleBulkDeleteUsers = async () => {
+    if (selectedUserIds.length === 0) return;
+
+    const message = `Estas seguro de eliminar ${selectedUserIds.length} usuario(s) seleccionado(s)? Se borrara toda su informacion registrada, encuestas, documentos, historial y matriculas. Esta accion es irreversible.`;
+    if (!confirm(message)) return;
+
+    setBulkDeletingUsers(true);
+    try {
+      const res = await fetch('/api/admin/users/bulk', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ userIds: selectedUserIds })
+      });
+
+      if (res.ok) {
+        setSelectedUserIds([]);
+        await fetchData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'No se pudieron eliminar los usuarios seleccionados.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Ocurrio un error eliminando los usuarios seleccionados.');
+    } finally {
+      setBulkDeletingUsers(false);
     }
   };
 
@@ -889,7 +945,7 @@ export default function AdminDashboard() {
                   <h3 className="text-3xl font-black text-white mb-2">Gestión de Usuarios</h3>
                   <p className="text-white/30 font-medium italic">Control de roles y accesos institucionales</p>
                 </div>
-                <div className="flex space-x-6">
+                <div className="flex flex-wrap justify-end gap-4">
                   <div className="relative group">
                     <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20 group-focus-within:text-unidas-primary" />
                     <input 
@@ -898,6 +954,19 @@ export default function AdminDashboard() {
                       className="pl-14 pr-6 py-4 bg-white/5 border border-white/5 rounded-2xl text-sm outline-none focus:border-unidas-primary text-white font-bold min-w-[320px]"
                     />
                   </div>
+                  <button
+                    onClick={handleBulkDeleteUsers}
+                    disabled={selectedUserIds.length === 0 || bulkDeletingUsers}
+                    className={cn(
+                      "px-8 py-4 font-black rounded-2xl flex items-center space-x-3 border transition-all",
+                      selectedUserIds.length > 0
+                        ? "bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500 hover:text-white"
+                        : "bg-white/5 text-white/20 border-white/5 cursor-not-allowed"
+                    )}
+                  >
+                    <Trash2 className="w-6 h-6" />
+                    <span>{bulkDeletingUsers ? 'Eliminando...' : `Eliminar (${selectedUserIds.length})`}</span>
+                  </button>
                   <button 
                     onClick={handleOpenCreateUser}
                     className="px-8 py-4 bg-unidas-primary text-white font-black rounded-2xl flex items-center space-x-3 shadow-2xl shadow-unidas-primary/30 hover:scale-105 transition-all"
@@ -911,6 +980,15 @@ export default function AdminDashboard() {
                 <table className="w-full text-left">
                   <thead className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">
                     <tr>
+                      <th className="px-8 py-8 w-16">
+                        <input
+                          type="checkbox"
+                          checked={allUsers.length > 0 && allUsers.every((u) => selectedUserIds.includes(String(u.id)))}
+                          onChange={toggleAllUserSelection}
+                          aria-label="Seleccionar todos los usuarios"
+                          className="h-5 w-5 rounded border-white/20 bg-white/5 text-unidas-primary focus:ring-unidas-primary"
+                        />
+                      </th>
                       <th className="px-8 py-8">Usuario</th>
                       <th className="px-8 py-8">Documento</th>
                       <th className="px-8 py-8">Contacto</th>
@@ -920,7 +998,16 @@ export default function AdminDashboard() {
                   </thead>
                   <tbody className="text-sm">
                     {allUsers.map((u) => (
-                      <tr key={u.id} className="group hover:bg-white/5 transition-all">
+                      <tr key={u.id} className={cn("group transition-all", selectedUserIds.includes(String(u.id)) ? "bg-red-500/5" : "hover:bg-white/5")}>
+                        <td className="px-8 py-8">
+                          <input
+                            type="checkbox"
+                            checked={selectedUserIds.includes(String(u.id))}
+                            onChange={() => toggleUserSelection(String(u.id))}
+                            aria-label={`Seleccionar usuario ${u.full_name}`}
+                            className="h-5 w-5 rounded border-white/20 bg-white/5 text-unidas-primary focus:ring-unidas-primary"
+                          />
+                        </td>
                         <td className="px-8 py-8">
                           <p className="font-black text-white text-lg">{u.full_name}</p>
                           <p className="text-[10px] text-white/20 font-mono italic">{u.email}</p>
