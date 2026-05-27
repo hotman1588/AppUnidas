@@ -891,7 +891,7 @@ app.post('/api/analyst/register-complete-characterization', authenticateToken, i
     const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
     await client.query(
       'INSERT INTO surveys (user_id, answers, status, current_step, habeas_data_accepted) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (user_id) DO UPDATE SET answers = $2, status = $3, current_step = $4, habeas_data_accepted = $5, updated_at = CURRENT_TIMESTAMP',
-      [userId, answersJson, 'approved', 6, 1]
+      [userId, answersJson, 'approved', 7, 1]
     );
 
     // 3. Write to survey history
