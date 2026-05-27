@@ -52,21 +52,16 @@ const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 const JWT_SECRET = process.env.JWT_SECRET || 'unidas-secret-key-123';
 const PORT = process.env.PORT || 3000;
 
-let pool;
-// By default we use a mock pool to avoid real DB connections. Set USE_REAL_DB=1 to enable real PostgreSQL.
-if (process.env.DATABASE_URL && process.env.USE_REAL_DB) {
-  pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
-    connectionTimeoutMillis: 20000
-  });
-} else {
-  console.warn('Using mock DB pool – no real PostgreSQL connection');
-  // Minimal mock that satisfies .query calls used in the app
-  pool = {
-    query: async (..._args: any[]) => ({ rows: [], rowCount: 0 }) as any
-  } as any;
+if (!process.env.DATABASE_URL) {
+  console.error('FATAL: DATABASE_URL environment variable is not set.');
+  process.exit(1);
 }
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+  connectionTimeoutMillis: 20000
+});
 
 
 const initDatabase = async () => {
