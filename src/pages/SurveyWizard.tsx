@@ -1518,7 +1518,7 @@ export default function SurveyWizard() {
                   </div>
                 )}
 
-                {currentStep === 6 ? (
+                {currentStep === 7 ? (
                   <button
                     onClick={submitSurvey}
                     disabled={!habeasAccepted || saving || isLocked}
