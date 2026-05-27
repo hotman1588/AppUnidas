@@ -8,7 +8,7 @@ export interface SurveyQuestion {
   moduleNumber: number;
   question: string;
   subtitle?: string;
-  type: 'text' | 'select' | 'checkbox' | 'textarea' | 'date' | 'number' | 'document';
+  type: 'text' | 'select' | 'checkbox' | 'textarea' | 'date' | 'number' | 'document' | 'pills';
   options?: string[];
   required: boolean;
   fieldName: string;
@@ -70,6 +70,16 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     fieldName: 'socio.nivel_educativo'
   },
   {
+    id: '1.5b',
+    module: 'Perfil Sociodemográfico',
+    moduleNumber: 1,
+    question: 'NIVEL EDUCATIVO (ESPECIFICAR)',
+    subtitle: 'Detalle cuando selecciona "Otro".',
+    type: 'text',
+    required: false,
+    fieldName: 'socio.nivel_educativo_otro'
+  },
+  {
     id: '1.6',
     module: 'Perfil Sociodemográfico',
     moduleNumber: 1,
@@ -79,6 +89,16 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     options: ['Indígena', 'Afrocolombiana', 'Raizal', 'Palenquera', 'LGBTIQ+', 'Víctima del conflicto', 'Migrante', 'Ninguno de los anteriores'],
     required: false,
     fieldName: 'socio.pertenencia_poblacional'
+  },
+  {
+    id: '1.6b',
+    module: 'Perfil Sociodemográfico',
+    moduleNumber: 1,
+    question: 'PERTENENCIA POBLACIONAL (OTRO)',
+    subtitle: 'Detalle cuando selecciona "Otro".',
+    type: 'text',
+    required: false,
+    fieldName: 'socio.pertenencia_otro'
   },
 
   // Módulo 2: Economía y Autonomía
@@ -104,6 +124,16 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     fieldName: 'economia.fuente_ingresos'
   },
   {
+    id: '2.2b',
+    module: 'Economía y Autonomía',
+    moduleNumber: 2,
+    question: 'FUENTE DE INGRESOS (OTRO)',
+    subtitle: 'Detalle cuando selecciona "Otro".',
+    type: 'text',
+    required: false,
+    fieldName: 'economia.fuente_ingresos_otro'
+  },
+  {
     id: '2.3',
     module: 'Economía y Autonomía',
     moduleNumber: 2,
@@ -113,6 +143,16 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     options: ['Empleada tiempo completo', 'Empleada tiempo parcial', 'Desempleada', 'Trabajadora por cuenta propia', 'Estudiante', 'Hogar'],
     required: true,
     fieldName: 'economia.situacion_laboral'
+  },
+  {
+    id: '2.3b',
+    module: 'Economía y Autonomía',
+    moduleNumber: 2,
+    question: 'SITUACIÓN LABORAL (OTRO)',
+    subtitle: 'Detalle cuando selecciona "Otro".',
+    type: 'text',
+    required: false,
+    fieldName: 'economia.situacion_laboral_otro'
   },
   {
     id: '2.4',
@@ -125,39 +165,177 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     required: false,
     fieldName: 'economia.tipo_vivienda'
   },
+  {
+    id: '2.4b',
+    module: 'Economía y Autonomía',
+    moduleNumber: 2,
+    question: 'TIPO DE VIVIENDA (OTRO)',
+    subtitle: 'Detalle cuando selecciona "Otra".',
+    type: 'text',
+    required: false,
+    fieldName: 'economia.tipo_vivienda_otro'
+  },
 
   // Módulo 3: Carga de Cuidado
   {
     id: '3.1',
     module: 'Carga de Cuidado',
     moduleNumber: 3,
-    question: 'POBLACIÓN BAJO CUIDADO',
-    subtitle: 'Selecciona quiénes cuidas y en qué cantidad.',
-    type: 'checkbox',
-    options: ['Menores de 5 años', 'Niños/as 5-17 años', 'Personas mayores', 'Personas con discapacidad', 'Personas con enfermedad crónica'],
+    question: '¿ES CUIDADORA?',
+    subtitle: '¿Trabajas como cuidadora o cuidador?',
+    type: 'select',
+    options: ['Sí', 'No'],
     required: true,
-    fieldName: 'cuidado.poblacion'
+    fieldName: 'cuidado.es_cuidadora'
   },
   {
     id: '3.2',
     module: 'Carga de Cuidado',
     moduleNumber: 3,
-    question: 'HORAS DIARIAS DE CUIDADO',
-    subtitle: 'Ingresa el número de horas diarias dedicadas al cuidado.',
-    type: 'number',
-    required: true,
-    fieldName: 'cuidado.horas'
+    question: 'POBLACIÓN BAJO CUIDADO',
+    subtitle: 'A quién brinda cuidado.',
+    type: 'pills',
+    options: ['Hijos, hijas o menores de edad', 'Personas mayores', 'Persona con discapacidad', 'Familiar con enfermedad', 'Varias personas del hogar', 'Cuidado del hogar o la casa', 'Mascotas', 'Plantas o huertas', 'Otro'],
+    required: false,
+    fieldName: 'cuidado.poblacion'
+  },
+  {
+    id: '3.2b',
+    module: 'Carga de Cuidado',
+    moduleNumber: 3,
+    question: 'POBLACIÓN BAJO CUIDADO (OTRO)',
+    subtitle: 'Detalle cuando selecciona "Otro".',
+    type: 'text',
+    required: false,
+    fieldName: 'cuidado.poblacion_otro'
   },
   {
     id: '3.3',
     module: 'Carga de Cuidado',
     moduleNumber: 3,
-    question: '¿EL CUIDADO ES REMUNERADO?',
-    subtitle: 'Indica si recibas pago por tu trabajo de cuidado.',
-    type: 'select',
+    question: 'HORAS DIARIAS DE CUIDADO',
+    subtitle: 'Tiempo dedicado al día.',
+    type: 'number',
+    required: false,
+    fieldName: 'cuidado.horas'
+  },
+  {
+    id: '3.4',
+    module: 'Carga de Cuidado',
+    moduleNumber: 3,
+    question: 'CARGA EMOCIONAL',
+    subtitle: 'Nivel de agotamiento emocional (1: Bajo, 5: Alto).',
+    type: 'number',
+    required: false,
+    fieldName: 'cuidado.carga_emocional'
+  },
+  {
+    id: '3.5',
+    module: 'Carga de Cuidado',
+    moduleNumber: 3,
+    question: 'CONOCIMIENTO DE PROGRAMAS',
+    subtitle: '¿Conoce programas o servicios para cuidadoras?',
+    type: 'pills',
     options: ['Sí', 'No'],
     required: false,
-    fieldName: 'cuidado.remunerado'
+    fieldName: 'cuidado.conoce_programas'
+  },
+  {
+    id: '3.5b',
+    module: 'Carga de Cuidado',
+    moduleNumber: 3,
+    question: 'PROGRAMAS QUE CONOCE (CUÁLES)',
+    subtitle: 'Detalle cuando responde "Sí".',
+    type: 'text',
+    required: false,
+    fieldName: 'cuidado.cuales_programas'
+  },
+  {
+    id: '3.6',
+    module: 'Carga de Cuidado',
+    moduleNumber: 3,
+    question: 'RECONOCIMIENTO PERCIBIDO',
+    subtitle: '¿Qué tanto reconocimiento percibe por las labores que realiza?',
+    type: 'pills',
+    options: ['Nada reconocida', 'Poco reconocida', 'Medianamente reconocida', 'Muy reconocida'],
+    required: false,
+    fieldName: 'cuidado.reconocimiento'
+  },
+  {
+    id: '3.7',
+    module: 'Carga de Cuidado',
+    moduleNumber: 3,
+    question: 'SENTIMIENTO FRECUENTE',
+    subtitle: '¿Qué sentimiento experimenta con más frecuencia?',
+    type: 'pills',
+    options: ['Ira', 'Incertidumbre', 'Temor', 'Tranquilidad', 'Felicidad', 'Angustia', 'Tristeza', 'Otro'],
+    required: false,
+    fieldName: 'cuidado.sentimiento'
+  },
+  {
+    id: '3.7b',
+    module: 'Carga de Cuidado',
+    moduleNumber: 3,
+    question: 'SENTIMIENTO FRECUENTE (OTRO)',
+    subtitle: 'Detalle cuando selecciona "Otro".',
+    type: 'text',
+    required: false,
+    fieldName: 'cuidado.sentimiento_otro'
+  },
+  {
+    id: '3.8',
+    module: 'Carga de Cuidado',
+    moduleNumber: 3,
+    question: 'CANSANCIO FÍSICO',
+    subtitle: '¿Siente cansancio físico por las labores de cuidado?',
+    type: 'pills',
+    options: ['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre'],
+    required: false,
+    fieldName: 'cuidado.cansancio_fisico'
+  },
+  {
+    id: '3.9',
+    module: 'Carga de Cuidado',
+    moduleNumber: 3,
+    question: 'RESPONSABILIDADES EXCESIVAS',
+    subtitle: '¿Siente que las responsabilidades del hogar y cuidado son excesivas?',
+    type: 'pills',
+    options: ['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre'],
+    required: false,
+    fieldName: 'cuidado.responsabilidades_excesivas'
+  },
+  {
+    id: '3.10',
+    module: 'Carga de Cuidado',
+    moduleNumber: 3,
+    question: 'POCO TIEMPO DE AUTOCUIDADO',
+    subtitle: '¿Considera que tiene poco tiempo para cuidar de sí misma?',
+    type: 'pills',
+    options: ['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre'],
+    required: false,
+    fieldName: 'cuidado.poco_tiempo_autocuidado'
+  },
+  {
+    id: '3.11',
+    module: 'Carga de Cuidado',
+    moduleNumber: 3,
+    question: 'ESTRÉS CONSTANTE',
+    subtitle: '¿Siente estrés o preocupación constante relacionado con el cuidado?',
+    type: 'pills',
+    options: ['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre'],
+    required: false,
+    fieldName: 'cuidado.estres_constante'
+  },
+  {
+    id: '3.12',
+    module: 'Carga de Cuidado',
+    moduleNumber: 3,
+    question: 'AGOTAMIENTO EMOCIONAL',
+    subtitle: '¿Se siente emocionalmente agotada por las responsabilidades de cuidado?',
+    type: 'pills',
+    options: ['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre'],
+    required: false,
+    fieldName: 'cuidado.agotamiento_emocional'
   },
 
   // Módulo 4: Bienestar y Seguridad
@@ -281,6 +459,16 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     fieldName: 'bienestar.enfermedad_diagnosticada'
   },
   {
+    id: '4.11b',
+    module: 'Bienestar y Seguridad',
+    moduleNumber: 4,
+    question: 'ENFERMEDADES (CUÁLES)',
+    subtitle: 'Detalle cuando responde "Sí".',
+    type: 'text',
+    required: false,
+    fieldName: 'bienestar.enfermedades_cuales'
+  },
+  {
     id: '4.12',
     module: 'Bienestar y Seguridad',
     moduleNumber: 4,
@@ -305,6 +493,16 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     fieldName: 'proyecciones.prioridad'
   },
   {
+    id: '5.1b',
+    module: 'Sueños y Proyecciones',
+    moduleNumber: 5,
+    question: 'PRIORIDAD URGENTE (OTRO)',
+    subtitle: 'Detalle cuando selecciona "Otro".',
+    type: 'text',
+    required: false,
+    fieldName: 'proyecciones.prioridad_otro'
+  },
+  {
     id: '5.2',
     module: 'Sueños y Proyecciones',
     moduleNumber: 5,
@@ -314,6 +512,16 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     options: ['Tecnología', 'Artes/Oficios', 'Emprendimiento', 'Gestión Financiera', 'Liderazgo', 'Otro'],
     required: true,
     fieldName: 'proyecciones.interes_formacion'
+  },
+  {
+    id: '5.2b',
+    module: 'Sueños y Proyecciones',
+    moduleNumber: 5,
+    question: 'INTERÉS DE FORMACIÓN (OTRO)',
+    subtitle: 'Detalle cuando selecciona "Otro".',
+    type: 'text',
+    required: false,
+    fieldName: 'proyecciones.interes_formacion_otro'
   },
   {
     id: '5.3',
@@ -327,6 +535,16 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     fieldName: 'proyecciones.bienestar_deseado'
   },
   {
+    id: '5.3b',
+    module: 'Sueños y Proyecciones',
+    moduleNumber: 5,
+    question: 'BIENESTAR DESEADO (OTRO)',
+    subtitle: 'Detalle cuando selecciona "Otro".',
+    type: 'text',
+    required: false,
+    fieldName: 'proyecciones.bienestar_deseado_otro'
+  },
+  {
     id: '5.4',
     module: 'Sueños y Proyecciones',
     moduleNumber: 5,
@@ -336,6 +554,16 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     options: ['Bienestar emocional', 'Autocuidado', 'Orientación psicológica/jurídica', 'Recreativas', 'Redes de apoyo', 'Derechos', 'Emprendimiento/Finanzas', 'Otro'],
     required: false,
     fieldName: 'proyecciones.proyectos_ideales'
+  },
+  {
+    id: '5.4b',
+    module: 'Sueños y Proyecciones',
+    moduleNumber: 5,
+    question: 'PROYECTOS IDEALES (OTRO)',
+    subtitle: 'Detalle cuando selecciona "Otro".',
+    type: 'text',
+    required: false,
+    fieldName: 'proyecciones.proyectos_ideales_otro'
   },
   {
     id: '5.5',
@@ -358,6 +586,16 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     options: ['Sí', 'No', 'Tal vez'],
     required: true,
     fieldName: 'proyecciones.desea_mas_apoyo'
+  },
+  {
+    id: '5.6b',
+    module: 'Sueños y Proyecciones',
+    moduleNumber: 5,
+    question: 'APOYO DESEADO (CUÁLES)',
+    subtitle: 'Detalle cuando responde "Sí".',
+    type: 'text',
+    required: false,
+    fieldName: 'proyecciones.apoyo_cuales'
   },
 
   // Módulo 6: Dinámica Familiar
@@ -403,6 +641,16 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     options: ['Sí', 'No'],
     required: true,
     fieldName: 'dinamica_familiar.compartir_habilidades'
+  },
+  {
+    id: '6.4b',
+    module: 'Dinámica Familiar',
+    moduleNumber: 6,
+    question: 'HABILIDADES A COMPARTIR (CUÁLES)',
+    subtitle: 'Detalle cuando responde "Sí".',
+    type: 'text',
+    required: false,
+    fieldName: 'dinamica_familiar.compartir_habilidades_cuales'
   },
   {
     id: '6.5',
