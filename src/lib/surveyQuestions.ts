@@ -27,6 +27,16 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     fieldName: 'socio.fecha_nacimiento'
   },
   {
+    id: '1.1b',
+    module: 'Perfil Sociodemográfico',
+    moduleNumber: 1,
+    question: 'EDAD',
+    subtitle: 'Edad calculada automáticamente.',
+    type: 'number',
+    required: false,
+    fieldName: 'socio.edad'
+  },
+  {
     id: '1.2',
     module: 'Perfil Sociodemográfico',
     moduleNumber: 1,
@@ -88,7 +98,7 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     type: 'checkbox',
     options: ['Indígena', 'Afrocolombiana', 'Raizal', 'Palenquera', 'LGBTIQ+', 'Víctima del conflicto', 'Migrante', 'Ninguno de los anteriores'],
     required: false,
-    fieldName: 'socio.pertenencia_poblacional'
+    fieldName: 'socio.pertenencia'
   },
   {
     id: '1.6b',
@@ -609,6 +619,16 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     options: ['Vive sola', 'Madre con hijos(as) y sin pareja en el hogar', 'Pareja con hijos(as)', 'Pareja sin hijos(as)', 'Familia extensa (incluye abuelos, tíos, sobrinos u otros familiares)', 'Familia reconstituida (pareja con hijos de relaciones anteriores)', 'Otra'],
     required: true,
     fieldName: 'dinamica_familiar.estructura'
+  },
+  {
+    id: '6.1b',
+    module: 'Dinámica Familiar',
+    moduleNumber: 6,
+    question: 'ESTRUCTURA FAMILIAR (OTRA)',
+    subtitle: 'Detalle cuando selecciona "Otra".',
+    type: 'text',
+    required: false,
+    fieldName: 'dinamica_familiar.estructura_otra'
   },
   {
     id: '6.2',

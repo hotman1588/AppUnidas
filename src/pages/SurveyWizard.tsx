@@ -289,6 +289,13 @@ export default function SurveyWizard() {
         }
       }
 
+      // Clear estructura_otra if answer changes away from Otra
+      if (module === 'dinamica_familiar' && question === 'estructura' && value !== 'Otra') {
+        if (newAnswers.dinamica_familiar) {
+          delete newAnswers.dinamica_familiar.estructura_otra;
+        }
+      }
+
       // Clear habilidades detail if answer changes to No
       if (module === 'dinamica_familiar' && question === 'compartir_habilidades' && value !== 'Sí') {
         if (newAnswers.dinamica_familiar) {
@@ -338,6 +345,7 @@ export default function SurveyWizard() {
       6: [
         'dinamica_familiar.estructura', 'dinamica_familiar.personas_hogar', 'dinamica_familiar.relaciones',
         'dinamica_familiar.compartir_habilidades', 'dinamica_familiar.apoyo_emergencia', 'dinamica_familiar.participacion_social',
+        ...(answers.dinamica_familiar?.estructura === 'Otra' ? ['dinamica_familiar.estructura_otra'] : []),
         ...(answers.dinamica_familiar?.compartir_habilidades === 'Sí' ? ['dinamica_familiar.compartir_habilidades_cuales'] : [])
       ],
       7: ['habeas_data']
@@ -1315,6 +1323,10 @@ export default function SurveyWizard() {
                     value={answers.dinamica_familiar?.estructura}
                     onChange={(v: string) => handleInputChange('dinamica_familiar', 'estructura', v)}
                     error={validationErrors.includes('dinamica_familiar.estructura')}
+                    showOther={answers.dinamica_familiar?.estructura === 'Otra'}
+                    otherValue={answers.dinamica_familiar?.estructura_otra}
+                    onOtherChange={(v: string) => handleInputChange('dinamica_familiar', 'estructura_otra', v)}
+                    otherPlaceholder="Describe tu estructura familiar"
                     disabled={isLocked}
                     className="md:col-span-2"
                   />

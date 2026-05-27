@@ -255,6 +255,13 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
         }
       }
 
+      // Clear estructura_otra if answer changes away from Otra
+      if (module === 'dinamica_familiar' && key === 'estructura' && value !== 'Otra') {
+        if (newAnswers.dinamica_familiar) {
+          delete newAnswers.dinamica_familiar.estructura_otra;
+        }
+      }
+
       // Clear habilidades detail if answer changes to No
       if (module === 'dinamica_familiar' && key === 'compartir_habilidades' && value !== 'Sí') {
         if (newAnswers.dinamica_familiar) {
@@ -275,6 +282,9 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       }
       if (module === 'proyecciones' && key === 'desea_mas_apoyo' && value !== 'Sí') {
         return cleared.filter(f => f !== 'proyecciones.apoyo_cuales');
+      }
+      if (module === 'dinamica_familiar' && key === 'estructura' && value !== 'Otra') {
+        return cleared.filter(f => f !== 'dinamica_familiar.estructura_otra');
       }
       return cleared;
     });
@@ -376,6 +386,7 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       }
     } else if (currentStep === 6) {
       if (!answers.dinamica_familiar?.estructura) missing.push('dinamica_familiar.estructura');
+      if (answers.dinamica_familiar?.estructura === 'Otra' && !answers.dinamica_familiar?.estructura_otra) missing.push('dinamica_familiar.estructura_otra');
       if (!answers.dinamica_familiar?.personas_hogar) missing.push('dinamica_familiar.personas_hogar');
       if (!answers.dinamica_familiar?.relaciones) missing.push('dinamica_familiar.relaciones');
       if (!answers.dinamica_familiar?.compartir_habilidades) missing.push('dinamica_familiar.compartir_habilidades');
@@ -1035,6 +1046,10 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                     value={answers.dinamica_familiar?.estructura}
                     onChange={(v: string) => handleInputChange('dinamica_familiar', 'estructura', v)}
                     error={validationErrors.includes('dinamica_familiar.estructura')}
+                    showOther={answers.dinamica_familiar?.estructura === 'Otra'}
+                    otherValue={answers.dinamica_familiar?.estructura_otra}
+                    onOtherChange={(v: string) => handleInputChange('dinamica_familiar', 'estructura_otra', v)}
+                    otherPlaceholder="Describe tu estructura familiar"
                     className="md:col-span-2"
                   />
 
