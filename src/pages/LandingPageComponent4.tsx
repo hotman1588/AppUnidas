@@ -85,7 +85,21 @@ export default function LandingPageComponent4() {
   }, []);
 
   return (
-    <div className="overflow-hidden" style={{ background: '#FAFBFF', color: C.navy }}>
+    <div className="overflow-hidden relative" style={{ background: '#FAFBFF', color: C.navy }}>
+
+      {/* ─── FONDO GLOBAL ─────────────────────────────────────────────────── */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: 'url("/imagen%20fondo%20componente%204.jpg")',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center top',
+          backgroundRepeat: 'no-repeat',
+          backgroundAttachment: 'local',
+          opacity: 0.3,
+          zIndex: 0,
+        }}
+      />
 
       {/* ─── HERO ─────────────────────────────────────────────────────────── */}
       <section className="relative min-h-screen flex items-center pt-24 pb-32 overflow-hidden">
