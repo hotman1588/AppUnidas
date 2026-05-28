@@ -9,17 +9,22 @@ CREATE TABLE IF NOT EXISTS public.app_settings (
   updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- RLS habilitado con acceso público (la tabla no contiene datos sensibles)
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 
 -- Lectura pública
-CREATE POLICY "app_settings_read_all"
+CREATE POLICY "app_settings_select"
   ON public.app_settings FOR SELECT
   USING (true);
 
--- Escritura para usuarios autenticados (admins usan la ruta /admin protegida)
-CREATE POLICY "app_settings_write_authenticated"
-  ON public.app_settings FOR ALL
-  USING (auth.role() = 'authenticated');
+-- Escritura pública (la app usa JWT propio, no Supabase Auth)
+CREATE POLICY "app_settings_insert"
+  ON public.app_settings FOR INSERT
+  WITH CHECK (true);
+
+CREATE POLICY "app_settings_update"
+  ON public.app_settings FOR UPDATE
+  USING (true) WITH CHECK (true);
 
 -- Valor inicial: landing original activa
 INSERT INTO public.app_settings (key, value)

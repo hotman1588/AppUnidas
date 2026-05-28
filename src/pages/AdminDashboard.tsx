@@ -103,7 +103,21 @@ export default function AdminDashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [surveyHistory, setSurveyHistory] = useState<any[]>([]);
   const [reviewForm, setReviewForm] = useState({ status: 'approved', observations: '' });
-  const { activeLanding, setActiveLanding } = useLandingStore();
+  const { activeLanding, setActiveLanding, tableReady } = useLandingStore();
+  const [landingError, setLandingError] = useState('');
+  const [landingSaving, setLandingSaving] = useState(false);
+
+  const handleSetLanding = async (page: typeof activeLanding) => {
+    setLandingError('');
+    setLandingSaving(true);
+    try {
+      await setActiveLanding(page);
+    } catch (err: any) {
+      setLandingError('No se pudo guardar. Ejecuta primero supabase_create_app_settings.sql en el SQL Editor de Supabase.');
+    } finally {
+      setLandingSaving(false);
+    }
+  };
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -1395,11 +1409,22 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
+                  {!tableReady && (
+                    <div className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-start space-x-3 relative z-10">
+                      <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                      <p className="text-xs text-red-200/80 font-medium leading-relaxed">
+                        <strong className="text-red-400 block mb-1">Tabla no encontrada en Supabase</strong>
+                        Ejecuta <code className="bg-white/10 px-1 rounded">supabase_create_app_settings.sql</code> en el SQL Editor de tu proyecto Supabase para habilitar el cambio global de landing page.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-10">
                     <button
-                      onClick={() => setActiveLanding('original')}
+                      onClick={() => handleSetLanding('original')}
+                      disabled={landingSaving}
                       className={cn(
-                        "p-6 rounded-3xl border transition-all text-left group",
+                        "p-6 rounded-3xl border transition-all text-left group disabled:opacity-60 disabled:cursor-wait",
                         activeLanding === 'original'
                           ? "bg-unidas-primary/20 border-unidas-primary shadow-lg shadow-unidas-primary/20"
                           : "bg-white/5 border-white/10 hover:border-white/30"
@@ -1416,9 +1441,10 @@ export default function AdminDashboard() {
                     </button>
 
                     <button
-                      onClick={() => setActiveLanding('component-4')}
+                      onClick={() => handleSetLanding('component-4')}
+                      disabled={landingSaving}
                       className={cn(
-                        "p-6 rounded-3xl border transition-all text-left group",
+                        "p-6 rounded-3xl border transition-all text-left group disabled:opacity-60 disabled:cursor-wait",
                         activeLanding === 'component-4'
                           ? "bg-[#209AD0]/20 border-[#209AD0] shadow-lg shadow-[#209AD0]/20"
                           : "bg-white/5 border-white/10 hover:border-white/30"
@@ -1439,10 +1465,19 @@ export default function AdminDashboard() {
                     </button>
                   </div>
 
-                  <div className="mt-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start space-x-3 relative z-10">
-                    <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                    <p className="text-xs text-amber-200/70 font-medium">El cambio aplica globalmente para todos los usuarios de forma inmediata.</p>
-                  </div>
+                  {landingError && (
+                    <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-start space-x-3 relative z-10">
+                      <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                      <p className="text-xs text-red-200/80 font-medium">{landingError}</p>
+                    </div>
+                  )}
+
+                  {!landingError && tableReady && (
+                    <div className="mt-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start space-x-3 relative z-10">
+                      <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                      <p className="text-xs text-amber-200/70 font-medium">El cambio aplica globalmente para todos los usuarios de forma inmediata.</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
