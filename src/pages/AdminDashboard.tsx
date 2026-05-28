@@ -22,6 +22,7 @@ import { DocumentViewer } from '../components/DocumentViewer';
 import { SURVEY_QUESTIONS } from '../lib/surveyQuestions';
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import { useEnvironmentStore } from '../store/useEnvironmentStore';
+import { supabase } from '../lib/supabase';
 
 const BARRIO_TO_UPL: Record<string, string> = {
   '7 de Agosto': 'Doce de Octubre',
@@ -102,7 +103,33 @@ export default function AdminDashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [surveyHistory, setSurveyHistory] = useState<any[]>([]);
   const [reviewForm, setReviewForm] = useState({ status: 'approved', observations: '' });
-  const { environments, activeEnvironment, setActiveEnvironment, loading: envLoading } = useEnvironmentStore();
+  const { environments, activeEnvironment, setActiveEnvironment, fetchEnvironments, loading: envLoading } = useEnvironmentStore();
+  const [showNewEnvForm, setShowNewEnvForm] = useState(false);
+  const [newEnvForm, setNewEnvForm] = useState({ name: '', slug: '', primary: '#6B21A8', secondary: '#9333EA', accent: '#F59E0B' });
+  const [creatingEnv, setCreatingEnv] = useState(false);
+
+  const createEnvironment = async () => {
+    if (!newEnvForm.name.trim() || !newEnvForm.slug.trim()) return;
+    setCreatingEnv(true);
+    try {
+      const { error } = await supabase.from('environments').insert({
+        name: newEnvForm.name.trim(),
+        slug: newEnvForm.slug.trim().toLowerCase().replace(/\s+/g, '-'),
+        is_active_globally: false,
+        theme_config: { primary: newEnvForm.primary, secondary: newEnvForm.secondary, accent: newEnvForm.accent },
+        features_config: {},
+        dashboard_layout: 'default'
+      });
+      if (error) throw error;
+      setNewEnvForm({ name: '', slug: '', primary: '#6B21A8', secondary: '#9333EA', accent: '#F59E0B' });
+      setShowNewEnvForm(false);
+      await fetchEnvironments();
+    } catch (err: any) {
+      alert('Error al crear entorno: ' + err.message);
+    } finally {
+      setCreatingEnv(false);
+    }
+  };
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -1398,6 +1425,13 @@ export default function AdminDashboard() {
                         <p className="text-white/40 text-xs font-medium italic">Gestión de Inquilino Global (Multi-Tenant)</p>
                       </div>
                     </div>
+                    <button
+                      onClick={() => setShowNewEnvForm((v: boolean) => !v)}
+                      className="flex items-center space-x-2 px-5 py-3 bg-unidas-primary/20 hover:bg-unidas-primary text-unidas-primary hover:text-white font-black rounded-2xl border border-unidas-primary/30 hover:border-unidas-primary transition-all text-xs uppercase tracking-widest"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Nuevo Entorno</span>
+                    </button>
                   </div>
 
                   <div className="space-y-4 relative z-10">
@@ -1444,6 +1478,65 @@ export default function AdminDashboard() {
                       ))
                     )}
                     
+                    {showNewEnvForm && (
+                      <div className="mt-4 p-6 bg-unidas-primary/5 border border-unidas-primary/30 rounded-3xl space-y-4">
+                        <p className="text-[10px] text-unidas-primary uppercase tracking-widest font-black">Nuevo Entorno</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[10px] text-white/40 uppercase tracking-widest font-black mb-2">Nombre</label>
+                            <input
+                              type="text"
+                              value={newEnvForm.name}
+                              onChange={e => setNewEnvForm(f => ({ ...f, name: e.target.value }))}
+                              placeholder="Ej: UNIDOS Componente 4"
+                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm font-medium placeholder:text-white/20 focus:outline-none focus:border-unidas-primary"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-white/40 uppercase tracking-widest font-black mb-2">Slug (identificador)</label>
+                            <input
+                              type="text"
+                              value={newEnvForm.slug}
+                              onChange={e => setNewEnvForm(f => ({ ...f, slug: e.target.value }))}
+                              placeholder="Ej: component-4"
+                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm font-mono placeholder:text-white/20 focus:outline-none focus:border-unidas-primary"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4">
+                          {(['primary','secondary','accent'] as const).map(key => (
+                            <div key={key}>
+                              <label className="block text-[10px] text-white/40 uppercase tracking-widest font-black mb-2">{key}</label>
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="color"
+                                  value={newEnvForm[key]}
+                                  onChange={e => setNewEnvForm(f => ({ ...f, [key]: e.target.value }))}
+                                  className="w-10 h-10 rounded-lg border-0 cursor-pointer bg-transparent"
+                                />
+                                <span className="text-white/40 font-mono text-xs">{newEnvForm[key]}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex space-x-3 pt-2">
+                          <button
+                            onClick={createEnvironment}
+                            disabled={creatingEnv || !newEnvForm.name.trim() || !newEnvForm.slug.trim()}
+                            className="px-6 py-3 bg-unidas-primary hover:bg-unidas-primary/80 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black rounded-xl text-xs uppercase tracking-widest transition-all"
+                          >
+                            {creatingEnv ? 'Creando...' : 'Crear Entorno'}
+                          </button>
+                          <button
+                            onClick={() => setShowNewEnvForm(false)}
+                            className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white/60 font-black rounded-xl text-xs uppercase tracking-widest transition-all"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="mt-8 p-6 bg-red-500/10 border border-red-500/20 rounded-3xl flex items-start space-x-4">
                       <AlertCircle className="w-6 h-6 text-red-400 shrink-0 mt-1" />
                       <p className="text-xs text-red-200/70 font-medium leading-relaxed">
