@@ -9,6 +9,7 @@ import { useAuthStore } from './store/useAuthStore';
 import { useEnvironmentStore } from './store/useEnvironmentStore';
 import Navbar from './components/Navbar';
 import LandingPage from './pages/LandingPage';
+import LandingPageComponent4 from './pages/LandingPageComponent4';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import UserDashboard from './pages/UserDashboard';
@@ -34,7 +35,7 @@ function PrivateRoute({ children, role }: { children: React.ReactNode, role?: st
 
 export default function App() {
   const { setUser, setLoading: setAuthLoading } = useAuthStore();
-  const { fetchEnvironments, loading: envLoading } = useEnvironmentStore();
+  const { fetchEnvironments, loading: envLoading, activeEnvironment } = useEnvironmentStore();
 
   useEffect(() => {
     // Load environment context globally before the app mounts
@@ -60,7 +61,11 @@ export default function App() {
         <Navbar />
         <main className="flex-grow">
           <Routes>
-            <Route path="/" element={<LandingPage />} />
+            <Route path="/" element={
+              activeEnvironment?.slug === 'component-4'
+                ? <LandingPageComponent4 />
+                : <LandingPage />
+            } />
             <Route path="/news" element={<NewsPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
