@@ -25,7 +25,7 @@ const C = {
 };
 
 function UnidosLogo({ size = 'xl' }: { size?: 'sm' | 'md' | 'xl' }) {
-  const sizes = { sm: 'text-4xl', md: 'text-6xl', xl: 'text-[90px] lg:text-[130px]' };
+  const sizes = { sm: 'text-[54px]', md: 'text-[90px]', xl: 'text-[135px] lg:text-[195px]' };
   return (
     <div
       className={`tracking-tight leading-none ${sizes[size]}`}
