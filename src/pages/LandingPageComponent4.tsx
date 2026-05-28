@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight, ArrowRight, Newspaper, Calendar,
-  X, Shield, Users, Search, BarChart3, Heart, BookOpen
+  X, Shield, Users, Search, Heart, BookOpen
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
@@ -184,7 +184,7 @@ export default function LandingPageComponent4() {
                     >
                       <p className="text-white font-black text-lg">Meta de la Vigencia</p>
                       <p className="text-white/80 text-sm font-medium mt-1">
-                        Vincular <span className="font-black text-white text-xl" style={{ color: C.yellow }}>800 personas</span> en procesos de prevención de violencias
+                        Vincular <span className="font-black text-white text-xl" style={{ color: C.yellow }}>100 personas</span> en procesos de prevención de violencias
                       </p>
                     </div>
                   </div>
@@ -207,7 +207,7 @@ export default function LandingPageComponent4() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-10 text-center text-white">
             {[
-              { val: '800', label: 'Personas Meta', color: C.yellow },
+              { val: '100', label: 'Personas Meta', color: C.yellow },
               { val: `+${stats.totalUsers || 240}`, label: 'Participantes', color: C.blue },
               { val: `+${stats.registeredEvents || 15}`, label: 'Actividades Realizadas', color: C.teal },
               { val: '100%', label: 'Enfoque Diferencial', color: C.rose },
@@ -351,19 +351,6 @@ export default function LandingPageComponent4() {
               })}
             </motion.div>
           </div>
-        </div>
-      </section>
-
-      {/* ─── APPROACH CALLOUT ─────────────────────────────────────────────── */}
-      <section className="py-20" style={{ background: `${C.yellow}40` }}>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <BarChart3 className="w-12 h-12 mx-auto mb-6" style={{ color: C.navy }} />
-          <h3 className="text-3xl font-black mb-4" style={{ color: C.navy }}>Análisis con Power BI</h3>
-          <p className="text-lg font-medium max-w-3xl mx-auto leading-relaxed" style={{ color: `${C.navy}80` }}>
-            El equipo utiliza <strong style={{ color: C.d }}>Power BI</strong> para visualizar la información de manera
-            explícita, interactiva y personalizada. Esta herramienta facilita la importación de datos y el
-            seguimiento de indicadores, garantizando transparencia y rigor en el análisis.
-          </p>
         </div>
       </section>
 
