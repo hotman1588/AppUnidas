@@ -29,7 +29,7 @@ function UnidosLogo({ size = 'xl' }: { size?: 'sm' | 'md' | 'xl' }) {
   return (
     <div
       className={`tracking-tight leading-none ${sizes[size]}`}
-      style={{ fontFamily: "'Foolish Talk', cursive" }}
+      style={{ fontFamily: "'Comic Sans MS', 'Comic Sans', cursive", fontWeight: 700 }}
     >
       <span style={{ color: C.U }}>U</span>
       <span style={{ color: C.n }}>n</span>
