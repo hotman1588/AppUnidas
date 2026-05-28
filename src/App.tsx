@@ -6,7 +6,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/useAuthStore';
-import { useEnvironmentStore } from './store/useEnvironmentStore';
+import { useLandingStore } from './store/useLandingStore';
 import Navbar from './components/Navbar';
 import LandingPage from './pages/LandingPage';
 import LandingPageComponent4 from './pages/LandingPageComponent4';
@@ -34,23 +34,19 @@ function PrivateRoute({ children, role }: { children: React.ReactNode, role?: st
 }
 
 export default function App() {
-  const { setUser, setLoading: setAuthLoading } = useAuthStore();
-  const { fetchEnvironments, loading: envLoading, activeEnvironment } = useEnvironmentStore();
+  const { setLoading: setAuthLoading } = useAuthStore();
+  const { fetchActiveLanding, loading: landingLoading, activeLanding } = useLandingStore();
 
   useEffect(() => {
-    // Load environment context globally before the app mounts
-    fetchEnvironments().then(() => {
+    fetchActiveLanding().then(() => {
       setAuthLoading(false);
     });
-  }, [fetchEnvironments, setAuthLoading]);
+  }, [fetchActiveLanding, setAuthLoading]);
 
-  if (envLoading) {
+  if (landingLoading) {
     return (
       <div className="min-h-screen bg-unidas-dark flex items-center justify-center">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="w-12 h-12 border-4 border-unidas-primary/30 border-t-unidas-primary rounded-full animate-spin" />
-          <p className="text-white/50 text-sm font-black uppercase tracking-widest animate-pulse">Cargando Entorno...</p>
-        </div>
+        <div className="w-12 h-12 border-4 border-unidas-primary/30 border-t-unidas-primary rounded-full animate-spin" />
       </div>
     );
   }
@@ -62,7 +58,7 @@ export default function App() {
         <main className="flex-grow">
           <Routes>
             <Route path="/" element={
-              activeEnvironment?.slug === 'component-4'
+              activeLanding === 'component-4'
                 ? <LandingPageComponent4 />
                 : <LandingPage />
             } />

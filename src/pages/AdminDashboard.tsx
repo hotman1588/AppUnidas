@@ -21,7 +21,7 @@ import * as XLSX from 'xlsx';
 import { DocumentViewer } from '../components/DocumentViewer';
 import { SURVEY_QUESTIONS } from '../lib/surveyQuestions';
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
-import { useEnvironmentStore } from '../store/useEnvironmentStore';
+import { useLandingStore } from '../store/useLandingStore';
 import { supabase } from '../lib/supabase';
 
 const BARRIO_TO_UPL: Record<string, string> = {
@@ -103,33 +103,7 @@ export default function AdminDashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [surveyHistory, setSurveyHistory] = useState<any[]>([]);
   const [reviewForm, setReviewForm] = useState({ status: 'approved', observations: '' });
-  const { environments, activeEnvironment, setActiveEnvironment, fetchEnvironments, loading: envLoading } = useEnvironmentStore();
-  const [showNewEnvForm, setShowNewEnvForm] = useState(false);
-  const [newEnvForm, setNewEnvForm] = useState({ name: '', slug: '', primary: '#6B21A8', secondary: '#9333EA', accent: '#F59E0B' });
-  const [creatingEnv, setCreatingEnv] = useState(false);
-
-  const createEnvironment = async () => {
-    if (!newEnvForm.name.trim() || !newEnvForm.slug.trim()) return;
-    setCreatingEnv(true);
-    try {
-      const { error } = await supabase.from('environments').insert({
-        name: newEnvForm.name.trim(),
-        slug: newEnvForm.slug.trim().toLowerCase().replace(/\s+/g, '-'),
-        is_active_globally: false,
-        theme_config: { primary: newEnvForm.primary, secondary: newEnvForm.secondary, accent: newEnvForm.accent },
-        features_config: {},
-        dashboard_layout: 'default'
-      });
-      if (error) throw error;
-      setNewEnvForm({ name: '', slug: '', primary: '#6B21A8', secondary: '#9333EA', accent: '#F59E0B' });
-      setShowNewEnvForm(false);
-      await fetchEnvironments();
-    } catch (err: any) {
-      alert('Error al crear entorno: ' + err.message);
-    } finally {
-      setCreatingEnv(false);
-    }
-  };
+  const { activeLanding, setActiveLanding } = useLandingStore();
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -160,14 +134,10 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      const headers: Record<string, string> = { 
-        'Authorization': `Bearer ${token}` 
+      const headers: Record<string, string> = {
+        'Authorization': `Bearer ${token}`
       };
-      if (activeEnvironment?.id) {
-        headers['X-Environment-Id'] = activeEnvironment.id;
-      }
 
-      
       const statsRes = await fetch('/api/stats', { headers });
       if (statsRes.status === 401 || statsRes.status === 403) {
         useAuthStore.getState().logout();
@@ -1415,135 +1385,63 @@ export default function AdminDashboard() {
 
                 <div className="bg-white/5 p-12 rounded-[4rem] border border-unidas-primary/30 backdrop-blur-xl relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-unidas-primary/10 rounded-bl-[4rem] blur-xl pointer-events-none" />
-                  <div className="flex items-center justify-between mb-8 relative z-10">
-                    <div className="flex items-center space-x-6">
-                      <div className="w-16 h-16 bg-unidas-primary/20 rounded-3xl flex items-center justify-center text-unidas-primary border border-unidas-primary/40">
-                        <Settings className="w-8 h-8" />
-                      </div>
-                      <div>
-                        <h4 className="text-2xl font-black text-white mb-1">Macro Módulos</h4>
-                        <p className="text-white/40 text-xs font-medium italic">Gestión de Inquilino Global (Multi-Tenant)</p>
-                      </div>
+                  <div className="flex items-center space-x-6 mb-10 relative z-10">
+                    <div className="w-16 h-16 bg-unidas-primary/20 rounded-3xl flex items-center justify-center text-unidas-primary border border-unidas-primary/40">
+                      <Image className="w-8 h-8" />
                     </div>
+                    <div>
+                      <h4 className="text-2xl font-black text-white mb-1">Landing Page Activa</h4>
+                      <p className="text-white/40 text-xs font-medium italic">Selecciona qué landing page ven todos los usuarios</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-10">
                     <button
-                      onClick={() => setShowNewEnvForm((v: boolean) => !v)}
-                      className="flex items-center space-x-2 px-5 py-3 bg-unidas-primary/20 hover:bg-unidas-primary text-unidas-primary hover:text-white font-black rounded-2xl border border-unidas-primary/30 hover:border-unidas-primary transition-all text-xs uppercase tracking-widest"
+                      onClick={() => setActiveLanding('original')}
+                      className={cn(
+                        "p-6 rounded-3xl border transition-all text-left group",
+                        activeLanding === 'original'
+                          ? "bg-unidas-primary/20 border-unidas-primary shadow-lg shadow-unidas-primary/20"
+                          : "bg-white/5 border-white/10 hover:border-white/30"
+                      )}
                     >
-                      <Plus className="w-4 h-4" />
-                      <span>Nuevo Entorno</span>
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Componente 1</span>
+                        {activeLanding === 'original' && (
+                          <span className="bg-unidas-primary text-white text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider">Activa</span>
+                        )}
+                      </div>
+                      <p className="text-white font-black text-lg leading-tight mb-1">UNIDAS</p>
+                      <p className="text-white/30 text-xs font-medium">Barrios Unidos — Landing original</p>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveLanding('component-4')}
+                      className={cn(
+                        "p-6 rounded-3xl border transition-all text-left group",
+                        activeLanding === 'component-4'
+                          ? "bg-[#209AD0]/20 border-[#209AD0] shadow-lg shadow-[#209AD0]/20"
+                          : "bg-white/5 border-white/10 hover:border-white/30"
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Componente 4</span>
+                        {activeLanding === 'component-4' && (
+                          <span className="bg-[#209AD0] text-white text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider">Activa</span>
+                        )}
+                      </div>
+                      <div className="flex mb-1">
+                        {['U','n','i','d','o','s'].map((l, i) => (
+                          <span key={i} className="font-black text-lg leading-tight" style={{ color: ['#209AD0','#D93654','#F8A45C','#468587','#209AD0','#F8A45C'][i] }}>{l}</span>
+                        ))}
+                      </div>
+                      <p className="text-white/30 text-xs font-medium">por nuestra familia — Prevención de violencia</p>
                     </button>
                   </div>
 
-                  <div className="space-y-4 relative z-10">
-                    <p className="text-[10px] text-white/40 uppercase tracking-widest font-black mb-6">Entornos Disponibles</p>
-                    
-                    {envLoading ? (
-                      <div className="flex justify-center p-8">
-                        <div className="w-8 h-8 border-4 border-unidas-primary/30 border-t-unidas-primary rounded-full animate-spin" />
-                      </div>
-                    ) : (
-                      environments.map((env) => (
-                        <div 
-                          key={env.id}
-                          className={cn(
-                            "p-6 rounded-3xl border transition-all flex flex-col space-y-4 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between",
-                            env.is_active_globally 
-                              ? "bg-unidas-primary/10 border-unidas-primary/50 shadow-lg shadow-unidas-primary/20" 
-                              : "bg-white/5 border-white/10 hover:border-white/20"
-                          )}
-                        >
-                          <div>
-                            <h5 className="text-white font-black text-lg flex items-center space-x-3">
-                              <span>{env.name}</span>
-                              {env.is_active_globally && (
-                                <span className="bg-unidas-primary text-white text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider">Activo</span>
-                              )}
-                            </h5>
-                            <p className="text-white/30 text-[10px] font-mono mt-1">Slug: {env.slug}</p>
-                          </div>
-                          
-                          {!env.is_active_globally && (
-                            <button
-                              onClick={() => {
-                                if (window.confirm(`¿Estás seguro de activar globalmente el entorno "${env.name}"? Esto cambiará la interfaz y los datos para todos los usuarios.`)) {
-                                  setActiveEnvironment(env.id);
-                                }
-                              }}
-                              className="px-6 py-3 bg-white/10 hover:bg-unidas-primary hover:text-white text-white/60 font-black rounded-xl transition-all border border-white/5 hover:border-unidas-primary text-xs uppercase tracking-widest whitespace-nowrap"
-                            >
-                              Activar Globalmente
-                            </button>
-                          )}
-                        </div>
-                      ))
-                    )}
-                    
-                    {showNewEnvForm && (
-                      <div className="mt-4 p-6 bg-unidas-primary/5 border border-unidas-primary/30 rounded-3xl space-y-4">
-                        <p className="text-[10px] text-unidas-primary uppercase tracking-widest font-black">Nuevo Entorno</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-[10px] text-white/40 uppercase tracking-widest font-black mb-2">Nombre</label>
-                            <input
-                              type="text"
-                              value={newEnvForm.name}
-                              onChange={e => setNewEnvForm(f => ({ ...f, name: e.target.value }))}
-                              placeholder="Ej: UNIDOS Componente 4"
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm font-medium placeholder:text-white/20 focus:outline-none focus:border-unidas-primary"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-white/40 uppercase tracking-widest font-black mb-2">Slug (identificador)</label>
-                            <input
-                              type="text"
-                              value={newEnvForm.slug}
-                              onChange={e => setNewEnvForm(f => ({ ...f, slug: e.target.value }))}
-                              placeholder="Ej: component-4"
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm font-mono placeholder:text-white/20 focus:outline-none focus:border-unidas-primary"
-                            />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-3 gap-4">
-                          {(['primary','secondary','accent'] as const).map(key => (
-                            <div key={key}>
-                              <label className="block text-[10px] text-white/40 uppercase tracking-widest font-black mb-2">{key}</label>
-                              <div className="flex items-center space-x-2">
-                                <input
-                                  type="color"
-                                  value={newEnvForm[key]}
-                                  onChange={e => setNewEnvForm(f => ({ ...f, [key]: e.target.value }))}
-                                  className="w-10 h-10 rounded-lg border-0 cursor-pointer bg-transparent"
-                                />
-                                <span className="text-white/40 font-mono text-xs">{newEnvForm[key]}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="flex space-x-3 pt-2">
-                          <button
-                            onClick={createEnvironment}
-                            disabled={creatingEnv || !newEnvForm.name.trim() || !newEnvForm.slug.trim()}
-                            className="px-6 py-3 bg-unidas-primary hover:bg-unidas-primary/80 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black rounded-xl text-xs uppercase tracking-widest transition-all"
-                          >
-                            {creatingEnv ? 'Creando...' : 'Crear Entorno'}
-                          </button>
-                          <button
-                            onClick={() => setShowNewEnvForm(false)}
-                            className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white/60 font-black rounded-xl text-xs uppercase tracking-widest transition-all"
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="mt-8 p-6 bg-red-500/10 border border-red-500/20 rounded-3xl flex items-start space-x-4">
-                      <AlertCircle className="w-6 h-6 text-red-400 shrink-0 mt-1" />
-                      <p className="text-xs text-red-200/70 font-medium leading-relaxed">
-                        <strong className="text-red-400 block mb-1">Impacto Global Inmediato</strong>
-                        Cambiar el entorno activo recargará la aplicación para todos los usuarios conectados y aislará los registros de encuestas, usuarios y noticias a este nuevo entorno.
-                      </p>
-                    </div>
+                  <div className="mt-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start space-x-3 relative z-10">
+                    <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-200/70 font-medium">El cambio aplica globalmente para todos los usuarios de forma inmediata.</p>
                   </div>
                 </div>
               </div>
