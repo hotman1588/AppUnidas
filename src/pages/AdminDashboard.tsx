@@ -816,8 +816,8 @@ export default function AdminDashboard() {
                     <TrendingUp className="w-8 h-8 text-unidas-primary" />
                     <span>Tendencia de Registro</span>
                   </h3>
-                  <div className="h-80 w-full min-h-[320px]">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <div className="w-full">
+                    <ResponsiveContainer width="100%" height={320} minWidth={0} minHeight={0}>
                       <BarChart data={stats?.registryTrend?.length ? stats.registryTrend : (() => {
                         const fallback = [];
                         for (let i = 6; i >= 0; i--) {
@@ -855,8 +855,8 @@ export default function AdminDashboard() {
                     <PieIcon className="w-8 h-8 text-unidas-secondary" />
                     <span>Segmentación</span>
                   </h3>
-                  <div className="h-80 w-full relative min-h-[320px]">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <div className="w-full relative" style={{ height: 320 }}>
+                    <ResponsiveContainer width="100%" height={320} minWidth={0} minHeight={0}>
                       <PieChart>
                         <Pie
                           data={stats?.educationDist?.length ? stats.educationDist : [
