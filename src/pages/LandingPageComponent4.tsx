@@ -91,9 +91,9 @@ export default function LandingPageComponent4() {
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          backgroundImage: 'url("/imagen%20fondo%20componente%204.jpg")',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center top',
+          backgroundImage: 'url("/imagen%20fondo%20componente%204.jpg?v=2")',
+          backgroundSize: '100% auto',
+          backgroundPosition: 'top center',
           backgroundRepeat: 'no-repeat',
           backgroundAttachment: 'local',
           opacity: 0.3,
