@@ -1,6 +1,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
+@font-face {
+  font-family: 'Foolish Talk';
+  src: url('/fonts/FoolishTalk.woff2') format('woff2'),
+       url('/fonts/FoolishTalk.woff') format('woff'),
+       url('/fonts/FoolishTalk.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --color-unidas-primary: #ec4899;
   --color-unidas-secondary: #9333ea;

@@ -27,7 +27,10 @@ const C = {
 function UnidosLogo({ size = 'xl' }: { size?: 'sm' | 'md' | 'xl' }) {
   const sizes = { sm: 'text-4xl', md: 'text-6xl', xl: 'text-[90px] lg:text-[130px]' };
   return (
-    <div className={`font-black tracking-tight leading-none ${sizes[size]}`}>
+    <div
+      className={`tracking-tight leading-none ${sizes[size]}`}
+      style={{ fontFamily: "'Foolish Talk', cursive" }}
+    >
       <span style={{ color: C.U }}>U</span>
       <span style={{ color: C.n }}>n</span>
       <span style={{ color: C.i }}>i</span>
@@ -111,7 +114,7 @@ export default function LandingPageComponent4() {
                 style={{ background: `${C.blue}30`, borderColor: `${C.blue}60`, color: C.navy }}
               >
                 <Shield className="w-4 h-4" style={{ color: C.d }} />
-                <span>Componente 4 · Prevención de Violencia</span>
+                <span>Prevención de Violencia</span>
               </div>
 
               {/* Logo */}
