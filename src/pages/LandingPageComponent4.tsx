@@ -292,7 +292,7 @@ export default function LandingPageComponent4() {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
             >
-              <p className="text-xs font-black uppercase tracking-widest mb-4" style={{ color: C.U }}>Componente 4</p>
+
               <h2 className="text-4xl font-black mb-8 leading-tight" style={{ color: C.navy }}>
                 Prevención de Violencia<br />
                 <span style={{ color: C.n }}>en el Contexto Familiar</span><br />
