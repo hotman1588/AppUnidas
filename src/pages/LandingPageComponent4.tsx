@@ -97,7 +97,7 @@ export default function LandingPageComponent4() {
           backgroundRepeat: 'no-repeat',
           backgroundAttachment: 'local',
           opacity: 0.1,
-          zIndex: -1,
+          zIndex: 0,
         }}
       />
 
@@ -242,8 +242,9 @@ export default function LandingPageComponent4() {
       </section>
 
       {/* ─── FEATURES ─────────────────────────────────────────────────────── */}
-      <section className="py-32" style={{ background: '#F4F7FF' }}>
+      <section className="py-32 relative" style={{ zIndex: 1 }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-white/95 rounded-[3rem] p-10 shadow-lg">
           <div className="text-center mb-24">
             <p className="text-xs font-black uppercase tracking-widest mb-4" style={{ color: C.d }}>Nuestros Pilares</p>
             <h2 className="text-5xl font-black mb-6" style={{ color: C.navy }}>Tres Ejes de Acción</h2>
@@ -275,12 +276,14 @@ export default function LandingPageComponent4() {
               </motion.div>
             ))}
           </div>
+          </div>
         </div>
       </section>
 
       {/* ─── ABOUT / PHASES ───────────────────────────────────────────────── */}
-      <section id="about" className="py-32" style={{ background: 'white' }}>
+      <section id="about" className="py-32 relative" style={{ zIndex: 1 }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-white/95 rounded-[3rem] p-10 shadow-lg">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-start">
 
             {/* Left: description */}
@@ -365,12 +368,14 @@ export default function LandingPageComponent4() {
               })}
             </motion.div>
           </div>
+          </div>
         </div>
       </section>
 
       {/* ─── NEWS SECTION ─────────────────────────────────────────────────── */}
-      <section className="py-32" style={{ background: '#FAFBFF' }}>
+      <section className="py-32 relative" style={{ zIndex: 1 }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-white/95 rounded-[3rem] p-10 shadow-lg">
           <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
             <div className="max-w-xl">
               <h2 className="text-4xl lg:text-5xl font-black mb-6 flex items-center space-x-4" style={{ color: C.navy }}>
@@ -547,6 +552,7 @@ export default function LandingPageComponent4() {
               </motion.div>
             )}
           </AnimatePresence>
+          </div>
         </div>
       </section>
 
