@@ -96,8 +96,8 @@ export default function LandingPageComponent4() {
           backgroundPosition: 'top center',
           backgroundRepeat: 'no-repeat',
           backgroundAttachment: 'local',
-          opacity: 0.3,
-          zIndex: 0,
+          opacity: 0.1,
+          zIndex: -1,
         }}
       />
 
@@ -140,7 +140,7 @@ export default function LandingPageComponent4() {
                 por nuestra familia
               </p>
 
-              <p className="text-xl mb-12 max-w-lg leading-relaxed font-medium" style={{ color: `${C.navy}99` }}>
+              <p className="text-xl mb-12 max-w-lg leading-relaxed font-medium" style={{ color: C.navy }}>
                 Gestión e implementación de acciones para la <strong style={{ color: C.d }}>prevención de violencias</strong> en el contexto familiar y sexual, promoviendo los derechos de niñas, niños, adolescentes y familias de <strong style={{ color: C.U }}>Barrios Unidos</strong>.
               </p>
 
@@ -248,7 +248,7 @@ export default function LandingPageComponent4() {
             <p className="text-xs font-black uppercase tracking-widest mb-4" style={{ color: C.d }}>Nuestros Pilares</p>
             <h2 className="text-5xl font-black mb-6" style={{ color: C.navy }}>Tres Ejes de Acción</h2>
             <div className="w-20 h-1.5 mx-auto rounded-full mb-8" style={{ background: C.n }} />
-            <p className="max-w-2xl mx-auto text-xl leading-relaxed font-medium" style={{ color: `${C.navy}80` }}>
+            <p className="max-w-2xl mx-auto text-xl leading-relaxed font-medium" style={{ color: C.navy }}>
               Actuamos de manera coordinada desde los enfoques diferencial, de género, interseccional e intercultural para transformar contextos de violencia.
             </p>
           </div>
@@ -262,7 +262,7 @@ export default function LandingPageComponent4() {
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.12 }}
                 className="group rounded-[2.5rem] p-10 shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-2"
-                style={{ background: `${f.bg}30`, border: `2px solid ${f.bg}60` }}
+                style={{ background: `${f.bg}55`, border: `2px solid ${f.bg}99` }}
               >
                 <div
                   className="w-20 h-20 rounded-3xl flex items-center justify-center mb-10 text-white group-hover:scale-110 group-hover:rotate-6 transition-all shadow-xl"
@@ -271,7 +271,7 @@ export default function LandingPageComponent4() {
                   <f.icon className="w-10 h-10" style={{ color: f.text }} />
                 </div>
                 <h3 className="text-2xl font-black mb-4" style={{ color: C.navy }}>{f.title}</h3>
-                <p className="leading-relaxed font-medium" style={{ color: `${C.navy}80` }}>{f.desc}</p>
+                <p className="leading-relaxed font-medium" style={{ color: C.navy }}>{f.desc}</p>
               </motion.div>
             ))}
           </div>
@@ -295,7 +295,7 @@ export default function LandingPageComponent4() {
                 <span style={{ color: C.n }}>en el Contexto Familiar</span><br />
                 y Violencia Sexual
               </h2>
-              <div className="space-y-5 font-medium leading-relaxed" style={{ color: `${C.navy}80` }}>
+              <div className="space-y-5 font-medium leading-relaxed" style={{ color: C.navy }}>
                 <p>
                   El objetivo del componente es gestionar e implementar acciones y procesos de
                   <strong style={{ color: C.navy }}> prevención de violencia en el contexto familiar, sexual</strong> y otras
@@ -348,7 +348,7 @@ export default function LandingPageComponent4() {
                     viewport={{ once: true }}
                     transition={{ delay: i * 0.08 }}
                     className="flex items-start space-x-5 p-5 rounded-2xl transition-all hover:shadow-md"
-                    style={{ background: `${col}10`, border: `1px solid ${col}30` }}
+                    style={{ background: `${col}30`, border: `2px solid ${col}80` }}
                   >
                     <span
                       className="text-3xl font-black shrink-0 leading-none"
@@ -358,7 +358,7 @@ export default function LandingPageComponent4() {
                     </span>
                     <div>
                       <p className="font-black text-sm mb-1" style={{ color: C.navy }}>{ph.label}</p>
-                      <p className="text-xs leading-relaxed font-medium" style={{ color: `${C.navy}70` }}>{ph.desc}</p>
+                      <p className="text-xs leading-relaxed font-medium" style={{ color: C.navy }}>{ph.desc}</p>
                     </div>
                   </motion.div>
                 );
@@ -382,7 +382,7 @@ export default function LandingPageComponent4() {
                 </div>
                 <span>Noticias y Convocatorias</span>
               </h2>
-              <p className="font-medium text-xl leading-relaxed" style={{ color: `${C.navy}70` }}>
+              <p className="font-medium text-xl leading-relaxed" style={{ color: C.navy }}>
                 Mantente informada sobre las últimas jornadas sociales y eventos comunitarios en Barrios Unidos.
               </p>
             </div>
@@ -415,7 +415,7 @@ export default function LandingPageComponent4() {
                   >
                     {news[0].title}
                   </h3>
-                  <p className="text-lg leading-relaxed font-medium mb-8" style={{ color: `${C.navy}70` }}>
+                  <p className="text-lg leading-relaxed font-medium mb-8" style={{ color: C.navy }}>
                     {news[0].content.length > 200 ? news[0].content.substring(0, 200) + '...' : news[0].content}
                   </p>
                   <div className="inline-flex items-center space-x-2 font-bold group-hover:translate-x-2 transition-transform" style={{ color: C.n }}>
@@ -458,7 +458,7 @@ export default function LandingPageComponent4() {
                             <span>{new Date(item.created_at).toLocaleDateString()}</span>
                           </div>
                           <h3 className="text-xl font-black mb-3 leading-snug" style={{ color: C.navy }}>{item.title}</h3>
-                          <p className="text-sm leading-relaxed font-medium mb-5 flex-grow" style={{ color: `${C.navy}60` }}>
+                          <p className="text-sm leading-relaxed font-medium mb-5 flex-grow" style={{ color: C.navy }}>
                             {item.content.length > 110 ? item.content.substring(0, 110) + '...' : item.content}
                           </p>
                           <div className="inline-flex items-center space-x-2 font-bold text-sm group-hover:translate-x-2 transition-transform" style={{ color: C.n }}>
@@ -539,7 +539,7 @@ export default function LandingPageComponent4() {
                         alt={selectedNews.title}
                       />
                     </div>
-                    <div className="max-w-4xl mx-auto text-lg md:text-xl leading-relaxed font-medium whitespace-pre-wrap" style={{ color: `${C.navy}80` }}>
+                    <div className="max-w-4xl mx-auto text-lg md:text-xl leading-relaxed font-medium whitespace-pre-wrap" style={{ color: C.navy }}>
                       {selectedNews.content}
                     </div>
                   </div>
