@@ -74,13 +74,8 @@ export default function SurveyWizard() {
   const [saving, setSaving] = useState(false);
   const [surveyId, setSurveyId] = useState<string | null>(null);
   const [surveyStatus, setSurveyStatus] = useState<string | null>(null);
-  const [habeasAccepted, setHabeasAccepted] = useState(() => {
-    const saved = localStorage.getItem('survey_habeas');
-    return saved === 'true';
-  });
-  const [hasViewedHabeas, setHasViewedHabeas] = useState(() => {
-    return localStorage.getItem('survey_habeas_viewed') === 'true';
-  });
+  const [habeasAccepted, setHabeasAccepted] = useState(false);
+  const [hasViewedHabeas, setHasViewedHabeas] = useState(false);
   const [uploadedDocs, setUploadedDocs] = useState<any[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -438,6 +433,7 @@ export default function SurveyWizard() {
       localStorage.removeItem('survey_answers');
       localStorage.removeItem('survey_step');
       localStorage.removeItem('survey_habeas');
+      localStorage.removeItem('survey_habeas_viewed');
 
       setTimeout(() => {
         window.location.href = '/dashboard?submitted=true';
@@ -1460,7 +1456,6 @@ export default function SurveyWizard() {
                             type="button"
                             onClick={() => {
                               setHasViewedHabeas(true);
-                              localStorage.setItem('survey_habeas_viewed', 'true');
                               setViewerConfig({ url: habeasDataUrl, title: 'Política de Tratamiento de Datos' });
                             }}
                             className={cn(
