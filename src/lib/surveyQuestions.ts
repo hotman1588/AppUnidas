@@ -110,6 +110,48 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     required: false,
     fieldName: 'socio.pertenencia_otro'
   },
+  {
+    id: '1.7',
+    module: 'Perfil Sociodemográfico',
+    moduleNumber: 1,
+    question: 'ORIENTACIÓN SEXUAL',
+    subtitle: '¿Con cuál orientación sexual se identifica?',
+    type: 'pills',
+    options: ['Heterosexual', 'Lesbiana', 'Bisexual', 'Pansexual', 'Asexual', 'Prefiere no responder', 'Otra'],
+    required: true,
+    fieldName: 'socio.orientacion_sexual'
+  },
+  {
+    id: '1.7b',
+    module: 'Perfil Sociodemográfico',
+    moduleNumber: 1,
+    question: 'ORIENTACIÓN SEXUAL (OTRA)',
+    subtitle: 'Detalle cuando selecciona "Otra".',
+    type: 'text',
+    required: false,
+    fieldName: 'socio.orientacion_sexual_otra'
+  },
+  {
+    id: '1.8',
+    module: 'Perfil Sociodemográfico',
+    moduleNumber: 1,
+    question: 'ESTADO CIVIL',
+    subtitle: '¿Cuál es su estado civil actual?',
+    type: 'pills',
+    options: ['Soltera', 'Casada', 'Unión libre', 'Separada o divorciada', 'Viuda', 'Otra'],
+    required: true,
+    fieldName: 'socio.estado_civil'
+  },
+  {
+    id: '1.8b',
+    module: 'Perfil Sociodemográfico',
+    moduleNumber: 1,
+    question: 'ESTADO CIVIL (OTRA)',
+    subtitle: 'Detalle cuando selecciona "Otra".',
+    type: 'text',
+    required: false,
+    fieldName: 'socio.estado_civil_otra'
+  },
 
   // Módulo 2: Economía y Autonomía
   {
@@ -119,8 +161,49 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     question: 'INGRESOS MENSUALES',
     subtitle: 'Ingresa tu ingreso mensual aproximado en pesos.',
     type: 'number',
-    required: true,
+    required: false,
     fieldName: 'economia.ingresos'
+  },
+  {
+    id: '2.1b',
+    module: 'Economía y Autonomía',
+    moduleNumber: 2,
+    question: 'GASTOS MENSUALES DEL HOGAR',
+    subtitle: '¿Cuánto suman aproximadamente los gastos mensuales de su hogar? (COP)',
+    type: 'number',
+    required: false,
+    fieldName: 'economia.gastos_mensuales'
+  },
+  {
+    id: '2.1c',
+    module: 'Economía y Autonomía',
+    moduleNumber: 2,
+    question: 'RESPONSABLE ECONÓMICA DEL HOGAR',
+    subtitle: '¿Es usted la principal responsable económica de su hogar?',
+    type: 'pills',
+    options: ['Sí', 'No', 'Comparte esta responsabilidad con otra persona'],
+    required: true,
+    fieldName: 'economia.responsable_economica'
+  },
+  {
+    id: '2.1d',
+    module: 'Economía y Autonomía',
+    moduleNumber: 2,
+    question: 'PERSONAS A CARGO',
+    subtitle: '¿Cuántas personas dependen económicamente de usted? (1 a 99)',
+    type: 'number',
+    required: true,
+    fieldName: 'economia.personas_dependientes'
+  },
+  {
+    id: '2.1e',
+    module: 'Economía y Autonomía',
+    moduleNumber: 2,
+    question: 'PROFESIÓN U OCUPACIÓN',
+    subtitle: '¿Cuál es su profesión u ocupación principal?',
+    type: 'text',
+    required: true,
+    fieldName: 'economia.profesion'
   },
   {
     id: '2.2',
@@ -261,6 +344,28 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     fieldName: 'cuidado.cuales_programas'
   },
   {
+    id: '3.5c',
+    module: 'Carga de Cuidado',
+    moduleNumber: 3,
+    question: 'RECONOCIMIENTO ECONÓMICO',
+    subtitle: '¿Recibe algún reconocimiento económico por las labores de cuidado que realiza?',
+    type: 'pills',
+    options: ['Sí', 'No'],
+    required: false,
+    fieldName: 'cuidado.reconocimiento_economico'
+  },
+  {
+    id: '3.5d',
+    module: 'Carga de Cuidado',
+    moduleNumber: 3,
+    question: 'VALORACIÓN DE LAS LABORES',
+    subtitle: '¿Siente que las labores de cuidado que realiza son valoradas o reconocidas por las personas que le rodean?',
+    type: 'pills',
+    options: ['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre'],
+    required: false,
+    fieldName: 'cuidado.valoracion_labores'
+  },
+  {
     id: '3.6',
     module: 'Carga de Cuidado',
     moduleNumber: 3,
@@ -335,6 +440,17 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     options: ['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre'],
     required: false,
     fieldName: 'cuidado.estres_constante'
+  },
+  {
+    id: '3.11b',
+    module: 'Carga de Cuidado',
+    moduleNumber: 3,
+    question: 'TIEMPO REALIZANDO CUIDADO',
+    subtitle: '¿Hace cuánto tiempo realiza labores de cuidado?',
+    type: 'pills',
+    options: ['Menos de 6 meses', 'Entre 6 meses y 1 año', 'Entre 1 y 3 años', 'Entre 3 y 5 años', 'Más de 5 años'],
+    required: false,
+    fieldName: 'cuidado.tiempo_realizando_cuidado'
   },
   {
     id: '3.12',
