@@ -334,13 +334,11 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       if (!answers.socio?.fecha_nacimiento) missing.push('socio.fecha_nacimiento');
       if (!answers.socio?.genero) missing.push('socio.genero');
       if (!answers.socio?.orientacion_sexual) missing.push('socio.orientacion_sexual');
-      if (answers.socio?.orientacion_sexual === 'Otra' && !answers.socio?.orientacion_sexual_otra) missing.push('socio.orientacion_sexual_otra');
       if (!answers.socio?.barrio) missing.push('socio.barrio');
       if (!answers.socio?.upz) missing.push('socio.upz');
       if (!answers.socio?.nivel_educativo) missing.push('socio.nivel_educativo');
       if (!answers.socio?.pertenencia || answers.socio.pertenencia.length === 0) missing.push('socio.pertenencia');
       if (!answers.socio?.estado_civil) missing.push('socio.estado_civil');
-      if (answers.socio?.estado_civil === 'Otra' && !answers.socio?.estado_civil_otra) missing.push('socio.estado_civil_otra');
     } else if (currentStep === 2) {
       if (!answers.economia?.ingresos) missing.push('economia.ingresos');
       if (!answers.economia?.fuente_ingresos) missing.push('economia.fuente_ingresos');
@@ -409,7 +407,50 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       if (!answers.documentos?.id_reverso) missing.push('document.id_reverso');
       if (!answers.documentos?.utility_bill) missing.push('document.utility_bill');
     }
-    
+
+    // Si se elige "Otra/Otro" y la caja de texto queda vacía, resaltar la pregunta padre en rojo y bloquear el avance
+    const otherRules: Record<number, Array<{ parent: string; other: string; trigger: 'array' | string }>> = {
+      1: [
+        { parent: 'socio.nivel_educativo', other: 'socio.nivel_educativo_otro', trigger: 'Otro' },
+        { parent: 'socio.pertenencia', other: 'socio.pertenencia_otro', trigger: 'array' },
+        { parent: 'socio.orientacion_sexual', other: 'socio.orientacion_sexual_otra', trigger: 'Otra' },
+        { parent: 'socio.estado_civil', other: 'socio.estado_civil_otra', trigger: 'Otra' },
+      ],
+      2: [
+        { parent: 'economia.fuente_ingresos', other: 'economia.fuente_ingresos_otro', trigger: 'Otro' },
+        { parent: 'economia.situacion_laboral', other: 'economia.situacion_laboral_otro', trigger: 'Otro' },
+        { parent: 'economia.tipo_vivienda', other: 'economia.tipo_vivienda_otro', trigger: 'Otro' },
+      ],
+      3: answers.cuidado?.es_cuidadora === 'Sí' ? [
+        { parent: 'cuidado.poblacion', other: 'cuidado.poblacion_otro', trigger: 'Otro' },
+        { parent: 'cuidado.sentimiento', other: 'cuidado.sentimiento_otro', trigger: 'Otro' },
+      ] : [],
+      4: [
+        { parent: 'bienestar.violencia', other: 'bienestar.violencia_otro', trigger: 'array' },
+        { parent: 'bienestar.factores_riesgo', other: 'bienestar.factores_riesgo_otro', trigger: 'array' },
+      ],
+      5: [
+        { parent: 'proyecciones.prioridad', other: 'proyecciones.prioridad_otro', trigger: 'Otro' },
+        { parent: 'proyecciones.interes_formacion', other: 'proyecciones.interes_formacion_otro', trigger: 'array' },
+        { parent: 'proyecciones.bienestar_deseado', other: 'proyecciones.bienestar_deseado_otro', trigger: 'array' },
+      ],
+      6: [
+        { parent: 'dinamica_familiar.estructura', other: 'dinamica_familiar.estructura_otra', trigger: 'Otra' },
+      ],
+    };
+    (otherRules[currentStep] || []).forEach(({ parent, other, trigger }) => {
+      const [pMod, pKey] = parent.split('.');
+      const [oMod, oKey] = other.split('.');
+      const pVal = (answers as any)[pMod]?.[pKey];
+      const selected = trigger === 'array'
+        ? Array.isArray(pVal) && (pVal.includes('Otro') || pVal.includes('Otra'))
+        : pVal === trigger;
+      const oVal = (answers as any)[oMod]?.[oKey];
+      if (selected && (!oVal || (typeof oVal === 'string' && oVal.trim() === ''))) {
+        if (!missing.includes(parent)) missing.push(parent);
+      }
+    });
+
     setValidationErrors(missing);
     return missing.length === 0;
   };

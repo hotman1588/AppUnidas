@@ -329,9 +329,7 @@ export default function SurveyWizard() {
 
   const getMissingFields = (step: number) => {
     const required: Record<number, string[]> = {
-      1: ['socio.fecha_nacimiento', 'socio.genero', 'socio.orientacion_sexual', 'socio.barrio', 'socio.upz', 'socio.nivel_educativo', 'socio.pertenencia', 'socio.estado_civil',
-        ...(answers.socio?.orientacion_sexual === 'Otra' ? ['socio.orientacion_sexual_otra'] : []),
-        ...(answers.socio?.estado_civil === 'Otra' ? ['socio.estado_civil_otra'] : [])],
+      1: ['socio.fecha_nacimiento', 'socio.genero', 'socio.orientacion_sexual', 'socio.barrio', 'socio.upz', 'socio.nivel_educativo', 'socio.pertenencia', 'socio.estado_civil'],
       2: ['economia.ingresos', 'economia.fuente_ingresos', 'economia.responsable_economica', 'economia.personas_dependientes', 'economia.profesion', 'economia.situacion_laboral'],
       3: ['cuidado.es_cuidadora', ...(answers.cuidado?.es_cuidadora === 'Sí' ? ['cuidado.poblacion', 'cuidado.horas', 'cuidado.carga_emocional', 'cuidado.reconocimiento_economico', 'cuidado.valoracion_labores', 'cuidado.reconocimiento', 'cuidado.sentimiento', 'cuidado.cansancio_fisico', 'cuidado.responsabilidades_excesivas', 'cuidado.poco_tiempo_autocuidado', 'cuidado.estres_constante', 'cuidado.tiempo_realizando_cuidado', 'cuidado.agotamiento_emocional'] : [])],
       4: [
@@ -375,6 +373,50 @@ export default function SurveyWizard() {
         }
       });
     }
+
+    // Si se elige "Otra/Otro" y la caja de texto queda vacía, resaltar la pregunta padre en rojo y bloquear el avance
+    const otherRules: Record<number, Array<{ parent: string; other: string; trigger: 'array' | string }>> = {
+      1: [
+        { parent: 'socio.nivel_educativo', other: 'socio.nivel_educativo_otro', trigger: 'Otro' },
+        { parent: 'socio.pertenencia', other: 'socio.pertenencia_otro', trigger: 'array' },
+        { parent: 'socio.orientacion_sexual', other: 'socio.orientacion_sexual_otra', trigger: 'Otra' },
+        { parent: 'socio.estado_civil', other: 'socio.estado_civil_otra', trigger: 'Otra' },
+      ],
+      2: [
+        { parent: 'economia.fuente_ingresos', other: 'economia.fuente_ingresos_otro', trigger: 'Otro' },
+        { parent: 'economia.situacion_laboral', other: 'economia.situacion_laboral_otro', trigger: 'Otro' },
+        { parent: 'economia.tipo_vivienda', other: 'economia.tipo_vivienda_otro', trigger: 'Otro' },
+      ],
+      3: answers.cuidado?.es_cuidadora === 'Sí' ? [
+        { parent: 'cuidado.poblacion', other: 'cuidado.poblacion_otro', trigger: 'Otro' },
+        { parent: 'cuidado.sentimiento', other: 'cuidado.sentimiento_otro', trigger: 'Otro' },
+      ] : [],
+      4: [
+        { parent: 'bienestar.violencia', other: 'bienestar.violencia_otro', trigger: 'array' },
+        { parent: 'bienestar.factores_riesgo', other: 'bienestar.factores_riesgo_otro', trigger: 'array' },
+      ],
+      5: [
+        { parent: 'proyecciones.prioridad', other: 'proyecciones.prioridad_otro', trigger: 'Otro' },
+        { parent: 'proyecciones.interes_formacion', other: 'proyecciones.interes_formacion_otro', trigger: 'array' },
+        { parent: 'proyecciones.bienestar_deseado', other: 'proyecciones.bienestar_deseado_otro', trigger: 'array' },
+        { parent: 'proyecciones.proyectos_ideales', other: 'proyecciones.proyectos_ideales_otro', trigger: 'array' },
+      ],
+      6: [
+        { parent: 'dinamica_familiar.estructura', other: 'dinamica_familiar.estructura_otra', trigger: 'Otra' },
+      ],
+    };
+    (otherRules[step] || []).forEach(({ parent, other, trigger }) => {
+      const [pMod, pKey] = parent.split('.');
+      const [oMod, oKey] = other.split('.');
+      const pVal = answers[pMod]?.[pKey];
+      const selected = trigger === 'array'
+        ? Array.isArray(pVal) && (pVal.includes('Otro') || pVal.includes('Otra'))
+        : pVal === trigger;
+      const oVal = answers[oMod]?.[oKey];
+      if (selected && (!oVal || (typeof oVal === 'string' && oVal.trim() === ''))) {
+        if (!missing.includes(parent)) missing.push(parent);
+      }
+    });
 
     return missing;
   };
