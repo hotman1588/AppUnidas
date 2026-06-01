@@ -330,7 +330,7 @@ export default function SurveyWizard() {
   const getMissingFields = (step: number) => {
     const required: Record<number, string[]> = {
       1: ['socio.fecha_nacimiento', 'socio.genero', 'socio.orientacion_sexual', 'socio.barrio', 'socio.upz', 'socio.nivel_educativo', 'socio.pertenencia', 'socio.estado_civil'],
-      2: ['economia.ingresos', 'economia.fuente_ingresos', 'economia.responsable_economica', 'economia.personas_dependientes', 'economia.profesion', 'economia.situacion_laboral'],
+      2: ['economia.fuente_ingresos', 'economia.responsable_economica', 'economia.personas_dependientes', 'economia.profesion', 'economia.situacion_laboral'],
       3: ['cuidado.es_cuidadora', ...(answers.cuidado?.es_cuidadora === 'Sí' ? ['cuidado.poblacion', 'cuidado.horas', 'cuidado.carga_emocional', 'cuidado.reconocimiento_economico', 'cuidado.valoracion_labores', 'cuidado.reconocimiento', 'cuidado.sentimiento', 'cuidado.cansancio_fisico', 'cuidado.responsabilidades_excesivas', 'cuidado.poco_tiempo_autocuidado', 'cuidado.estres_constante', 'cuidado.tiempo_realizando_cuidado', 'cuidado.agotamiento_emocional'] : [])],
       4: [
         'bienestar.seguridad_hogar', 'bienestar.violencia', 'bienestar.factores_riesgo', 'bienestar.participar',
@@ -894,6 +894,18 @@ export default function SurveyWizard() {
                     value={answers.economia?.ingresos}
                     onChange={(v: string) => handleInputChange('economia', 'ingresos', v)}
                     error={validationErrors.includes('economia.ingresos')}
+                    disabled={isLocked}
+                  />
+                  <Question
+                    label="GASTOS MENSUALES DEL HOGAR"
+                    subtitle="¿Cuánto suman aproximadamente los gastos mensuales de su hogar? Rango estimado en pesos (COP)."
+                    type="range"
+                    min={0}
+                    max={5000000}
+                    step={50000}
+                    value={answers.economia?.gastos_mensuales}
+                    onChange={(v: string) => handleInputChange('economia', 'gastos_mensuales', v)}
+                    error={validationErrors.includes('economia.gastos_mensuales')}
                     disabled={isLocked}
                   />
                   <Question

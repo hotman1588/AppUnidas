@@ -340,7 +340,6 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       if (!answers.socio?.pertenencia || answers.socio.pertenencia.length === 0) missing.push('socio.pertenencia');
       if (!answers.socio?.estado_civil) missing.push('socio.estado_civil');
     } else if (currentStep === 2) {
-      if (!answers.economia?.ingresos) missing.push('economia.ingresos');
       if (!answers.economia?.fuente_ingresos) missing.push('economia.fuente_ingresos');
       if (!answers.economia?.responsable_economica) missing.push('economia.responsable_economica');
       if (!answers.economia?.personas_dependientes) missing.push('economia.personas_dependientes');
@@ -682,12 +681,23 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                     min={0} 
                     max={5000000} 
                     step={50000} 
-                    value={answers.economia.ingresos} 
-                    onChange={(v: string) => handleInputChange('economia', 'ingresos', v)} 
-                    error={validationErrors.includes('economia.ingresos')} 
+                    value={answers.economia.ingresos}
+                    onChange={(v: string) => handleInputChange('economia', 'ingresos', v)}
+                    error={validationErrors.includes('economia.ingresos')}
                   />
-                  <Question 
-                    label="FUENTE DE INGRESOS" 
+                  <Question
+                    label="GASTOS MENSUALES DEL HOGAR"
+                    subtitle="¿Cuánto suman aproximadamente los gastos mensuales de su hogar? Rango estimado en pesos (COP)."
+                    type="range"
+                    min={0}
+                    max={5000000}
+                    step={50000}
+                    value={answers.economia.gastos_mensuales}
+                    onChange={(v: string) => handleInputChange('economia', 'gastos_mensuales', v)}
+                    error={validationErrors.includes('economia.gastos_mensuales')}
+                  />
+                  <Question
+                    label="FUENTE DE INGRESOS"
                     subtitle="Principal origen de sus recursos."
                     type="pills"
                     options={['Trabajo formal', 'Trabajo informal', 'Apoyo familiar', 'Subsidios', 'Pensión', 'Otro']} 
