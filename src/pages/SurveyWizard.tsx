@@ -244,6 +244,14 @@ export default function SurveyWizard() {
         }
       };
 
+      // Clear "Otra" detail fields when the selection moves away from Otra
+      if (module === 'socio' && question === 'orientacion_sexual' && value !== 'Otra') {
+        if (newAnswers.socio) delete newAnswers.socio.orientacion_sexual_otra;
+      }
+      if (module === 'socio' && question === 'estado_civil' && value !== 'Otra') {
+        if (newAnswers.socio) delete newAnswers.socio.estado_civil_otra;
+      }
+
       // Auto-select UPL if barrio is selected
       if (module === 'socio' && question === 'barrio') {
         const upl = BARRIO_TO_UPL[value];
@@ -321,9 +329,11 @@ export default function SurveyWizard() {
 
   const getMissingFields = (step: number) => {
     const required: Record<number, string[]> = {
-      1: ['socio.fecha_nacimiento', 'socio.genero', 'socio.barrio', 'socio.upz', 'socio.nivel_educativo', 'socio.pertenencia'],
-      2: ['economia.ingresos', 'economia.fuente_ingresos', 'economia.situacion_laboral'],
-      3: ['cuidado.es_cuidadora', ...(answers.cuidado?.es_cuidadora === 'Sí' ? ['cuidado.poblacion', 'cuidado.horas', 'cuidado.carga_emocional', 'cuidado.reconocimiento', 'cuidado.sentimiento', 'cuidado.cansancio_fisico', 'cuidado.responsabilidades_excesivas', 'cuidado.poco_tiempo_autocuidado', 'cuidado.estres_constante', 'cuidado.agotamiento_emocional'] : [])],
+      1: ['socio.fecha_nacimiento', 'socio.genero', 'socio.orientacion_sexual', 'socio.barrio', 'socio.upz', 'socio.nivel_educativo', 'socio.pertenencia', 'socio.estado_civil',
+        ...(answers.socio?.orientacion_sexual === 'Otra' ? ['socio.orientacion_sexual_otra'] : []),
+        ...(answers.socio?.estado_civil === 'Otra' ? ['socio.estado_civil_otra'] : [])],
+      2: ['economia.ingresos', 'economia.fuente_ingresos', 'economia.responsable_economica', 'economia.personas_dependientes', 'economia.profesion', 'economia.situacion_laboral'],
+      3: ['cuidado.es_cuidadora', ...(answers.cuidado?.es_cuidadora === 'Sí' ? ['cuidado.poblacion', 'cuidado.horas', 'cuidado.carga_emocional', 'cuidado.reconocimiento_economico', 'cuidado.valoracion_labores', 'cuidado.reconocimiento', 'cuidado.sentimiento', 'cuidado.cansancio_fisico', 'cuidado.responsabilidades_excesivas', 'cuidado.poco_tiempo_autocuidado', 'cuidado.estres_constante', 'cuidado.tiempo_realizando_cuidado', 'cuidado.agotamiento_emocional'] : [])],
       4: [
         'bienestar.seguridad_hogar', 'bienestar.violencia', 'bienestar.factores_riesgo', 'bienestar.participar',
         'bienestar.tiempo_cuidado_mayor_parte', 'bienestar.poco_apoyo_familiar', 'bienestar.afectacion_sueño',
@@ -752,6 +762,20 @@ export default function SurveyWizard() {
                     disabled={isLocked}
                   />
                   <Question
+                    label="ORIENTACIÓN SEXUAL"
+                    subtitle="¿Con cuál orientación sexual se identifica?"
+                    type="pills"
+                    options={['Heterosexual', 'Lesbiana', 'Bisexual', 'Pansexual', 'Asexual', 'Prefiere no responder', 'Otra']}
+                    value={answers.socio?.orientacion_sexual}
+                    onChange={(v: string) => handleInputChange('socio', 'orientacion_sexual', v)}
+                    error={validationErrors.includes('socio.orientacion_sexual')}
+                    showOther={answers.socio?.orientacion_sexual === 'Otra'}
+                    otherValue={answers.socio?.orientacion_sexual_otra}
+                    onOtherChange={(v: string) => handleInputChange('socio', 'orientacion_sexual_otra', v)}
+                    otherPlaceholder="Especifique su orientación sexual"
+                    disabled={isLocked}
+                  />
+                  <Question
                     label="BARRIO DE RESIDENCIA"
                     subtitle="Barrio donde vive actualmente en Barrios Unidos."
                     type="select"
@@ -798,6 +822,21 @@ export default function SurveyWizard() {
                     onOtherChange={(v) => handleInputChange('socio', 'pertenencia_otro', v)}
                     disabled={isLocked}
                   />
+
+                  <Question
+                    label="ESTADO CIVIL"
+                    subtitle="¿Cuál es su estado civil actual?"
+                    type="pills"
+                    options={['Soltera', 'Casada', 'Unión libre', 'Separada o divorciada', 'Viuda', 'Otra']}
+                    value={answers.socio?.estado_civil}
+                    onChange={(v: string) => handleInputChange('socio', 'estado_civil', v)}
+                    error={validationErrors.includes('socio.estado_civil')}
+                    showOther={answers.socio?.estado_civil === 'Otra'}
+                    otherValue={answers.socio?.estado_civil_otra}
+                    onOtherChange={(v: string) => handleInputChange('socio', 'estado_civil_otra', v)}
+                    otherPlaceholder="Especifique su estado civil"
+                    disabled={isLocked}
+                  />
                 </>
               )}
 
@@ -826,6 +865,47 @@ export default function SurveyWizard() {
                     showOther={answers.economia?.fuente_ingresos === 'Otro'}
                     otherValue={answers.economia?.fuente_ingresos_otro}
                     onOtherChange={(v: string) => handleInputChange('economia', 'fuente_ingresos_otro', v)}
+                    disabled={isLocked}
+                  />
+                  <Question
+                    label="RESPONSABLE ECONÓMICA DEL HOGAR"
+                    subtitle="¿Es usted la principal responsable económica de su hogar?"
+                    type="pills"
+                    options={['Sí', 'No', 'Comparte esta responsabilidad con otra persona']}
+                    value={answers.economia?.responsable_economica}
+                    onChange={(v: string) => handleInputChange('economia', 'responsable_economica', v)}
+                    error={validationErrors.includes('economia.responsable_economica')}
+                    disabled={isLocked}
+                    className="md:col-span-2"
+                  />
+                  <Question
+                    label="PERSONAS A CARGO"
+                    subtitle="¿Cuántas personas dependen económicamente de usted? (entre 1 y 99)"
+                    type="number"
+                    min={1}
+                    max={99}
+                    step={1}
+                    value={answers.economia?.personas_dependientes}
+                    onChange={(v: string) => {
+                      const digits = v.replace(/[^0-9]/g, '');
+                      if (digits === '') { handleInputChange('economia', 'personas_dependientes', ''); return; }
+                      let num = parseInt(digits, 10);
+                      if (num > 99) num = 99;
+                      if (num < 1) { handleInputChange('economia', 'personas_dependientes', ''); return; }
+                      handleInputChange('economia', 'personas_dependientes', String(num));
+                    }}
+                    error={validationErrors.includes('economia.personas_dependientes')}
+                    placeholder="Ej: 3"
+                    disabled={isLocked}
+                  />
+                  <Question
+                    label="PROFESIÓN U OCUPACIÓN"
+                    subtitle="¿Cuál es su profesión u ocupación principal?"
+                    type="text"
+                    value={answers.economia?.profesion}
+                    onChange={(v: string) => handleInputChange('economia', 'profesion', v)}
+                    error={validationErrors.includes('economia.profesion')}
+                    placeholder="Escriba su profesión u ocupación"
                     disabled={isLocked}
                   />
                   <Question
@@ -974,6 +1054,28 @@ export default function SurveyWizard() {
                       />
 
                       <Question
+                        label="RECONOCIMIENTO ECONÓMICO"
+                        subtitle="¿Recibe algún reconocimiento económico por las labores de cuidado que realiza?"
+                        type="pills"
+                        options={['Sí', 'No']}
+                        value={answers.cuidado?.reconocimiento_economico}
+                        onChange={(v: string) => handleInputChange('cuidado', 'reconocimiento_economico', v)}
+                        error={validationErrors.includes('cuidado.reconocimiento_economico')}
+                        disabled={isLocked}
+                      />
+
+                      <Question
+                        label="VALORACIÓN DE LAS LABORES"
+                        subtitle="¿Siente que las labores de cuidado que realiza son valoradas o reconocidas por las personas que le rodean?"
+                        type="pills"
+                        options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                        value={answers.cuidado?.valoracion_labores}
+                        onChange={(v: string) => handleInputChange('cuidado', 'valoracion_labores', v)}
+                        error={validationErrors.includes('cuidado.valoracion_labores')}
+                        disabled={isLocked}
+                      />
+
+                      <Question
                         label="RECONOCIMIENTO PERCIBIDO"
                         subtitle="¿Qué tanto reconocimiento percibe por las labores que realiza?"
                         type="pills"
@@ -1035,6 +1137,16 @@ export default function SurveyWizard() {
                         value={answers.cuidado?.estres_constante}
                         onChange={(v: string) => handleInputChange('cuidado', 'estres_constante', v)}
                         error={validationErrors.includes('cuidado.estres_constante')}
+                        disabled={isLocked}
+                      />
+                      <Question
+                        label="TIEMPO REALIZANDO CUIDADO"
+                        subtitle="¿Hace cuánto tiempo realiza labores de cuidado?"
+                        type="pills"
+                        options={['Menos de 6 meses', 'Entre 6 meses y 1 año', 'Entre 1 y 3 años', 'Entre 3 y 5 años', 'Más de 5 años']}
+                        value={answers.cuidado?.tiempo_realizando_cuidado}
+                        onChange={(v: string) => handleInputChange('cuidado', 'tiempo_realizando_cuidado', v)}
+                        error={validationErrors.includes('cuidado.tiempo_realizando_cuidado')}
                         disabled={isLocked}
                       />
                       <Question
@@ -1804,6 +1916,10 @@ function Question({
             type={type}
             disabled={disabled}
             value={value || ''}
+            min={min}
+            max={max}
+            step={type === 'number' ? (step || 1) : undefined}
+            inputMode={type === 'number' ? 'numeric' : undefined}
             onChange={(e) => onChange(e.target.value)}
             className="w-full px-2 py-1 bg-white/5 border border-white/5 focus:border-unidas-primary rounded-lg transition-all outline-none font-bold text-white placeholder:text-white/10 disabled:cursor-not-allowed text-[10px]"
             placeholder={placeholder}

@@ -333,13 +333,20 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
     } else if (currentStep === 1) {
       if (!answers.socio?.fecha_nacimiento) missing.push('socio.fecha_nacimiento');
       if (!answers.socio?.genero) missing.push('socio.genero');
+      if (!answers.socio?.orientacion_sexual) missing.push('socio.orientacion_sexual');
+      if (answers.socio?.orientacion_sexual === 'Otra' && !answers.socio?.orientacion_sexual_otra) missing.push('socio.orientacion_sexual_otra');
       if (!answers.socio?.barrio) missing.push('socio.barrio');
       if (!answers.socio?.upz) missing.push('socio.upz');
       if (!answers.socio?.nivel_educativo) missing.push('socio.nivel_educativo');
       if (!answers.socio?.pertenencia || answers.socio.pertenencia.length === 0) missing.push('socio.pertenencia');
+      if (!answers.socio?.estado_civil) missing.push('socio.estado_civil');
+      if (answers.socio?.estado_civil === 'Otra' && !answers.socio?.estado_civil_otra) missing.push('socio.estado_civil_otra');
     } else if (currentStep === 2) {
       if (!answers.economia?.ingresos) missing.push('economia.ingresos');
       if (!answers.economia?.fuente_ingresos) missing.push('economia.fuente_ingresos');
+      if (!answers.economia?.responsable_economica) missing.push('economia.responsable_economica');
+      if (!answers.economia?.personas_dependientes) missing.push('economia.personas_dependientes');
+      if (!answers.economia?.profesion) missing.push('economia.profesion');
       if (!answers.economia?.situacion_laboral) missing.push('economia.situacion_laboral');
     } else if (currentStep === 3) {
       if (!answers.cuidado?.es_cuidadora) missing.push('cuidado.es_cuidadora');
@@ -347,6 +354,9 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
         if (!answers.cuidado?.poblacion) missing.push('cuidado.poblacion');
         if (!answers.cuidado?.horas) missing.push('cuidado.horas');
         if (!answers.cuidado?.carga_emocional) missing.push('cuidado.carga_emocional');
+        if (!answers.cuidado?.reconocimiento_economico) missing.push('cuidado.reconocimiento_economico');
+        if (!answers.cuidado?.valoracion_labores) missing.push('cuidado.valoracion_labores');
+        if (!answers.cuidado?.tiempo_realizando_cuidado) missing.push('cuidado.tiempo_realizando_cuidado');
         if (!answers.cuidado?.reconocimiento) missing.push('cuidado.reconocimiento');
         if (!answers.cuidado?.sentimiento) missing.push('cuidado.sentimiento');
         if (!answers.cuidado?.cansancio_fisico) missing.push('cuidado.cansancio_fisico');
@@ -545,12 +555,25 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                     subtitle="Cómo se identifica actualmente."
                     type="pills"
                     options={['Femenino', 'Masculino', 'No binario', 'Transgénero', 'Otro']} 
-                    value={answers.socio.genero} 
-                    onChange={(v: string) => handleInputChange('socio', 'genero', v)} 
-                    error={validationErrors.includes('socio.genero')} 
+                    value={answers.socio.genero}
+                    onChange={(v: string) => handleInputChange('socio', 'genero', v)}
+                    error={validationErrors.includes('socio.genero')}
                   />
-                  <Question 
-                    label="BARRIO DE RESIDENCIA" 
+                  <Question
+                    label="ORIENTACIÓN SEXUAL"
+                    subtitle="¿Con cuál orientación sexual se identifica?"
+                    type="pills"
+                    options={['Heterosexual', 'Lesbiana', 'Bisexual', 'Pansexual', 'Asexual', 'Prefiere no responder', 'Otra']}
+                    value={answers.socio.orientacion_sexual}
+                    onChange={(v: string) => handleInputChange('socio', 'orientacion_sexual', v)}
+                    showOther={answers.socio.orientacion_sexual === 'Otra'}
+                    otherValue={answers.socio.orientacion_sexual_otra}
+                    onOtherChange={(v: string) => handleInputChange('socio', 'orientacion_sexual_otra', v)}
+                    otherPlaceholder="Especifique su orientación sexual"
+                    error={validationErrors.includes('socio.orientacion_sexual')}
+                  />
+                  <Question
+                    label="BARRIO DE RESIDENCIA"
                     subtitle="Barrio donde vive actualmente en Barrios Unidos."
                     type="select" 
                     options={ALL_BARRIOS} 
@@ -587,8 +610,21 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                     value={answers.socio.pertenencia || []} 
                     onChange={(v: string) => handleCheckboxChange('socio', 'pertenencia', v)} 
                     showOther={answers.socio.pertenencia?.includes('Otro')} 
-                    otherValue={answers.socio.pertenencia_otro} 
+                    otherValue={answers.socio.pertenencia_otro}
                     onOtherChange={(v: string) => handleInputChange('socio', 'pertenencia_otro', v)}
+                  />
+                  <Question
+                    label="ESTADO CIVIL"
+                    subtitle="¿Cuál es su estado civil actual?"
+                    type="pills"
+                    options={['Soltera', 'Casada', 'Unión libre', 'Separada o divorciada', 'Viuda', 'Otra']}
+                    value={answers.socio.estado_civil}
+                    onChange={(v: string) => handleInputChange('socio', 'estado_civil', v)}
+                    showOther={answers.socio.estado_civil === 'Otra'}
+                    otherValue={answers.socio.estado_civil_otra}
+                    onOtherChange={(v: string) => handleInputChange('socio', 'estado_civil_otra', v)}
+                    otherPlaceholder="Especifique su estado civil"
+                    error={validationErrors.includes('socio.estado_civil')}
                   />
                 </div>
               </motion.div>
@@ -619,10 +655,48 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                     showOther={answers.economia.fuente_ingresos === 'Otro'} 
                     otherValue={answers.economia.fuente_ingresos_otro} 
                     onOtherChange={(v: string) => handleInputChange('economia', 'fuente_ingresos_otro', v)}
-                    error={validationErrors.includes('economia.fuente_ingresos')} 
+                    error={validationErrors.includes('economia.fuente_ingresos')}
                   />
-                  <Question 
-                    label="SITUACIÓN LABORAL" 
+                  <Question
+                    label="RESPONSABLE ECONÓMICA DEL HOGAR"
+                    subtitle="¿Es usted la principal responsable económica de su hogar?"
+                    type="pills"
+                    options={['Sí', 'No', 'Comparte esta responsabilidad con otra persona']}
+                    value={answers.economia.responsable_economica}
+                    onChange={(v: string) => handleInputChange('economia', 'responsable_economica', v)}
+                    error={validationErrors.includes('economia.responsable_economica')}
+                    className="md:col-span-2"
+                  />
+                  <Question
+                    label="PERSONAS A CARGO"
+                    subtitle="¿Cuántas personas dependen económicamente de usted? (entre 1 y 99)"
+                    type="number"
+                    min={1}
+                    max={99}
+                    step={1}
+                    value={answers.economia.personas_dependientes}
+                    onChange={(v: string) => {
+                      const digits = v.replace(/[^0-9]/g, '');
+                      if (digits === '') { handleInputChange('economia', 'personas_dependientes', ''); return; }
+                      let num = parseInt(digits, 10);
+                      if (num > 99) num = 99;
+                      if (num < 1) { handleInputChange('economia', 'personas_dependientes', ''); return; }
+                      handleInputChange('economia', 'personas_dependientes', String(num));
+                    }}
+                    placeholder="Ej: 3"
+                    error={validationErrors.includes('economia.personas_dependientes')}
+                  />
+                  <Question
+                    label="PROFESIÓN U OCUPACIÓN"
+                    subtitle="¿Cuál es su profesión u ocupación principal?"
+                    type="text"
+                    value={answers.economia.profesion}
+                    onChange={(v: string) => handleInputChange('economia', 'profesion', v)}
+                    placeholder="Escriba su profesión u ocupación"
+                    error={validationErrors.includes('economia.profesion')}
+                  />
+                  <Question
+                    label="SITUACIÓN LABORAL"
                     subtitle="Estado ocupacional actual."
                     type="pills"
                     options={['Empleado', 'Independiente', 'Buscando empleo', 'Hogar', 'Estudiante', 'Jubilado', 'Otro']} 
@@ -725,8 +799,26 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                         onOtherChange={(v: string) => handleInputChange('cuidado', 'cuales_programas', v)}
                         otherPlaceholder="¿Cuáles?"
                       />
-                      <Question 
-                        label="RECONOCIMIENTO PERCIBIDO" 
+                      <Question
+                        label="RECONOCIMIENTO ECONÓMICO"
+                        subtitle="¿Recibe algún reconocimiento económico por las labores de cuidado que realiza?"
+                        type="pills"
+                        options={['Sí', 'No']}
+                        value={answers.cuidado.reconocimiento_economico}
+                        onChange={(v: string) => handleInputChange('cuidado', 'reconocimiento_economico', v)}
+                        error={validationErrors.includes('cuidado.reconocimiento_economico')}
+                      />
+                      <Question
+                        label="VALORACIÓN DE LAS LABORES"
+                        subtitle="¿Siente que las labores de cuidado que realiza son valoradas o reconocidas por las personas que le rodean?"
+                        type="pills"
+                        options={['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre']}
+                        value={answers.cuidado.valoracion_labores}
+                        onChange={(v: string) => handleInputChange('cuidado', 'valoracion_labores', v)}
+                        error={validationErrors.includes('cuidado.valoracion_labores')}
+                      />
+                      <Question
+                        label="RECONOCIMIENTO PERCIBIDO"
                         subtitle="¿Qué tanto reconocimiento percibe por las labores que realiza?"
                         type="pills"
                         options={['Nada reconocida', 'Poco reconocida', 'Medianamente reconocida', 'Muy reconocida']} 
@@ -782,6 +874,15 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                         value={answers.cuidado?.estres_constante}
                         onChange={(v: string) => handleInputChange('cuidado', 'estres_constante', v)}
                         error={validationErrors.includes('cuidado.estres_constante')}
+                      />
+                      <Question
+                        label="TIEMPO REALIZANDO CUIDADO"
+                        subtitle="¿Hace cuánto tiempo realiza labores de cuidado?"
+                        type="pills"
+                        options={['Menos de 6 meses', 'Entre 6 meses y 1 año', 'Entre 1 y 3 años', 'Entre 3 y 5 años', 'Más de 5 años']}
+                        value={answers.cuidado.tiempo_realizando_cuidado}
+                        onChange={(v: string) => handleInputChange('cuidado', 'tiempo_realizando_cuidado', v)}
+                        error={validationErrors.includes('cuidado.tiempo_realizando_cuidado')}
                       />
                       <Question
                         label="AGOTAMIENTO EMOCIONAL"
@@ -1554,6 +1655,10 @@ function Question({
             type={type}
             disabled={disabled}
             value={value || ''}
+            min={min}
+            max={max}
+            step={type === 'number' ? (step || 1) : undefined}
+            inputMode={type === 'number' ? 'numeric' : undefined}
             onChange={(e) => onChange(e.target.value)}
             className="w-full px-2 py-1 bg-white/5 border border-white/5 focus:border-unidas-primary rounded-lg transition-all outline-none font-bold text-white placeholder:text-white/10 disabled:cursor-not-allowed text-[10px]"
             placeholder={placeholder}
