@@ -785,7 +785,7 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2 bg-white/5 border border-white/10 p-4 rounded-3xl flex items-center justify-between">
                     <div>
-                      <h4 className="text-sm font-black text-white">¿Trabaja como cuidadora?</h4>
+                      <h4 className="text-sm font-black text-white">¿Eres Cuidador@?</h4>
                       <p className="text-[10px] text-white/40 italic">Define el acceso a las preguntas de carga.</p>
                     </div>
                     <div className="flex space-x-2">

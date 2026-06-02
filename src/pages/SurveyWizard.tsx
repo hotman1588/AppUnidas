@@ -1011,7 +1011,7 @@ export default function SurveyWizard() {
 
                   <div className="md:col-span-2 bg-white/5 border border-white/10 p-3 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3 backdrop-blur-xl mb-1">
                     <div className="flex-grow">
-                      <h4 className="text-sm font-black text-white mb-0.5">¿Trabajas como cuidador o cuidadora?</h4>
+                      <h4 className="text-sm font-black text-white mb-0.5">¿Eres Cuidador@?</h4>
                       <p className="text-[9px] text-white/30 font-medium italic leading-tight">Define el enfoque de las siguientes preguntas.</p>
                     </div>
                     <div className="flex bg-white/5 p-1 rounded-lg border border-white/5 shrink-0">
