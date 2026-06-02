@@ -390,19 +390,24 @@ export default function SurveyWizard() {
       3: answers.cuidado?.es_cuidadora === 'Sí' ? [
         { parent: 'cuidado.poblacion', other: 'cuidado.poblacion_otro', trigger: 'Otro' },
         { parent: 'cuidado.sentimiento', other: 'cuidado.sentimiento_otro', trigger: 'Otro' },
+        { parent: 'cuidado.conoce_programas', other: 'cuidado.cuales_programas', trigger: 'Sí' },
       ] : [],
       4: [
         { parent: 'bienestar.violencia', other: 'bienestar.violencia_otro', trigger: 'array' },
         { parent: 'bienestar.factores_riesgo', other: 'bienestar.factores_riesgo_otro', trigger: 'array' },
+        { parent: 'bienestar.enfermedad_diagnosticada', other: 'bienestar.enfermedades_cuales', trigger: 'Sí' },
+        { parent: 'bienestar.participar', other: 'bienestar.participar_porque', trigger: 'No' },
       ],
       5: [
         { parent: 'proyecciones.prioridad', other: 'proyecciones.prioridad_otro', trigger: 'Otro' },
         { parent: 'proyecciones.interes_formacion', other: 'proyecciones.interes_formacion_otro', trigger: 'array' },
         { parent: 'proyecciones.bienestar_deseado', other: 'proyecciones.bienestar_deseado_otro', trigger: 'array' },
         { parent: 'proyecciones.proyectos_ideales', other: 'proyecciones.proyectos_ideales_otro', trigger: 'array' },
+        { parent: 'proyecciones.desea_mas_apoyo', other: 'proyecciones.apoyo_cuales', trigger: 'Sí' },
       ],
       6: [
         { parent: 'dinamica_familiar.estructura', other: 'dinamica_familiar.estructura_otra', trigger: 'Otra' },
+        { parent: 'dinamica_familiar.compartir_habilidades', other: 'dinamica_familiar.compartir_habilidades_cuales', trigger: 'Sí' },
       ],
     };
     (otherRules[step] || []).forEach(({ parent, other, trigger }) => {
