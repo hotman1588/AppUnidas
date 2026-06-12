@@ -115,6 +115,22 @@ export default function AdminDashboard() {
     setLandingSaving(true);
     try {
       await setActiveLanding(page);
+      // Vincula la encuesta activa a la landing seleccionada:
+      // landing 'component-4' -> Encuesta Dos · landing 'original' -> Encuesta Uno.
+      const linkedSurvey = page === 'component-4' ? 'dos' : 'uno';
+      try {
+        const res = await fetch('/api/admin/settings/active-survey', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ value: linkedSurvey })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setActiveSurvey(data.value);
+        }
+      } catch (e) {
+        console.error('No se pudo sincronizar la encuesta activa con la landing', e);
+      }
     } catch (err: any) {
       setLandingError('No se pudo guardar. Ejecuta primero supabase_create_app_settings.sql en el SQL Editor de Supabase.');
     } finally {
