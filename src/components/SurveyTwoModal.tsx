@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, ChevronRight, ChevronLeft, Save, AlertCircle, CheckCircle2,
-  Trash2, User, Wallet, Users, Shield, HeartPulse, Star, FileText, Info
+  Trash2, User, Wallet, Users, Shield, HeartPulse, Star, FileText, Info, UserPlus
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import {
@@ -80,15 +80,17 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
   }, [birthDate]);
 
   // ---- Módulos visibles según tipo de documento ----
+  // 'tipo_documento' se captura en el Registro de Identidad (paso 0). La fecha de
+  // nacimiento SÍ pertenece al Módulo 1 (Perfil Sociodemográfico) y se renderiza ahí.
   const visibleModules: ModuleDef[] = MODULES.filter(m =>
-    m.questions.some(q => q.id !== 'tipo_documento' && q.id !== 'fecha_nacimiento' && isVisibleForDoc(q.audience, isMinor))
+    m.questions.some(q => q.id !== 'tipo_documento' && isVisibleForDoc(q.audience, isMinor))
   );
   const totalSteps = visibleModules.length + 2; // identificación + módulos + consentimiento
   const isConsentStep = currentStep === totalSteps - 1;
   const currentModule = currentStep >= 1 && currentStep <= visibleModules.length ? visibleModules[currentStep - 1] : null;
 
   const visibleQuestions = (m: ModuleDef): QDef[] =>
-    m.questions.filter(q => q.id !== 'tipo_documento' && q.id !== 'fecha_nacimiento' && isVisibleForDoc(q.audience, isMinor));
+    m.questions.filter(q => q.id !== 'tipo_documento' && isVisibleForDoc(q.audience, isMinor));
 
   // ---- Handlers ----
   const setAnswer = (id: string, value: any) => {
@@ -128,7 +130,6 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
       if (!docType) missing.push('tipo_documento');
       if (!userData.document_number.trim()) missing.push('document_number');
       if (!userData.password.trim()) missing.push('password');
-      if (!birthDate.day || !birthDate.month || !birthDate.year) missing.push('fecha_nacimiento');
       return missing;
     }
     if (isConsentStep) {
@@ -251,6 +252,8 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
 
           {/* Paso 0: Registro de Identidad (mismo módulo que la Encuesta Uno) */}
           {currentStep === 0 && (
+            <>
+            <ModuleBanner icon={UserPlus} index="Registro de Identidad" title="Datos de la persona encuestada" />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <FieldText label="NOMBRE COMPLETO" value={userData.full_name} onChange={(v) => { setUserData(d => ({ ...d, full_name: v })); setValidationErrors(e => e.filter(x => x !== 'full_name')); }} error={validationErrors.includes('full_name')} className="md:col-span-2" />
 
@@ -279,23 +282,30 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
                 <input type="password" value={userData.password} onChange={(e) => { setUserData(d => ({ ...d, password: e.target.value })); setValidationErrors(er => er.filter(x => x !== 'password')); }}
                   className={cn('w-full bg-white/5 border p-4 rounded-2xl text-white outline-none focus:border-unidas-primary transition-all font-bold', validationErrors.includes('password') ? 'border-red-500' : 'border-white/10')} />
               </div>
-
-              <Card label="FECHA DE NACIMIENTO" subtitle="Día, mes y año." error={validationErrors.includes('fecha_nacimiento')} ageDisplay={userAge !== null ? `${userAge} Años` : null} className="md:col-span-2">
-                <DateSplit value={birthDate} onChange={(v) => { setBirthDate(v); setValidationErrors(e => e.filter(x => x !== 'fecha_nacimiento')); }} />
-              </Card>
             </div>
+            </>
           )}
 
           {/* Pasos de módulos */}
           {currentModule && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {visibleQuestions(currentModule).map(q => (
-                <QuestionField
-                  key={q.id} q={q} answers={answers} error={validationErrors.includes(q.id)}
-                  onValue={setAnswer} onToggle={toggleCheckbox}
-                />
-              ))}
-            </div>
+            <>
+              {/* Encabezado con el nombre del módulo para diferenciarlos */}
+              <ModuleBanner icon={ICONS[currentModule.icon] || User} index={currentModule.id} title={currentModule.title} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {visibleQuestions(currentModule).map(q => (
+                  q.id === 'fecha_nacimiento' ? (
+                    <Card key={q.id} label="FECHA DE NACIMIENTO" subtitle="Día, mes y año." error={validationErrors.includes('fecha_nacimiento')} ageDisplay={userAge !== null ? `${userAge} Años` : null} className="md:col-span-2">
+                      <DateSplit value={birthDate} onChange={(v) => { setBirthDate(v); setValidationErrors(e => e.filter(x => x !== 'fecha_nacimiento')); }} />
+                    </Card>
+                  ) : (
+                    <QuestionField
+                      key={q.id} q={q} answers={answers} error={validationErrors.includes(q.id)}
+                      onValue={setAnswer} onToggle={toggleCheckbox}
+                    />
+                  )
+                ))}
+              </div>
+            </>
           )}
 
           {/* Paso consentimiento */}
@@ -368,6 +378,22 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
 }
 
 // ============================ Subcomponentes ============================
+
+function ModuleBanner({ icon: Icon, index, title }: { icon: any; index: number | string; title: string }) {
+  return (
+    <div className="mb-5 bg-gradient-to-r from-unidas-primary/15 to-unidas-secondary/10 border border-unidas-primary/20 rounded-3xl p-5 flex items-center space-x-4 backdrop-blur-xl">
+      <div className="w-14 h-14 rounded-2xl bg-unidas-primary/20 border border-unidas-primary/30 flex items-center justify-center text-unidas-primary shrink-0">
+        <Icon className="w-7 h-7" />
+      </div>
+      <div>
+        <p className="text-[10px] font-black text-unidas-primary uppercase tracking-[0.2em]">
+          {typeof index === 'number' ? `Módulo ${index}` : index}
+        </p>
+        <h3 className="text-2xl font-black text-white leading-tight">{title}</h3>
+      </div>
+    </div>
+  );
+}
 
 function Card({ label, subtitle, children, error, className, ageDisplay }: any) {
   return (
