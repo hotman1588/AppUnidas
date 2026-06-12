@@ -20,6 +20,7 @@ import { cn } from '../lib/utils';
 import * as XLSX from 'xlsx';
 import { DocumentViewer } from '../components/DocumentViewer';
 import { SURVEY_QUESTIONS } from '../lib/surveyQuestions';
+import { MODULES as ENCUESTA_DOS_MODULES } from '../lib/surveyTwoSchema';
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import { useLandingStore } from '../store/useLandingStore';
 import { supabase } from '../lib/supabase';
@@ -750,6 +751,69 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, "UNIDAS_Consolidado_Encuestas.xlsx");
   };
 
+  // Exporta los registros de la Encuesta Dos cruzando el catálogo declarativo
+  // (MODULES de surveyTwoSchema) con las respuestas JSONB de encuesta_dos.responses.
+  const exportEncuestaDos = async () => {
+    if (user?.role !== 'admin') {
+      alert('Solo los administradores pueden exportar el consolidado.');
+      return;
+    }
+    try {
+      const res = await fetch('/api/analyst/encuesta-dos', { headers: { 'Authorization': `Bearer ${token}` } });
+      if (!res.ok) { alert('No se pudieron obtener los registros de la Encuesta Dos.'); return; }
+      const rows: any[] = await res.json();
+      if (!Array.isArray(rows) || rows.length === 0) { alert('Aún no hay registros de la Encuesta Dos para exportar.'); return; }
+
+      const baseHeaders = ['ID', 'Nombre Completo', 'Tipo Documento', 'N° Documento', 'Celular', 'Correo', 'Edad', 'Menor (TI)', 'Analista', 'Fecha'];
+      const orderedHeaders = [...baseHeaders];
+      // Mapa id de pregunta -> 'MÓDULO N. TÍTULO - Etiqueta'
+      const fieldMap: Record<string, string> = {};
+      ENCUESTA_DOS_MODULES.forEach(m => {
+        const prefix = `M${m.id}. ${m.title.toUpperCase()}`;
+        m.questions.forEach(q => {
+          if (q.id === 'tipo_documento') return;
+          const col = `${prefix} - ${q.label}`;
+          fieldMap[q.id] = col;
+          if (!orderedHeaders.includes(col)) orderedHeaders.push(col);
+          // Caja "Otro" y cajas condicionales asociadas
+          if (q.showOther) { const c = `${col} (Otro)`; fieldMap[`${q.id}_otro`] = c; if (!orderedHeaders.includes(c)) orderedHeaders.push(c); }
+          if (q.conditional) { const c = `${col} (Detalle)`; fieldMap[q.conditional.targetId] = c; if (!orderedHeaders.includes(c)) orderedHeaders.push(c); }
+        });
+      });
+
+      const data = rows.map(r => {
+        const flat: any = {
+          'ID': r.id,
+          'Nombre Completo': r.full_name,
+          'Tipo Documento': r.document_type,
+          'N° Documento': r.document_number,
+          'Celular': r.phone || '',
+          'Correo': r.email || '',
+          'Edad': r.edad ?? '',
+          'Menor (TI)': r.is_minor ? 'Sí' : 'No',
+          'Analista': r.analyst_name || '',
+          'Fecha': r.created_at ? new Date(r.created_at).toLocaleDateString() : '',
+        };
+        const ans = r.answers && typeof r.answers === 'object' ? r.answers : {};
+        Object.entries(ans).forEach(([key, val]: [string, any]) => {
+          const value = Array.isArray(val) ? val.join(', ') : String(val ?? '');
+          const col = fieldMap[key] || `EXTRA - ${key}`;
+          if (!orderedHeaders.includes(col)) orderedHeaders.push(col);
+          flat[col] = value;
+        });
+        return flat;
+      });
+
+      const ws = XLSX.utils.json_to_sheet(data, { header: orderedHeaders });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Encuesta Dos');
+      XLSX.writeFile(wb, 'UNIDAS_Consolidado_EncuestaDos.xlsx');
+    } catch (err) {
+      console.error(err);
+      alert('Error al exportar la Encuesta Dos.');
+    }
+  };
+
   const COLORS = ['#7C3AED', '#DB2777', '#10B981', '#F59E0B'];
 
   if (loading) return null;
@@ -1405,13 +1469,22 @@ export default function AdminDashboard() {
                     <p className="text-[10px] font-black uppercase tracking-widest text-white/30">Activa actualmente</p>
                     <p className="text-lg font-black text-white">{activeSurvey === 'dos' ? 'Encuesta Dos' : 'Encuesta Uno'}</p>
                   </div>
-                  <button
-                    onClick={exportToExcel}
-                    className="w-full md:w-auto px-6 py-4 bg-white/5 border border-white/10 text-white font-black rounded-2xl flex items-center justify-center space-x-3 hover:bg-white/10 transition-all"
-                  >
-                    <Download className="w-5 h-5 text-green-400" />
-                    <span className="text-sm">Descargar Encuesta Uno (Excel)</span>
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                    <button
+                      onClick={exportToExcel}
+                      className="w-full md:w-auto px-5 py-4 bg-white/5 border border-white/10 text-white font-black rounded-2xl flex items-center justify-center space-x-2 hover:bg-white/10 transition-all"
+                    >
+                      <Download className="w-5 h-5 text-green-400" />
+                      <span className="text-sm">Encuesta Uno (Excel)</span>
+                    </button>
+                    <button
+                      onClick={exportEncuestaDos}
+                      className="w-full md:w-auto px-5 py-4 bg-white/5 border border-white/10 text-white font-black rounded-2xl flex items-center justify-center space-x-2 hover:bg-white/10 transition-all"
+                    >
+                      <Download className="w-5 h-5 text-unidas-secondary" />
+                      <span className="text-sm">Encuesta Dos (Excel)</span>
+                    </button>
+                  </div>
                 </div>
                 <p className="text-white/20 text-[10px] font-medium italic mt-4">Los registros de la Encuesta Uno permanecen almacenados en su base y disponibles para descarga aunque se active la Encuesta Dos.</p>
               </div>
