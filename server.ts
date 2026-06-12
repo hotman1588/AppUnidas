@@ -95,8 +95,29 @@ const ensureEncuestaDosSchema = async () => {
     ALTER TABLE encuesta_dos.responses ADD COLUMN IF NOT EXISTS phone TEXT;
     ALTER TABLE encuesta_dos.responses ADD COLUMN IF NOT EXISTS email TEXT;
     ALTER TABLE encuesta_dos.responses ADD COLUMN IF NOT EXISTS password TEXT;
+    ALTER TABLE encuesta_dos.responses ADD COLUMN IF NOT EXISTS user_id INTEGER;
   `);
   encuestaDosReady = true;
+};
+
+// Crea o actualiza el usuario en la base 'users' a partir del registro de la
+// encuesta (mismo comportamiento que la Encuesta Uno presencial). Devuelve el id.
+const upsertSurveyUser = async (user: any): Promise<number> => {
+  const hashed = bcrypt.hashSync(user.password || '123456', 10);
+  const existing = await pool.query('SELECT id FROM users WHERE document_number = $1', [user.document_number]);
+  if (existing.rows.length > 0) {
+    const userId = existing.rows[0].id;
+    await pool.query(
+      'UPDATE users SET full_name = $1, document_type = $2, phone = $3, email = $4, password = $5 WHERE id = $6',
+      [user.full_name, user.document_type || 'CC', user.phone || null, user.email || null, hashed, userId]
+    );
+    return userId;
+  }
+  const inserted = await pool.query(
+    'INSERT INTO users (full_name, document_type, document_number, phone, email, password, role) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+    [user.full_name, user.document_type || 'CC', user.document_number, user.phone || null, user.email || null, hashed, 'user']
+  );
+  return inserted.rows[0].id;
 };
 
 const initDatabase = async () => {
@@ -1080,10 +1101,12 @@ app.post('/api/analyst/encuesta-dos', authenticateToken, isAdmin, async (req: an
     const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
     const isMinor = user.document_type === 'TI';
     const hashedPin = user.password ? bcrypt.hashSync(user.password, 10) : null;
+    // Crea/actualiza el usuario en la base 'users' (se registra una persona nueva).
+    const surveyUserId = await upsertSurveyUser(user);
     const result = await pool.query(
       `INSERT INTO encuesta_dos.responses
-        (full_name, document_type, document_number, phone, email, password, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
+        (full_name, document_type, document_number, phone, email, password, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
       [
         user.full_name,
         user.document_type,
@@ -1097,11 +1120,13 @@ app.post('/api/analyst/encuesta-dos', authenticateToken, isAdmin, async (req: an
         answersJson,
         true,
         req.user.name || null,
-        req.user.id || null
+        req.user.id || null,
+        surveyUserId
       ]
     );
-    res.json({ success: true, id: result.rows[0].id });
+    res.json({ success: true, id: result.rows[0].id, userId: surveyUserId });
   } catch (err: any) {
+    if (err.code === '23505') return res.status(400).json({ error: 'El documento o el correo ya están registrados en otro usuario.' });
     res.status(500).json({ error: err.message });
   }
 });
@@ -1263,15 +1288,18 @@ app.post('/api/user/encuesta-dos', authenticateToken, async (req: any, res) => {
     const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
     const isMinor = user.document_type === 'TI';
     const hashedPin = user.password ? bcrypt.hashSync(user.password, 10) : null;
+    // Crea/actualiza el usuario en la base 'users' (se registra una persona nueva).
+    const surveyUserId = await upsertSurveyUser(user);
     const result = await pool.query(
       `INSERT INTO encuesta_dos.responses
-        (full_name, document_type, document_number, phone, email, password, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
+        (full_name, document_type, document_number, phone, email, password, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
       [user.full_name, user.document_type, user.document_number, user.phone || null, user.email || null, hashedPin,
-       user.birth_date || null, user.edad ?? null, isMinor, answersJson, true, req.user.name || 'Autodiligenciada', req.user.id || null]
+       user.birth_date || null, user.edad ?? null, isMinor, answersJson, true, req.user.name || 'Autodiligenciada', req.user.id || null, surveyUserId]
     );
-    res.json({ success: true, id: result.rows[0].id });
+    res.json({ success: true, id: result.rows[0].id, userId: surveyUserId });
   } catch (err: any) {
+    if (err.code === '23505') return res.status(400).json({ error: 'El documento o el correo ya están registrados en otro usuario.' });
     res.status(500).json({ error: err.message });
   }
 });
