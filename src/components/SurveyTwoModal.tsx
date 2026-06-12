@@ -29,7 +29,7 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
   const [showErrorPopup, setShowErrorPopup] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const [userData, setUserData] = useState({ full_name: '', document_number: '' });
+  const [userData, setUserData] = useState({ full_name: '', document_number: '', phone: '', email: '', password: '' });
   const [birthDate, setBirthDate] = useState({ day: '', month: '', year: '' });
   const [answers, setAnswers] = useState<any>({});
   const [habeasAccepted, setHabeasAccepted] = useState(false);
@@ -125,8 +125,9 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
     const missing: string[] = [];
     if (step === 0) {
       if (!userData.full_name.trim()) missing.push('full_name');
-      if (!userData.document_number.trim()) missing.push('document_number');
       if (!docType) missing.push('tipo_documento');
+      if (!userData.document_number.trim()) missing.push('document_number');
+      if (!userData.password.trim()) missing.push('password');
       if (!birthDate.day || !birthDate.month || !birthDate.year) missing.push('fecha_nacimiento');
       return missing;
     }
@@ -166,7 +167,7 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
   const goPrev = () => { setValidationErrors([]); setCurrentStep(s => Math.max(0, s - 1)); };
 
   const clearData = () => {
-    setUserData({ full_name: '', document_number: '' });
+    setUserData({ full_name: '', document_number: '', phone: '', email: '', password: '' });
     setBirthDate({ day: '', month: '', year: '' });
     setAnswers({});
     setHabeasAccepted(false);
@@ -188,6 +189,9 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
             full_name: userData.full_name,
             document_number: userData.document_number,
             document_type: docType,
+            phone: userData.phone,
+            email: userData.email,
+            password: userData.password,
             birth_date: answers.fecha_nacimiento || null,
             edad: userAge ?? null,
           },
@@ -245,21 +249,37 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
             </div>
           )}
 
-          {/* Paso 0: Identificación */}
+          {/* Paso 0: Registro de Identidad (mismo módulo que la Encuesta Uno) */}
           {currentStep === 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <FieldText label="NOMBRE COMPLETO" value={userData.full_name} onChange={(v) => { setUserData(d => ({ ...d, full_name: v })); setValidationErrors(e => e.filter(x => x !== 'full_name')); }} error={validationErrors.includes('full_name')} className="md:col-span-2" />
-              <FieldText label="NÚMERO DE DOCUMENTO" value={userData.document_number} onChange={(v) => { setUserData(d => ({ ...d, document_number: v })); setValidationErrors(e => e.filter(x => x !== 'document_number')); }} error={validationErrors.includes('document_number')} />
-              <Card label="TIPO DE DOCUMENTO" subtitle="TI activa el modo menor de edad." error={validationErrors.includes('tipo_documento')}>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {DOCUMENT_TYPES.map(dt => (
-                    <button key={dt} type="button" onClick={() => setAnswer('tipo_documento', dt)}
-                      className={cn('py-2 rounded-lg text-xs font-black border transition-all', docType === dt ? 'bg-unidas-primary/20 border-unidas-primary text-unidas-primary' : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10')}>
-                      {dt}
-                    </button>
-                  ))}
+
+              {/* Tipo + N° Documento en una fila */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">TIPO</label>
+                  <select
+                    value={docType}
+                    onChange={(e) => setAnswer('tipo_documento', e.target.value)}
+                    className={cn('w-full bg-white/5 border p-4 rounded-2xl text-white outline-none focus:border-unidas-primary transition-all font-bold appearance-none', validationErrors.includes('tipo_documento') ? 'border-red-500' : 'border-white/10')}
+                  >
+                    <option value="" className="bg-unidas-dark">--</option>
+                    {DOCUMENT_TYPES.map(dt => <option key={dt} value={dt} className="bg-unidas-dark">{dt}</option>)}
+                  </select>
                 </div>
-              </Card>
+                <FieldText label="N° DOCUMENTO" value={userData.document_number} onChange={(v) => { setUserData(d => ({ ...d, document_number: v })); setValidationErrors(e => e.filter(x => x !== 'document_number')); }} error={validationErrors.includes('document_number')} className="col-span-2" />
+              </div>
+              {isMinor && <p className="md:col-span-2 -mt-1 text-[10px] font-bold text-orange-400 uppercase tracking-widest">TI seleccionado · modo menor de edad activo</p>}
+
+              <FieldText label="CELULAR" value={userData.phone} onChange={(v) => setUserData(d => ({ ...d, phone: v }))} />
+              <FieldText label="CORREO ELECTRÓNICO" value={userData.email} onChange={(v) => setUserData(d => ({ ...d, email: v }))} />
+
+              <div className="md:col-span-2 space-y-2">
+                <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">DEFINIR CONTRASEÑA (PIN)</label>
+                <input type="password" value={userData.password} onChange={(e) => { setUserData(d => ({ ...d, password: e.target.value })); setValidationErrors(er => er.filter(x => x !== 'password')); }}
+                  className={cn('w-full bg-white/5 border p-4 rounded-2xl text-white outline-none focus:border-unidas-primary transition-all font-bold', validationErrors.includes('password') ? 'border-red-500' : 'border-white/10')} />
+              </div>
+
               <Card label="FECHA DE NACIMIENTO" subtitle="Día, mes y año." error={validationErrors.includes('fecha_nacimiento')} ageDisplay={userAge !== null ? `${userAge} Años` : null} className="md:col-span-2">
                 <DateSplit value={birthDate} onChange={(v) => { setBirthDate(v); setValidationErrors(e => e.filter(x => x !== 'fecha_nacimiento')); }} />
               </Card>

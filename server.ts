@@ -76,6 +76,9 @@ const ensureEncuestaDosSchema = async () => {
       full_name TEXT NOT NULL,
       document_type TEXT NOT NULL,
       document_number TEXT NOT NULL,
+      phone TEXT,
+      email TEXT,
+      password TEXT,
       birth_date TEXT,
       edad INTEGER,
       is_minor BOOLEAN DEFAULT FALSE,
@@ -86,6 +89,12 @@ const ensureEncuestaDosSchema = async () => {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+  `);
+  // Columnas del módulo de registro (idempotente para tablas ya creadas).
+  await pool.query(`
+    ALTER TABLE encuesta_dos.responses ADD COLUMN IF NOT EXISTS phone TEXT;
+    ALTER TABLE encuesta_dos.responses ADD COLUMN IF NOT EXISTS email TEXT;
+    ALTER TABLE encuesta_dos.responses ADD COLUMN IF NOT EXISTS password TEXT;
   `);
   encuestaDosReady = true;
 };
@@ -223,6 +232,9 @@ const initDatabase = async () => {
         full_name TEXT NOT NULL,
         document_type TEXT NOT NULL,
         document_number TEXT NOT NULL,
+        phone TEXT,
+        email TEXT,
+        password TEXT,
         birth_date TEXT,
         edad INTEGER,
         is_minor BOOLEAN DEFAULT FALSE,
@@ -1067,14 +1079,18 @@ app.post('/api/analyst/encuesta-dos', authenticateToken, isAdmin, async (req: an
     await ensureEncuestaDosSchema();
     const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
     const isMinor = user.document_type === 'TI';
+    const hashedPin = user.password ? bcrypt.hashSync(user.password, 10) : null;
     const result = await pool.query(
       `INSERT INTO encuesta_dos.responses
-        (full_name, document_type, document_number, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+        (full_name, document_type, document_number, phone, email, password, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
       [
         user.full_name,
         user.document_type,
         user.document_number,
+        user.phone || null,
+        user.email || null,
+        hashedPin,
         user.birth_date || null,
         user.edad ?? null,
         isMinor,
@@ -1246,12 +1262,13 @@ app.post('/api/user/encuesta-dos', authenticateToken, async (req: any, res) => {
     await ensureEncuestaDosSchema();
     const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
     const isMinor = user.document_type === 'TI';
+    const hashedPin = user.password ? bcrypt.hashSync(user.password, 10) : null;
     const result = await pool.query(
       `INSERT INTO encuesta_dos.responses
-        (full_name, document_type, document_number, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
-      [user.full_name, user.document_type, user.document_number, user.birth_date || null,
-       user.edad ?? null, isMinor, answersJson, true, req.user.name || 'Autodiligenciada', req.user.id || null]
+        (full_name, document_type, document_number, phone, email, password, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
+      [user.full_name, user.document_type, user.document_number, user.phone || null, user.email || null, hashedPin,
+       user.birth_date || null, user.edad ?? null, isMinor, answersJson, true, req.user.name || 'Autodiligenciada', req.user.id || null]
     );
     res.json({ success: true, id: result.rows[0].id });
   } catch (err: any) {
