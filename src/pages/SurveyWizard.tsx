@@ -10,6 +10,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { cn } from '../lib/utils';
 import { DocumentViewer } from '../components/DocumentViewer';
 import { SurveyTwoModal } from '../components/SurveyTwoModal';
+import { useLandingStore } from '../store/useLandingStore';
 
 const BARRIO_TO_UPL: Record<string, string> = {
   '7 de Agosto': 'Doce de Octubre',
@@ -143,13 +144,17 @@ export default function SurveyWizard() {
     }
   }, [birthDate]);
 
-  // Determinar qué encuesta está activa (flag del administrador)
+  // La encuesta activa SIGUE a la landing: 'component-4' -> Encuesta Dos,
+  // 'original' -> Encuesta Uno. Así nunca se desincronizan.
+  const { activeLanding, loading: landingLoading, fetchActiveLanding } = useLandingStore();
   useEffect(() => {
-    fetch('/api/settings/active_survey')
-      .then(r => r.json())
-      .then(d => setActiveSurvey(d.value === 'dos' ? 'dos' : 'uno'))
-      .catch(() => setActiveSurvey('uno'));
+    fetchActiveLanding();
   }, []);
+  useEffect(() => {
+    if (!landingLoading) {
+      setActiveSurvey(activeLanding === 'component-4' ? 'dos' : 'uno');
+    }
+  }, [activeLanding, landingLoading]);
 
   // Load initial data
   useEffect(() => {

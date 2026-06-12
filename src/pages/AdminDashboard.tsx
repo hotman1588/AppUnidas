@@ -662,7 +662,12 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (res.ok) {
         setActiveSurvey(data.value);
-        alert(`Encuesta activa: ${data.value === 'dos' ? 'Encuesta Dos' : 'Encuesta Uno'}`);
+        // Mantiene la landing acoplada: Encuesta Dos -> 'component-4', Uno -> 'original'.
+        const linkedLanding = data.value === 'dos' ? 'component-4' : 'original';
+        if (activeLanding !== linkedLanding) {
+          try { await setActiveLanding(linkedLanding); } catch (e) { console.error('No se pudo sincronizar la landing', e); }
+        }
+        alert(`Encuesta activa: ${data.value === 'dos' ? 'Encuesta Dos' : 'Encuesta Uno'} (landing: ${linkedLanding === 'component-4' ? 'Componente 4' : 'Original'})`);
       } else {
         alert(data.error || 'No se pudo cambiar la encuesta activa.');
       }
