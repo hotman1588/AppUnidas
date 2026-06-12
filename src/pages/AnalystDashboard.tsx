@@ -10,6 +10,7 @@ import { cn } from '../lib/utils';
 
 import { DocumentViewer } from '../components/DocumentViewer';
 import { PresentialSurveyModal } from '../components/PresentialSurveyModal';
+import { SurveyTwoModal } from '../components/SurveyTwoModal';
 
 export default function AnalystDashboard() {
   const { token } = useAuthStore();
@@ -29,6 +30,7 @@ export default function AnalystDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewerConfig, setViewerConfig] = useState<{ url: string; title: string } | null>(null);
   const [showPresentialModal, setShowPresentialModal] = useState(false);
+  const [showSurveyTwoModal, setShowSurveyTwoModal] = useState(false);
 
   useEffect(() => {
     fetchSurveys();
@@ -197,12 +199,22 @@ export default function AnalystDashboard() {
           <h1 className="text-4xl font-bold text-slate-900 font-display">Bandeja de Validación</h1>
           <p className="text-slate-500 font-medium">Revisión documental y encuesta social</p>
         </div>
-        <div className="flex items-center space-x-4 bg-amber-50 px-6 py-3 rounded-2xl border border-amber-100">
-           <Clock className="w-6 h-6 text-amber-600" />
-           <div>
-             <p className="text-2xl font-bold text-amber-700">{pendingCount}</p>
-             <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Pendientes por revisar</p>
-           </div>
+        <div className="flex flex-col items-end space-y-3">
+          <div className="flex items-center space-x-4 bg-amber-50 px-6 py-3 rounded-2xl border border-amber-100">
+             <Clock className="w-6 h-6 text-amber-600" />
+             <div>
+               <p className="text-2xl font-bold text-amber-700">{pendingCount}</p>
+               <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Pendientes por revisar</p>
+             </div>
+          </div>
+          {/* Botón Encuesta Dos — ubicado debajo del perfil del analista */}
+          <button
+            onClick={() => setShowSurveyTwoModal(true)}
+            className="w-full flex items-center justify-center space-x-2 bg-unidas-secondary text-white px-6 py-3 rounded-2xl font-bold hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-unidas-secondary/20"
+          >
+            <ClipboardList className="w-5 h-5" />
+            <span>Encuesta Dos</span>
+          </button>
         </div>
       </div>
 
@@ -620,6 +632,13 @@ export default function AnalystDashboard() {
           fetchSurveys();
           fetchUsers();
         }}
+        token={token}
+      />
+      {/* Encuesta Dos Modal */}
+      <SurveyTwoModal
+        isOpen={showSurveyTwoModal}
+        onClose={() => setShowSurveyTwoModal(false)}
+        onSuccess={() => fetchSurveys()}
         token={token}
       />
     </div>

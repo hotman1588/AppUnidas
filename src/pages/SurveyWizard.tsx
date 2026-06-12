@@ -9,6 +9,7 @@ import { supabase, OperationType, handleSupabaseError } from '../lib/supabase';
 import { useAuthStore } from '../store/useAuthStore';
 import { cn } from '../lib/utils';
 import { DocumentViewer } from '../components/DocumentViewer';
+import { SurveyTwoModal } from '../components/SurveyTwoModal';
 
 const BARRIO_TO_UPL: Record<string, string> = {
   '7 de Agosto': 'Doce de Octubre',
@@ -62,6 +63,7 @@ const STEPS = [
 
 export default function SurveyWizard() {
   const { user, token } = useAuthStore();
+  const [activeSurvey, setActiveSurvey] = useState<'uno' | 'dos' | null>(null);
   const [currentStep, setCurrentStep] = useState(() => {
     const saved = localStorage.getItem('survey_step');
     return saved ? parseInt(saved, 10) : 1;
@@ -140,6 +142,14 @@ export default function SurveyWizard() {
       });
     }
   }, [birthDate]);
+
+  // Determinar qué encuesta está activa (flag del administrador)
+  useEffect(() => {
+    fetch('/api/settings/active_survey')
+      .then(r => r.json())
+      .then(d => setActiveSurvey(d.value === 'dos' ? 'dos' : 'uno'))
+      .catch(() => setActiveSurvey('uno'));
+  }, []);
 
   // Load initial data
   useEffect(() => {
@@ -564,11 +574,25 @@ export default function SurveyWizard() {
     return Math.min(100, Math.round((filled / allFields.length) * 100));
   };
 
-  if (loading) return (
+  if (loading || activeSurvey === null) return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="animate-spin w-12 h-12 border-4 border-unidas-primary border-t-transparent rounded-full" />
     </div>
   );
+
+  // El administrador activó la Encuesta Dos: se sobrepone y reemplaza la Encuesta
+  // Uno para el usuario. Los datos de la Encuesta Uno NO se tocan (siguen en su tabla).
+  if (activeSurvey === 'dos') {
+    return (
+      <SurveyTwoModal
+        isOpen={true}
+        onClose={() => { window.location.href = '/dashboard'; }}
+        onSuccess={() => { window.location.href = '/dashboard?submitted=true'; }}
+        token={token}
+        submitEndpoint="/api/user/encuesta-dos"
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-unidas-dark pb-24 relative overflow-hidden">

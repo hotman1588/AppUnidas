@@ -99,6 +99,8 @@ export default function AdminDashboard() {
   const [userDocuments, setUserDocuments] = useState<any[]>([]);
   const [habeasDataPath, setHabeasDataPath] = useState<string | null>(null);
   const [uploadingHabeas, setUploadingHabeas] = useState(false);
+  const [activeSurvey, setActiveSurvey] = useState<'uno' | 'dos'>('uno');
+  const [switchingSurvey, setSwitchingSurvey] = useState(false);
   const [viewerConfig, setViewerConfig] = useState<{ url: string; title: string } | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [surveyHistory, setSurveyHistory] = useState<any[]>([]);
@@ -187,6 +189,12 @@ export default function AdminDashboard() {
 
       const analystsRes = await fetch('/api/admin/analysts-stats', { headers });
       if (analystsRes.ok) setAnalysts(await analystsRes.json());
+
+      const activeSurveyRes = await fetch('/api/settings/active_survey');
+      if (activeSurveyRes.ok) {
+        const d = await activeSurveyRes.json();
+        setActiveSurvey(d.value === 'dos' ? 'dos' : 'uno');
+      }
 
       const settingsRes = await fetch('/api/settings/habeas_data');
       if (settingsRes.ok) {
@@ -617,6 +625,35 @@ export default function AdminDashboard() {
       alert('Error en la comunicación con el servidor');
     } finally {
       setUploadingHabeas(false);
+    }
+  };
+
+  const switchActiveSurvey = async (value: 'uno' | 'dos') => {
+    if (user?.role !== 'admin') {
+      alert('Solo los administradores pueden cambiar la encuesta activa.');
+      return;
+    }
+    if (value === activeSurvey) return;
+    if (value === 'dos' && !window.confirm('¿Activar la Encuesta Dos? Los usuarios verán la Encuesta Dos en lugar de la Uno. Los registros de la Encuesta Uno permanecen intactos y descargables. Esta acción es reversible.')) return;
+    setSwitchingSurvey(true);
+    try {
+      const res = await fetch('/api/admin/settings/active-survey', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ value })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setActiveSurvey(data.value);
+        alert(`Encuesta activa: ${data.value === 'dos' ? 'Encuesta Dos' : 'Encuesta Uno'}`);
+      } else {
+        alert(data.error || 'No se pudo cambiar la encuesta activa.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error en la comunicación con el servidor.');
+    } finally {
+      setSwitchingSurvey(false);
     }
   };
 
@@ -1333,6 +1370,50 @@ export default function AdminDashboard() {
               <div>
                 <h3 className="text-4xl font-black text-white mb-3">Configuraciones Globales</h3>
                 <p className="text-white/30 font-medium italic">Gestión de parámetros y documentos legales del sistema</p>
+              </div>
+
+              {/* Encuesta Activa — interruptor controlado solo por administrador */}
+              <div className="bg-white/5 p-10 rounded-[4rem] border border-white/10 backdrop-blur-xl">
+                <div className="flex items-center space-x-6 mb-8">
+                  <div className="w-16 h-16 bg-unidas-secondary/10 rounded-3xl flex items-center justify-center text-unidas-secondary border border-unidas-secondary/20">
+                    <ClipboardCheck className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <h4 className="text-2xl font-black text-white mb-1">Encuesta Activa</h4>
+                    <p className="text-white/30 text-xs font-medium italic">Define qué formulario ven los usuarios. No afecta el inicio de sesión ni los datos ya capturados.</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col md:flex-row items-center gap-4">
+                  <div className="flex bg-white/5 p-1.5 rounded-2xl border border-white/10 w-full md:w-auto">
+                    <button
+                      onClick={() => switchActiveSurvey('uno')}
+                      disabled={switchingSurvey}
+                      className={cn('flex-1 md:flex-none px-8 py-4 rounded-xl text-sm font-black transition-all', activeSurvey === 'uno' ? 'bg-unidas-primary text-white shadow-lg shadow-unidas-primary/20' : 'text-white/40 hover:text-white/70')}
+                    >
+                      Encuesta Uno
+                    </button>
+                    <button
+                      onClick={() => switchActiveSurvey('dos')}
+                      disabled={switchingSurvey}
+                      className={cn('flex-1 md:flex-none px-8 py-4 rounded-xl text-sm font-black transition-all', activeSurvey === 'dos' ? 'bg-unidas-secondary text-white shadow-lg shadow-unidas-secondary/20' : 'text-white/40 hover:text-white/70')}
+                    >
+                      Encuesta Dos
+                    </button>
+                  </div>
+                  <div className="flex-grow text-center md:text-left">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-white/30">Activa actualmente</p>
+                    <p className="text-lg font-black text-white">{activeSurvey === 'dos' ? 'Encuesta Dos' : 'Encuesta Uno'}</p>
+                  </div>
+                  <button
+                    onClick={exportToExcel}
+                    className="w-full md:w-auto px-6 py-4 bg-white/5 border border-white/10 text-white font-black rounded-2xl flex items-center justify-center space-x-3 hover:bg-white/10 transition-all"
+                  >
+                    <Download className="w-5 h-5 text-green-400" />
+                    <span className="text-sm">Descargar Encuesta Uno (Excel)</span>
+                  </button>
+                </div>
+                <p className="text-white/20 text-[10px] font-medium italic mt-4">Los registros de la Encuesta Uno permanecen almacenados en su base y disponibles para descarga aunque se active la Encuesta Dos.</p>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">

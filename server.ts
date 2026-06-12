@@ -64,6 +64,32 @@ const pool = new Pool({
 });
 
 
+// Garantiza el esquema aislado de Encuesta Dos de forma idempotente. Se llama
+// al usar los endpoints, ya que initDatabase() no corre en este despliegue.
+let encuestaDosReady = false;
+const ensureEncuestaDosSchema = async () => {
+  if (encuestaDosReady) return;
+  await pool.query(`CREATE SCHEMA IF NOT EXISTS encuesta_dos;`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS encuesta_dos.responses (
+      id SERIAL PRIMARY KEY,
+      full_name TEXT NOT NULL,
+      document_type TEXT NOT NULL,
+      document_number TEXT NOT NULL,
+      birth_date TEXT,
+      edad INTEGER,
+      is_minor BOOLEAN DEFAULT FALSE,
+      answers JSONB DEFAULT '{}',
+      habeas_data_accepted BOOLEAN DEFAULT FALSE,
+      analyst_name TEXT,
+      analyst_id INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  encuestaDosReady = true;
+};
+
 const initDatabase = async () => {
   try {
     console.log('Running database migrations...');
@@ -185,6 +211,29 @@ const initDatabase = async () => {
         value TEXT NOT NULL
       );
     `).catch(err => console.error('Migration Error (settings):', err.message));
+
+    // 10. ENCUESTA DOS — Esquema completamente aislado de la Encuesta Uno (producción).
+    //     Vive en su propio schema 'encuesta_dos'. Las cajas de texto condicionales se
+    //     guardan dentro de 'answers' (JSONB) sin límite de caracteres.
+    await pool.query(`CREATE SCHEMA IF NOT EXISTS encuesta_dos;`)
+      .catch(err => console.error('Migration Error (encuesta_dos schema):', err.message));
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS encuesta_dos.responses (
+        id SERIAL PRIMARY KEY,
+        full_name TEXT NOT NULL,
+        document_type TEXT NOT NULL,
+        document_number TEXT NOT NULL,
+        birth_date TEXT,
+        edad INTEGER,
+        is_minor BOOLEAN DEFAULT FALSE,
+        answers JSONB DEFAULT '{}',
+        habeas_data_accepted BOOLEAN DEFAULT FALSE,
+        analyst_name TEXT,
+        analyst_id INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(err => console.error('Migration Error (encuesta_dos.responses):', err.message));
 
     console.log('Database migrations completed successfully.');
   } catch (err: any) {
@@ -348,8 +397,12 @@ app.patch('/api/user/password', authenticateToken, async (req: any, res) => {
 });
 
 app.get(['/api/user/survey', '/api/usuario/encuesta'], authenticateToken, async (req: any, res) => {
-  const r = await pool.query('SELECT * FROM surveys WHERE user_id = $1', [req.user.id]);
-  res.json(r.rows[0] || { status: 'pending_start', answers: {}, current_step: 1 });
+  try {
+    const r = await pool.query('SELECT * FROM surveys WHERE user_id = $1', [req.user.id]);
+    res.json(r.rows[0] || { status: 'pending_start', answers: {}, current_step: 1 });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/user/survey/save', authenticateToken, async (req: any, res) => {
@@ -376,8 +429,12 @@ app.post('/api/user/survey/submit', authenticateToken, async (req: any, res) => 
 });
 
 app.get(['/api/user/survey/history', '/api/usuario/historial/encuesta'], authenticateToken, async (req: any, res) => {
-  const r = await pool.query('SELECT * FROM survey_history WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
-  res.json(r.rows);
+  try {
+    const r = await pool.query('SELECT * FROM survey_history WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]);
+    res.json(r.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/user/events', authenticateToken, async (req: any, res) => {
@@ -613,9 +670,13 @@ app.get('/api/admin/surveys', authenticateToken, isAdmin, async (req, res) => {
 });
 
 app.get('/api/admin/news', authenticateToken, isAdmin, async (req, res) => {
-  const q = 'SELECT * FROM news ORDER BY created_at DESC';
-  const r = await pool.query(q);
-  res.json(r.rows);
+  try {
+    const q = 'SELECT * FROM news ORDER BY created_at DESC';
+    const r = await pool.query(q);
+    res.json(r.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/admin/events', authenticateToken, isAdmin, async (req, res) => {
@@ -985,6 +1046,62 @@ app.post('/api/analyst/register-complete-characterization', authenticateToken, i
   }
 });
 
+// ============================================================================
+// ENCUESTA DOS — Endpoints aislados (schema encuesta_dos). No tocan 'surveys'
+// ni 'users' de producción (Encuesta Uno). Cero impacto.
+// ============================================================================
+app.post('/api/analyst/encuesta-dos', authenticateToken, isAdmin, async (req: any, res: any) => {
+  const { user, answers, habeas_data_accepted } = req.body;
+
+  if (!user || !user.document_number || !user.full_name || !user.document_type) {
+    return res.status(400).json({
+      error: `Faltan datos requeridos. 'full_name', 'document_number' y 'document_type' son obligatorios. Recibido: ${JSON.stringify(user || {})}`
+    });
+  }
+
+  if (!habeas_data_accepted) {
+    return res.status(400).json({ error: 'Debe aceptarse el tratamiento de datos (Habeas Data) para guardar la encuesta.' });
+  }
+
+  try {
+    await ensureEncuestaDosSchema();
+    const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
+    const isMinor = user.document_type === 'TI';
+    const result = await pool.query(
+      `INSERT INTO encuesta_dos.responses
+        (full_name, document_type, document_number, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+      [
+        user.full_name,
+        user.document_type,
+        user.document_number,
+        user.birth_date || null,
+        user.edad ?? null,
+        isMinor,
+        answersJson,
+        true,
+        req.user.name || null,
+        req.user.id || null
+      ]
+    );
+    res.json({ success: true, id: result.rows[0].id });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/analyst/encuesta-dos', authenticateToken, isAdmin, async (_req: any, res: any) => {
+  try {
+    await ensureEncuestaDosSchema();
+    const r = await pool.query(
+      'SELECT id, full_name, document_type, document_number, edad, is_minor, answers, analyst_name, created_at FROM encuesta_dos.responses ORDER BY created_at DESC'
+    );
+    res.json(r.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.patch('/api/admin/users/:id', authenticateToken, isAdmin, async (req: any, res: any) => {
   const { full_name, document_type, document_number, phone, email, password, role } = req.body;
   try {
@@ -1010,8 +1127,12 @@ app.patch('/api/admin/users/:id', authenticateToken, isAdmin, async (req: any, r
 });
 
 app.patch('/api/admin/users/:id/role', authenticateToken, isAdmin, async (req, res) => {
-  await pool.query('UPDATE users SET role = $1 WHERE id = $2', [req.body.role, req.params.id]);
-  res.json({ success: true });
+  try {
+    await pool.query('UPDATE users SET role = $1 WHERE id = $2', [req.body.role, req.params.id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.delete('/api/admin/users/bulk', authenticateToken, requireAdminOnly, async (req: any, res: any) => {
@@ -1078,18 +1199,82 @@ app.post('/api/admin/settings/upload', authenticateToken, isAdmin, upload.single
 });
 
 app.get('/api/settings/habeas_data', async (req, res) => {
-  const r = await pool.query("SELECT value FROM settings WHERE key = 'habeas_data'");
-  res.json(r.rows[0] || { value: '/habeas_data.pdf' });
+  try {
+    const r = await pool.query("SELECT value FROM settings WHERE key = 'habeas_data'");
+    res.json(r.rows[0] || { value: '/habeas_data.pdf' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---- Encuesta activa (flag controlado por el administrador) ----
+// Lectura pública: define qué encuesta ven los usuarios ('uno' por defecto).
+app.get('/api/settings/active_survey', async (_req, res) => {
+  try {
+    const r = await pool.query("SELECT value FROM settings WHERE key = 'active_survey'");
+    res.json({ value: r.rows[0]?.value === 'dos' ? 'dos' : 'uno' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Escritura SOLO administrador. No toca datos de encuestas: solo cambia el flag.
+app.post('/api/admin/settings/active-survey', authenticateToken, requireAdminOnly, async (req: any, res) => {
+  const value = req.body?.value === 'dos' ? 'dos' : 'uno';
+  try {
+    await pool.query(
+      "INSERT INTO settings (key, value) VALUES ('active_survey', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+      [value]
+    );
+    res.json({ success: true, value });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Submisión de Encuesta Dos por un usuario autenticado (cuando es la encuesta activa).
+// Inserta en el mismo esquema aislado encuesta_dos.responses. No toca 'surveys'.
+app.post('/api/user/encuesta-dos', authenticateToken, async (req: any, res) => {
+  const { user, answers, habeas_data_accepted } = req.body;
+  if (!user || !user.document_number || !user.full_name || !user.document_type) {
+    return res.status(400).json({ error: "Faltan datos requeridos: 'full_name', 'document_number' y 'document_type'." });
+  }
+  if (!habeas_data_accepted) {
+    return res.status(400).json({ error: 'Debe aceptarse el tratamiento de datos (Habeas Data) para guardar la encuesta.' });
+  }
+  try {
+    await ensureEncuestaDosSchema();
+    const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
+    const isMinor = user.document_type === 'TI';
+    const result = await pool.query(
+      `INSERT INTO encuesta_dos.responses
+        (full_name, document_type, document_number, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+      [user.full_name, user.document_type, user.document_number, user.birth_date || null,
+       user.edad ?? null, isMinor, answersJson, true, req.user.name || 'Autodiligenciada', req.user.id || null]
+    );
+    res.json({ success: true, id: result.rows[0].id });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get(['/api/news', '/api/noticias'], async (req, res) => {
-  const r = await pool.query('SELECT * FROM news WHERE is_active = 1 ORDER BY created_at DESC');
-  res.json(r.rows);
+  try {
+    const r = await pool.query('SELECT * FROM news WHERE is_active = 1 ORDER BY created_at DESC');
+    res.json(r.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get(['/api/events', '/api/eventos'], async (req, res) => {
-  const r = await pool.query('SELECT * FROM events WHERE is_active = 1 ORDER BY date ASC');
-  res.json(r.rows);
+  try {
+    const r = await pool.query('SELECT * FROM events WHERE is_active = 1 ORDER BY date ASC');
+    res.json(r.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // SPA
@@ -1108,6 +1293,19 @@ if (fs.existsSync(dist)) {
 //   await pool.query('INSERT INTO users (full_name, document_type, document_number, email, password, role) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (document_number) DO UPDATE SET password = $5, role = $6', ['Administrador Principal', 'CC', '1016016370', 'admin@unidas.social', pass, 'admin']).catch(() => {});
 //   await pool.query("INSERT INTO settings (key, value) VALUES ('habeas_data', '/habeas_data.pdf') ON CONFLICT DO NOTHING").catch(() => {});
 // });
+
+// Global error-handling middleware: cualquier error pasado por next() o lanzado
+// en una ruta termina aquí como 500 en lugar de dejar la petición colgada.
+app.use((err: any, _req: any, res: any, _next: any) => {
+  console.error('Unhandled route error:', err?.message || err);
+  if (!res.headersSent) res.status(500).json({ error: err?.message || 'Internal server error' });
+});
+
+// Última red de seguridad: una promesa rechazada no atrapada (ej. fallo de BD en
+// una ruta sin try/catch) NO debe tumbar el proceso del servidor.
+process.on('unhandledRejection', (reason: any) => {
+  console.error('Unhandled promise rejection:', reason?.message || reason);
+});
 
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   app.listen(PORT, () => console.log(`Server: ${PORT}`));
