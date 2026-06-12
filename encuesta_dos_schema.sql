@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS encuesta_dos.responses (
   habeas_data_accepted BOOLEAN DEFAULT FALSE,
   analyst_name TEXT,
   analyst_id INTEGER,
+  user_id INTEGER,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
