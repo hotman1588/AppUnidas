@@ -144,7 +144,7 @@ export default function Navbar() {
                     <div className="text-left">
                       <p className="text-sm font-black text-white leading-none mb-1">{user.name}</p>
                       <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest">
-                        {user.role === 'admin' ? 'Administrador' : user.role === 'analyst' ? 'Analista' : user.role === 'user' ? 'Cuidadora' : user.role}
+                        {user.role === 'admin' ? 'Administrador' : user.role === 'analyst' ? 'Recolector' : user.role === 'user' ? 'Cuidadora' : user.role}
                       </p>
                     </div>
                     <ChevronDown className={`w-4 h-4 text-white/50 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />

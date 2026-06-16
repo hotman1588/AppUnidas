@@ -110,6 +110,54 @@ export default function AdminDashboard() {
   const [landingError, setLandingError] = useState('');
   const [landingSaving, setLandingSaving] = useState(false);
 
+  // Acciones destructivas (Supabase): limpieza de usuarios y reset de encuestas.
+  // Requieren confirmación estricta escribiendo la palabra clave antes de ejecutar.
+  const [dangerAction, setDangerAction] = useState<null | 'cleanup' | 'reset'>(null);
+  const [dangerConfirmText, setDangerConfirmText] = useState('');
+  const [dangerLoading, setDangerLoading] = useState(false);
+
+  const dangerConfig = {
+    cleanup: {
+      title: 'Limpieza de Usuarios',
+      keyword: 'ELIMINAR USUARIOS',
+      endpoint: '/api/admin/users/cleanup',
+      warning: 'Esto eliminará de forma DEFINITIVA en Supabase a todos los usuarios y sus registros (encuestas, documentos, eventos), EXCEPTO los Administradores. Esta acción no se puede deshacer.'
+    },
+    reset: {
+      title: 'Reset de Encuestas',
+      keyword: 'RESET ENCUESTAS',
+      endpoint: '/api/admin/surveys/reset',
+      warning: 'Esto eliminará de forma DEFINITIVA en Supabase todas las respuestas de la Encuesta 1 y la Encuesta 2. Los usuarios NO se eliminan. Esta acción no se puede deshacer.'
+    }
+  } as const;
+
+  const executeDangerAction = async () => {
+    if (!dangerAction) return;
+    const cfg = dangerConfig[dangerAction];
+    if (dangerConfirmText.trim() !== cfg.keyword) return;
+    setDangerLoading(true);
+    try {
+      const res = await fetch(cfg.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'No se pudo completar la acción');
+      if (dangerAction === 'cleanup') {
+        alert(`Limpieza completada. Usuarios eliminados: ${data.deletedCount ?? 0}.`);
+      } else {
+        alert(`Reset completado. Encuesta 1: ${data.deletedEncuestaUno ?? 0} · Encuesta 2: ${data.deletedEncuestaDos ?? 0}.`);
+      }
+      setDangerAction(null);
+      setDangerConfirmText('');
+      fetchData();
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setDangerLoading(false);
+    }
+  };
+
   const handleSetLanding = async (page: typeof activeLanding) => {
     setLandingError('');
     setLandingSaving(true);
@@ -722,7 +770,7 @@ export default function AdminDashboard() {
         'ID Encuesta': s.id,
         'Nombre Cuidadora': s.user_name || s.full_name,
         'Documento': s.document_number,
-        'Rol Activo': s.user_role === 'admin' ? 'Administrador' : s.user_role === 'analyst' ? 'Analista' : 'Cuidadora',
+        'Rol Activo': s.user_role === 'admin' ? 'Administrador' : s.user_role === 'analyst' ? 'Recolector' : 'Cuidadora',
         'Estado': s.status === 'approved' ? 'Aprobada' : s.status === 'pending' ? 'Pendiente' : 'Borrador',
         'Fecha Actualización': new Date(s.updated_at).toLocaleDateString(),
       };
@@ -785,7 +833,7 @@ export default function AdminDashboard() {
       const rows: any[] = await res.json();
       if (!Array.isArray(rows) || rows.length === 0) { alert('Aún no hay registros de la Encuesta Dos para exportar.'); return; }
 
-      const baseHeaders = ['ID', 'Nombre Completo', 'Tipo Documento', 'N° Documento', 'Celular', 'Correo', 'Edad', 'Menor (TI)', 'Analista', 'Fecha'];
+      const baseHeaders = ['ID', 'Nombre Completo', 'Tipo Documento', 'N° Documento', 'Celular', 'Correo', 'Edad', 'Menor (TI)', 'Recolector', 'Fecha'];
       const orderedHeaders = [...baseHeaders];
       // Mapa id de pregunta -> 'MÓDULO N. TÍTULO - Etiqueta'
       const fieldMap: Record<string, string> = {};
@@ -812,7 +860,7 @@ export default function AdminDashboard() {
           'Correo': r.email || '',
           'Edad': r.edad ?? '',
           'Menor (TI)': r.is_minor ? 'Sí' : 'No',
-          'Analista': r.analyst_name || '',
+          'Recolector': r.analyst_name || '',
           'Fecha': r.created_at ? new Date(r.created_at).toLocaleDateString() : '',
         };
         const ans = r.answers && typeof r.answers === 'object' ? r.answers : {};
@@ -860,7 +908,7 @@ export default function AdminDashboard() {
           <SidebarItem active={activeTab === 'users'} onClick={() => setActiveTab('users')} icon={Users} label="Usuarios y Roles" />
           <SidebarItem active={activeTab === 'caracterizacion'} onClick={() => setActiveTab('caracterizacion')} icon={ClipboardCheck} label="Encuesta" />
           <SidebarItem active={activeTab === 'events'} onClick={() => setActiveTab('events')} icon={Calendar} label="Eventos" />
-          <SidebarItem active={activeTab === 'analysts'} onClick={() => setActiveTab('analysts')} icon={Shield} label="Bandeja de Analistas" />
+          <SidebarItem active={activeTab === 'analysts'} onClick={() => setActiveTab('analysts')} icon={Shield} label="Bandeja de Recolectores" />
           <SidebarItem active={activeTab === 'news'} onClick={() => setActiveTab('news')} icon={Bell} label="Noticias" />
           <div className="pt-10">
              <SidebarItem active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={Settings} label="Configuración" />
@@ -1158,7 +1206,7 @@ export default function AdminDashboard() {
                             )}
                           >
                             <option value="user" className="bg-unidas-dark">Cuidadora</option>
-                            <option value="analyst" className="bg-unidas-dark">Analista</option>
+                            <option value="analyst" className="bg-unidas-dark">Recolector</option>
                             <option value="admin" className="bg-unidas-dark">Administrador</option>
                           </select>
                         </td>
@@ -1305,8 +1353,8 @@ export default function AdminDashboard() {
           {activeTab === 'analysts' && (
             <div className="space-y-12">
               <div>
-                <h3 className="text-4xl font-black text-white mb-3">Bandeja de Analistas</h3>
-                <p className="text-white/30 font-medium italic">Supervisión de casos en revisión por los analistas</p>
+                <h3 className="text-4xl font-black text-white mb-3">Bandeja de Recolectores</h3>
+                <p className="text-white/30 font-medium italic">Supervisión de casos en revisión por los recolectores</p>
               </div>
 
               {/* Analysts Summary Cards */}
@@ -1314,7 +1362,7 @@ export default function AdminDashboard() {
                 {analysts.length > 0 && (
                   <>
                     <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
-                      <p className="text-[10px] text-white/40 uppercase tracking-widest font-black mb-3">Total de Analistas</p>
+                      <p className="text-[10px] text-white/40 uppercase tracking-widest font-black mb-3">Total de Recolectores</p>
                       <p className="text-5xl font-black text-unidas-primary">{analysts.length}</p>
                     </div>
                     <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
@@ -1336,13 +1384,13 @@ export default function AdminDashboard() {
               {/* Analysts Table */}
               <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
                 <div className="p-8 border-b border-white/5 bg-white/2">
-                  <h4 className="text-2xl font-black text-white">Detalle de Analistas</h4>
+                  <h4 className="text-2xl font-black text-white">Detalle de Recolectores</h4>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-white/2 border-b border-white/5">
                       <tr>
-                        <th className="px-8 py-5 text-left text-[10px] font-black text-white/40 uppercase tracking-widest">Analista</th>
+                        <th className="px-8 py-5 text-left text-[10px] font-black text-white/40 uppercase tracking-widest">Recolector</th>
                         <th className="px-8 py-5 text-center text-[10px] font-black text-white/40 uppercase tracking-widest">Aprobadas</th>
                         <th className="px-8 py-5 text-center text-[10px] font-black text-white/40 uppercase tracking-widest">Pendientes</th>
                         <th className="px-8 py-5 text-center text-[10px] font-black text-white/40 uppercase tracking-widest">Rechazadas</th>
@@ -1392,7 +1440,7 @@ export default function AdminDashboard() {
                 {analysts.length === 0 && (
                   <div className="p-16 text-center">
                     <Shield className="w-16 h-16 text-white/10 mx-auto mb-4" />
-                    <p className="text-white/30 font-medium">No hay analistas registrados en el sistema</p>
+                    <p className="text-white/30 font-medium">No hay recolectores registrados en el sistema</p>
                   </div>
                 )}
               </div>
@@ -1508,6 +1556,45 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 <p className="text-white/20 text-[10px] font-medium italic mt-4">Los registros de la Encuesta Uno permanecen almacenados en su base y disponibles para descarga aunque se active la Encuesta Dos.</p>
+              </div>
+
+              {/* Zona de Peligro — acciones destructivas directas sobre Supabase */}
+              <div className="bg-red-500/5 p-10 rounded-[4rem] border border-red-500/30 backdrop-blur-xl">
+                <div className="flex items-center space-x-6 mb-8">
+                  <div className="w-16 h-16 bg-red-500/10 rounded-3xl flex items-center justify-center text-red-500 border border-red-500/30">
+                    <AlertCircle className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <h4 className="text-2xl font-black text-white mb-1">Zona de Peligro</h4>
+                    <p className="text-white/30 text-xs font-medium italic">Acciones irreversibles que eliminan datos directamente en Supabase. Solo administradores.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-6 bg-white/5 rounded-3xl border border-red-500/10 flex flex-col">
+                    <p className="text-white font-black mb-1">Limpieza de Usuarios</p>
+                    <p className="text-white/40 text-xs font-medium mb-5 flex-grow">Elimina todos los usuarios y sus registros, excepto los Administradores.</p>
+                    <button
+                      onClick={() => { setDangerAction('cleanup'); setDangerConfirmText(''); }}
+                      className="w-full py-4 bg-red-500/20 border border-red-500/40 text-red-300 font-black rounded-2xl flex items-center justify-center space-x-2 hover:bg-red-500/30 transition-all"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                      <span className="text-sm">Limpiar Usuarios</span>
+                    </button>
+                  </div>
+
+                  <div className="p-6 bg-white/5 rounded-3xl border border-red-500/10 flex flex-col">
+                    <p className="text-white font-black mb-1">Reset de Encuestas</p>
+                    <p className="text-white/40 text-xs font-medium mb-5 flex-grow">Elimina todas las respuestas de la Encuesta 1 y la Encuesta 2.</p>
+                    <button
+                      onClick={() => { setDangerAction('reset'); setDangerConfirmText(''); }}
+                      className="w-full py-4 bg-red-500/20 border border-red-500/40 text-red-300 font-black rounded-2xl flex items-center justify-center space-x-2 hover:bg-red-500/30 transition-all"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                      <span className="text-sm">Resetear Encuestas</span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
@@ -1662,11 +1749,68 @@ export default function AdminDashboard() {
 
       <AnimatePresence>
         {viewerConfig && (
-          <DocumentViewer 
-            url={viewerConfig.url} 
-            title={viewerConfig.title} 
-            onClose={() => setViewerConfig(null)} 
+          <DocumentViewer
+            url={viewerConfig.url}
+            title={viewerConfig.title}
+            onClose={() => setViewerConfig(null)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Modal de confirmación estricta para acciones destructivas en Supabase */}
+      <AnimatePresence>
+        {dangerAction && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9998] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => !dangerLoading && setDangerAction(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+              className="bg-unidas-dark border border-red-500/40 rounded-[2.5rem] p-10 max-w-lg w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center space-x-4 mb-6">
+                <div className="w-14 h-14 bg-red-500/15 rounded-2xl flex items-center justify-center text-red-500 border border-red-500/30">
+                  <AlertCircle className="w-7 h-7" />
+                </div>
+                <h3 className="text-2xl font-black text-white">{dangerConfig[dangerAction].title}</h3>
+              </div>
+
+              <p className="text-white/60 text-sm font-medium leading-relaxed mb-6">
+                {dangerConfig[dangerAction].warning}
+              </p>
+
+              <p className="text-white/40 text-xs font-bold uppercase tracking-widest mb-2">
+                Para confirmar, escribe: <span className="text-red-400">{dangerConfig[dangerAction].keyword}</span>
+              </p>
+              <input
+                type="text"
+                value={dangerConfirmText}
+                onChange={(e) => setDangerConfirmText(e.target.value)}
+                placeholder={dangerConfig[dangerAction].keyword}
+                autoFocus
+                className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold focus:outline-none focus:border-red-500/50 mb-6"
+              />
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDangerAction(null)}
+                  disabled={dangerLoading}
+                  className="flex-1 py-4 bg-white/5 border border-white/10 text-white font-black rounded-2xl hover:bg-white/10 transition-all disabled:opacity-40"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={executeDangerAction}
+                  disabled={dangerLoading || dangerConfirmText.trim() !== dangerConfig[dangerAction].keyword}
+                  className="flex-1 py-4 bg-red-500 text-white font-black rounded-2xl hover:bg-red-600 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  {dangerLoading ? 'Ejecutando...' : 'Eliminar definitivamente'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -1810,7 +1954,7 @@ export default function AdminDashboard() {
                             : "bg-white/5 border-white/5 text-white/30 hover:bg-white/10"
                         )}
                       >
-                        {r === 'user' ? 'Mujer' : r === 'analyst' ? 'Analista' : 'Admin'}
+                        {r === 'user' ? 'Mujer' : r === 'analyst' ? 'Recolector' : 'Admin'}
                       </button>
                     ))}
                   </div>
@@ -2272,7 +2416,7 @@ export default function AdminDashboard() {
                 <SidebarItem active={activeTab === 'users'} onClick={() => { setActiveTab('users'); setMobileMenuOpen(false); }} icon={Users} label="Usuarios y Roles" />
                 <SidebarItem active={activeTab === 'caracterizacion'} onClick={() => { setActiveTab('caracterizacion'); setMobileMenuOpen(false); }} icon={ClipboardCheck} label="Encuesta" />
                 <SidebarItem active={activeTab === 'events'} onClick={() => { setActiveTab('events'); setMobileMenuOpen(false); }} icon={Calendar} label="Eventos" />
-                <SidebarItem active={activeTab === 'analysts'} onClick={() => { setActiveTab('analysts'); setMobileMenuOpen(false); }} icon={Shield} label="Bandeja de Analistas" />
+                <SidebarItem active={activeTab === 'analysts'} onClick={() => { setActiveTab('analysts'); setMobileMenuOpen(false); }} icon={Shield} label="Bandeja de Recolectores" />
                 <SidebarItem active={activeTab === 'news'} onClick={() => { setActiveTab('news'); setMobileMenuOpen(false); }} icon={Bell} label="Noticias" />
                 <div className="pt-10">
                    <SidebarItem active={activeTab === 'settings'} onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }} icon={Settings} label="Configuración" />

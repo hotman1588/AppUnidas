@@ -97,7 +97,18 @@ const ensureEncuestaDosSchema = async () => {
     ALTER TABLE encuesta_dos.responses ADD COLUMN IF NOT EXISTS password TEXT;
     ALTER TABLE encuesta_dos.responses ADD COLUMN IF NOT EXISTS user_id INTEGER;
   `);
+  // Trazabilidad Habeas Data: fecha/hora exacta de aceptación.
+  await pool.query(`ALTER TABLE encuesta_dos.responses ADD COLUMN IF NOT EXISTS habeas_accepted_at TIMESTAMP;`);
   encuestaDosReady = true;
+};
+
+// Garantiza la columna de trazabilidad Habeas Data en la tabla 'surveys' (Encuesta Uno).
+// initDatabase() no corre en este despliegue, por eso se asegura en tiempo de ejecución.
+let habeasTraceReady = false;
+const ensureHabeasTrace = async () => {
+  if (habeasTraceReady) return;
+  await pool.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS habeas_accepted_at TIMESTAMP;`);
+  habeasTraceReady = true;
 };
 
 // Crea o actualiza el usuario en la base 'users' a partir del registro de la
@@ -441,9 +452,19 @@ app.get(['/api/user/survey', '/api/usuario/encuesta'], authenticateToken, async 
 app.post('/api/user/survey/save', authenticateToken, async (req: any, res) => {
   const { answers, step, habeas_data_accepted } = req.body;
   try {
+    await ensureHabeasTrace();
     const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
+    // Trazabilidad: al aceptar, se fija el timestamp una sola vez (COALESCE conserva
+    // el primero); si se desmarca, se limpia el registro.
     await pool.query(
-      'INSERT INTO surveys (user_id, answers, current_step, habeas_data_accepted) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO UPDATE SET answers = $2, current_step = $3, habeas_data_accepted = $4, updated_at = CURRENT_TIMESTAMP',
+      `INSERT INTO surveys (user_id, answers, current_step, habeas_data_accepted, habeas_accepted_at)
+       VALUES ($1, $2, $3, $4, CASE WHEN $4 = 1 THEN CURRENT_TIMESTAMP ELSE NULL END)
+       ON CONFLICT (user_id) DO UPDATE SET
+         answers = $2,
+         current_step = $3,
+         habeas_data_accepted = $4,
+         habeas_accepted_at = CASE WHEN $4 = 1 THEN COALESCE(surveys.habeas_accepted_at, CURRENT_TIMESTAMP) ELSE NULL END,
+         updated_at = CURRENT_TIMESTAMP`,
       [req.user.id, answersJson, step || 1, habeas_data_accepted ? 1 : 0]
     );
     res.json({ success: true });
@@ -1105,8 +1126,8 @@ app.post('/api/analyst/encuesta-dos', authenticateToken, isAdmin, async (req: an
     const surveyUserId = await upsertSurveyUser(user);
     const result = await pool.query(
       `INSERT INTO encuesta_dos.responses
-        (full_name, document_type, document_number, phone, email, password, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id, user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
+        (full_name, document_type, document_number, phone, email, password, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id, user_id, habeas_accepted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP) RETURNING id`,
       [
         user.full_name,
         user.document_type,
@@ -1198,6 +1219,43 @@ app.delete('/api/admin/users/:id', authenticateToken, requireAdminOnly, async (r
   }
 });
 
+// Limpieza de Usuarios: borra de forma masiva todos los usuarios EXCEPTO los
+// administradores (rol 'admin'), junto con sus registros relacionados y archivos.
+// Solo administrador. Requiere confirmación estricta en el front.
+app.post('/api/admin/users/cleanup', authenticateToken, requireAdminOnly, async (_req: any, res: any) => {
+  try {
+    const ids = await pool.query("SELECT id FROM users WHERE role IS DISTINCT FROM 'admin'");
+    const userIds = ids.rows.map((r: any) => String(r.id));
+    if (userIds.length === 0) return res.json({ success: true, deletedCount: 0 });
+    const result = await deleteUsersWithRecords(userIds);
+    await cleanupUserFiles(result.filePaths);
+    res.json({ success: true, deletedCount: result.deletedCount });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Reset de Encuestas: elimina de manera definitiva TODAS las respuestas de la
+// Encuesta 1 (tablas surveys / survey_history) y la Encuesta 2 (encuesta_dos.responses).
+// No toca usuarios. Solo administrador. Requiere confirmación estricta en el front.
+app.post('/api/admin/surveys/reset', authenticateToken, requireAdminOnly, async (_req: any, res: any) => {
+  const client = await pool.connect();
+  try {
+    await ensureEncuestaDosSchema();
+    await client.query('BEGIN');
+    await client.query('DELETE FROM survey_history');
+    const uno = await client.query('DELETE FROM surveys RETURNING id');
+    const dos = await client.query('DELETE FROM encuesta_dos.responses RETURNING id');
+    await client.query('COMMIT');
+    res.json({ success: true, deletedEncuestaUno: uno.rowCount || 0, deletedEncuestaDos: dos.rowCount || 0 });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Settings & Public
 app.post('/api/admin/settings/upload', authenticateToken, isAdmin, upload.single('file'), async (req: any, res: any) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
@@ -1242,7 +1300,7 @@ app.post('/api/admin/settings/upload', authenticateToken, isAdmin, upload.single
 app.get('/api/settings/habeas_data', async (req, res) => {
   try {
     const r = await pool.query("SELECT value FROM settings WHERE key = 'habeas_data'");
-    res.json(r.rows[0] || { value: '/habeas_data.pdf' });
+    res.json(r.rows[0] || { value: '/tratamiento_datos_hd.pdf' });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -1292,8 +1350,8 @@ app.post('/api/user/encuesta-dos', authenticateToken, async (req: any, res) => {
     const surveyUserId = await upsertSurveyUser(user);
     const result = await pool.query(
       `INSERT INTO encuesta_dos.responses
-        (full_name, document_type, document_number, phone, email, password, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id, user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
+        (full_name, document_type, document_number, phone, email, password, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id, user_id, habeas_accepted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP) RETURNING id`,
       [user.full_name, user.document_type, user.document_number, user.phone || null, user.email || null, hashedPin,
        user.birth_date || null, user.edad ?? null, isMinor, answersJson, true, req.user.name || 'Autodiligenciada', req.user.id || null, surveyUserId]
     );

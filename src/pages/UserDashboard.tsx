@@ -129,7 +129,7 @@ export default function UserDashboard() {
           icon: Clock, 
           label: 'En Validación', 
           color: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-          desc: 'Un analista social está revisando tu información. Te notificaremos pronto.' 
+          desc: 'Un recolector está revisando tu información. Te notificaremos pronto.' 
         };
       case 'approved': 
         return { 
@@ -375,7 +375,7 @@ export default function UserDashboard() {
                   </div>
                   <h4 className="text-2xl font-black text-white mb-4">Módulo de Eventos Bloqueado</h4>
                   <p className="text-white/40 max-w-sm mx-auto font-medium text-lg leading-relaxed">
-                    Podrás inscribirte a eventos institucionales una vez que tu encuesta sea aprobada por un analista.
+                    Podrás inscribirte a eventos institucionales una vez que tu encuesta sea aprobada por un recolector.
                   </p>
                 </div>
               )}

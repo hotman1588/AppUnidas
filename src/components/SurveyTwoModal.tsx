@@ -33,7 +33,16 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
   const [birthDate, setBirthDate] = useState({ day: '', month: '', year: '' });
   const [answers, setAnswers] = useState<any>({});
   const [habeasAccepted, setHabeasAccepted] = useState(false);
+  const [habeasDataUrl, setHabeasDataUrl] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
+  // Link único al documento completo de Política de Tratamiento de Datos.
+  useEffect(() => {
+    fetch('/api/settings/habeas_data')
+      .then(r => r.json())
+      .then(d => setHabeasDataUrl(d?.value || null))
+      .catch(() => {});
+  }, []);
 
   const docType = answers.tipo_documento || '';
   const isMinor = docType === 'TI';
@@ -313,7 +322,18 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
             <div className="space-y-4">
               <div className={cn('p-6 rounded-3xl border', validationErrors.includes('habeas_data') ? 'border-red-500/50 bg-red-500/5' : 'border-white/10 bg-white/5')}>
                 <h3 className="text-lg font-black text-white mb-2 flex items-center space-x-2"><FileText className="w-5 h-5 text-unidas-primary" /><span>Tratamiento de Datos (Habeas Data)</span></h3>
-                <p className="text-white/50 text-sm mb-4 leading-relaxed">Aceptación obligatoria para poder guardar la encuesta.</p>
+                <p className="text-white/50 text-sm mb-4 leading-relaxed">Consulta el documento completo y acepta para poder guardar la encuesta.</p>
+                {habeasDataUrl && (
+                  <a
+                    href={habeasDataUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center space-x-2 px-4 py-2.5 mb-4 rounded-2xl border border-unidas-primary/40 bg-unidas-primary/5 text-unidas-primary font-black uppercase tracking-widest text-[10px] hover:bg-unidas-primary/10 transition-all"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>Abrir Política de Tratamiento de Datos</span>
+                  </a>
+                )}
                 <label className="flex items-start space-x-3 cursor-pointer">
                   <input type="checkbox" checked={habeasAccepted} onChange={(e) => { setHabeasAccepted(e.target.checked); setValidationErrors(v => v.filter(x => x !== 'habeas_data')); }} className="mt-1 w-5 h-5 rounded accent-unidas-primary" />
                   <span className="text-sm font-medium text-white/70 leading-relaxed">Acepto que los datos personales sean tratados de acuerdo con la política de tratamiento de datos personales de la Secretaría de Integración Social.</span>

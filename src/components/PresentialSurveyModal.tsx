@@ -1282,32 +1282,28 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                       <FileText className="w-8 h-8" />
                       <h3 className="text-2xl font-black text-white">Términos y Habeas Data</h3>
                     </div>
-                    <div className="h-40 overflow-y-auto bg-white/5 p-6 rounded-2xl border border-white/5 mb-8 text-sm text-white/50 leading-relaxed font-medium custom-scrollbar">
-                      <p className="font-bold mb-2 text-white/80 uppercase text-base tracking-widest">Utilización y tratamiento de datos personales:</p>
-                      <p>
-                        La recolección y tratamientos de los datos personales tiene como finalidad mantener una base de datos, que le permite a PROYECTOS Y CONSULTORIAS RC SAS generar estadísticas e informes de las actividades correspondientes a la ejecución del Contrato CPS 334-2025.
-                        <br /><br />
-                        Al aceptar estos términos y condiciones, las personas participantes indican que conocen y autorizan de manera libre, previa, expresa e informada el tratamiento de los datos personales suministrados durante el proceso de inscripción y participación en la actividad, los cuales serán utilizados única y exclusivamente para las finalidades indicadas anteriormente.
+                    <div className="bg-white/5 p-6 rounded-2xl border border-white/5 mb-8 text-sm text-white/50 leading-relaxed font-medium">
+                      <p className="mb-5">
+                        Consulta el documento completo de la Política de Tratamiento de Datos Personales antes de aceptar. Es obligatorio abrir y leer el documento.
                       </p>
-                      {habeasDataUrl && (
-                        <div className="mt-4 pt-4 border-t border-white/5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setHasViewedHabeas(true);
-                              setViewerConfig({ url: habeasDataUrl, title: 'Política de Tratamiento de Datos' });
-                            }}
-                            className={cn(
-                              "inline-flex items-center space-x-2 font-black uppercase tracking-widest text-[10px] transition-all",
-                              hasViewedHabeas
-                                ? "text-green-400 hover:underline"
-                                : "text-unidas-primary animate-pulse hover:underline"
-                            )}
-                          >
-                            <FileText className="w-4 h-4" />
-                            <span>{hasViewedHabeas ? '✓ Política Leída – Ver de nuevo' : '⚠ Leer Política de Tratamiento de Datos (obligatorio)'}</span>
-                          </button>
-                        </div>
+                      {habeasDataUrl ? (
+                        <a
+                          href={habeasDataUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => setHasViewedHabeas(true)}
+                          className={cn(
+                            "inline-flex items-center space-x-2 px-5 py-3 rounded-2xl font-black uppercase tracking-widest text-[11px] transition-all border",
+                            hasViewedHabeas
+                              ? "text-green-400 border-green-500/30 bg-green-500/5 hover:bg-green-500/10"
+                              : "text-unidas-primary border-unidas-primary/40 bg-unidas-primary/5 animate-pulse hover:bg-unidas-primary/10"
+                          )}
+                        >
+                          <FileText className="w-4 h-4" />
+                          <span>{hasViewedHabeas ? '✓ Política Leída – Abrir de nuevo' : '⚠ Abrir Política de Tratamiento de Datos (obligatorio)'}</span>
+                        </a>
+                      ) : (
+                        <p className="text-amber-400 text-xs font-bold">El documento de política aún no está disponible. Contacta al administrador.</p>
                       )}
                     </div>
 
