@@ -84,6 +84,14 @@ export default function App() {
               </PrivateRoute>
             } />
 
+            {/* Módulo de validación del recolector. /validacion es el endpoint
+                canónico; /analyst se mantiene como alias por compatibilidad. */}
+            <Route path="/validacion/*" element={
+              <PrivateRoute role="analyst">
+                <AnalystDashboard />
+              </PrivateRoute>
+            } />
+
             <Route path="/analyst/*" element={
               <PrivateRoute role="analyst">
                 <AnalystDashboard />

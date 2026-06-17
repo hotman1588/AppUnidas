@@ -100,7 +100,7 @@ export default function Navbar() {
     ...(user?.role === 'user' ? [{ name: 'Mi Encuesta', path: '/survey', icon: ClipboardList }] : []),
     ...(user?.role === 'user' ? [{ name: 'Panel', path: '/dashboard', icon: LayoutDashboard }] : []),
     ...(user?.role === 'admin' ? [{ name: 'Administración', path: '/admin', icon: BarChart3 }] : []),
-    ...(user?.role === 'analyst' ? [{ name: 'Validación', path: '/analyst', icon: ClipboardList }] : []),
+    ...(user?.role === 'analyst' ? [{ name: 'Validación', path: '/validacion', icon: ClipboardList }] : []),
   ];
 
   return (

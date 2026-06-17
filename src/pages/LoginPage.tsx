@@ -46,7 +46,8 @@ export default function LoginPage() {
       localStorage.setItem('token', data.token);
       
       if (user.role === 'admin') navigate('/admin');
-      else if (user.role === 'analyst') navigate('/analyst');
+      // Recolector (role 'analyst') va directo al módulo de validación.
+      else if (user.role === 'analyst') navigate('/validacion');
       else navigate('/dashboard');
     } catch (err: any) {
       console.error('Login error:', err);
