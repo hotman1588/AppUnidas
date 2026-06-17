@@ -254,8 +254,11 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
   const [tab, setTab] = useState("resumen");
 
   const data = useMemo(() => {
-    // 1. Filtrar solo aprobadas
-    const approved = surveys.filter(s => s.status === 'approved');
+    // 1. Considerar todas las encuestas REGISTRADAS (con respuestas), no solo las
+    // aprobadas, para que el tablero refleje lo mismo que el archivo consolidado.
+    const approved = surveys.filter(s =>
+      s.answers && typeof s.answers === 'object' && Object.keys(s.answers).length > 0
+    );
     const TOTAL = approved.length || 1; // evitar division por cero
     const realTotal = approved.length;
 

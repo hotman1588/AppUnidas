@@ -735,7 +735,7 @@ export default function AdminDashboard() {
     }
 
     // 1. Definir el orden lógico de los metadatos y de los módulos de la encuesta
-    const baseHeaders = ['ID Encuesta', 'Nombre Cuidadora', 'Documento', 'Rol Activo', 'Estado', 'Fecha Actualización', 'Habeas Data - Fecha/Hora Lectura'];
+    const baseHeaders = ['ID Encuesta', 'Nombre Cuidadora', 'Documento', 'Rol Activo', 'Recolector', 'Estado', 'Fecha Actualización', 'Habeas Data - Fecha/Hora Lectura'];
     const moduleLabels: Record<string, string> = {
       socio: 'PERFIL SOCIODEMOGRÁFICO',
       economia: 'ECONOMÍA Y AUTONOMÍA',
@@ -772,6 +772,7 @@ export default function AdminDashboard() {
         'Nombre Cuidadora': s.user_name || s.full_name,
         'Documento': s.document_number,
         'Rol Activo': s.user_role === 'admin' ? 'Administrador' : s.user_role === 'analyst' ? 'Recolector' : 'Cuidadora',
+        'Recolector': s.analyst_name || 'Autodiligenciada',
         'Estado': s.status === 'approved' ? 'Aprobada' : s.status === 'pending' ? 'Pendiente' : 'Borrador',
         'Fecha Actualización': new Date(s.updated_at).toLocaleDateString(),
         'Habeas Data - Fecha/Hora Lectura': s.habeas_accepted_at ? new Date(s.habeas_accepted_at).toLocaleString() : 'No aceptado',

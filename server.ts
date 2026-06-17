@@ -108,6 +108,9 @@ let habeasTraceReady = false;
 const ensureHabeasTrace = async () => {
   if (habeasTraceReady) return;
   await pool.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS habeas_accepted_at TIMESTAMP;`);
+  // Trazabilidad de personal: recolector que generó/diligenció la encuesta.
+  await pool.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS analyst_name TEXT;`);
+  await pool.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS analyst_id INTEGER;`);
   habeasTraceReady = true;
 };
 
@@ -1068,13 +1071,14 @@ app.post('/api/analyst/register-complete-characterization', authenticateToken, i
     // 2. Create or update the survey (presential validation is automatically 'approved')
     const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
     await client.query(
-      `INSERT INTO surveys (user_id, answers, status, current_step, habeas_data_accepted, habeas_accepted_at)
-       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+      `INSERT INTO surveys (user_id, answers, status, current_step, habeas_data_accepted, habeas_accepted_at, analyst_name, analyst_id)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, $7)
        ON CONFLICT (user_id) DO UPDATE SET
          answers = $2, status = $3, current_step = $4, habeas_data_accepted = $5,
          habeas_accepted_at = COALESCE(surveys.habeas_accepted_at, CURRENT_TIMESTAMP),
+         analyst_name = $6, analyst_id = $7,
          updated_at = CURRENT_TIMESTAMP`,
-      [userId, answersJson, 'approved', 7, 1]
+      [userId, answersJson, 'approved', 7, 1, req.user?.name || null, req.user?.id || null]
     );
 
     // 3. Write to survey history
