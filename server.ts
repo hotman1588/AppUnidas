@@ -111,6 +111,8 @@ const ensureHabeasTrace = async () => {
   // Trazabilidad de personal: recolector que generó/diligenció la encuesta.
   await pool.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS analyst_name TEXT;`);
   await pool.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS analyst_id INTEGER;`);
+  // Aprobador: quien valida/aprueba la encuesta.
+  await pool.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS approved_by TEXT;`);
   // Backfill: recupera el recolector de registros presenciales antiguos desde el
   // historial ("...aprobada por el analista <NOMBRE>.") cuando analyst_name está vacío.
   await pool.query(`
@@ -1016,23 +1018,30 @@ app.get('/api/admin/surveys/:surveyId/history', authenticateToken, isAdmin, asyn
 
 app.post('/api/admin/surveys/:surveyId/review', authenticateToken, isAdmin, async (req: any, res: any) => {
   const { status, observations } = req.body;
+  const reviewerName = req.user?.name || null;
   try {
-    // 1. Update survey status
+    await ensureHabeasTrace();
+    // 1. Update survey status. Si se aprueba, se registra el aprobador.
     await pool.query(
-      'UPDATE surveys SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-      [status, req.params.surveyId]
+      `UPDATE surveys SET status = $1,
+         approved_by = CASE WHEN $1 = 'approved' THEN $3 ELSE approved_by END,
+         updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [status, req.params.surveyId, reviewerName]
     );
-    
+
     // 2. Get the user_id for this survey
     const s = await pool.query('SELECT user_id FROM surveys WHERE id = $1', [req.params.surveyId]);
     const userId = s.rows[0]?.user_id;
-    
+
     if (userId) {
-      // 3. Insert into survey history
+      // 3. Insert into survey history (incluye el aprobador para trazabilidad)
       const action = status === 'approved' ? 'Aprobación de Encuesta' : status === 'rejected' ? 'Solicitud de Ajustes' : 'Rechazo de Encuesta';
+      const baseDetails = observations || 'Revisado por el analista.';
+      const details = reviewerName ? `${baseDetails} [Por: ${reviewerName}]` : baseDetails;
       await pool.query(
         'INSERT INTO survey_history (user_id, action, details) VALUES ($1, $2, $3)',
-        [userId, action, observations || 'Revisado por el analista.']
+        [userId, action, details]
       );
     }
     
@@ -1088,12 +1097,12 @@ app.post('/api/analyst/register-complete-characterization', authenticateToken, i
     // 2. Create or update the survey (presential validation is automatically 'approved')
     const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
     await client.query(
-      `INSERT INTO surveys (user_id, answers, status, current_step, habeas_data_accepted, habeas_accepted_at, analyst_name, analyst_id)
-       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, $7)
+      `INSERT INTO surveys (user_id, answers, status, current_step, habeas_data_accepted, habeas_accepted_at, analyst_name, analyst_id, approved_by)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, $7, $6)
        ON CONFLICT (user_id) DO UPDATE SET
          answers = $2, status = $3, current_step = $4, habeas_data_accepted = $5,
          habeas_accepted_at = COALESCE(surveys.habeas_accepted_at, CURRENT_TIMESTAMP),
-         analyst_name = $6, analyst_id = $7,
+         analyst_name = $6, analyst_id = $7, approved_by = $6,
          updated_at = CURRENT_TIMESTAMP`,
       [userId, answersJson, 'approved', 7, 1, req.user?.name || null, req.user?.id || null]
     );

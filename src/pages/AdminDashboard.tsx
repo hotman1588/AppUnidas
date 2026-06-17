@@ -813,8 +813,14 @@ export default function AdminDashboard() {
         });
       }
 
+      // Aprobador de la encuesta (al final del consolidado).
+      flat['Aprobado por'] = s.approved_by || (s.status === 'approved' ? 'No registrado' : 'Pendiente');
+
       return flat;
     });
+
+    // "Aprobado por" se coloca como última columna del consolidado.
+    if (!orderedHeaders.includes('Aprobado por')) orderedHeaders.push('Aprobado por');
 
     // 4. Crear la hoja de cálculo con la ordenación estricta de encabezados
     const ws = XLSX.utils.json_to_sheet(flattenedData, { header: orderedHeaders });
