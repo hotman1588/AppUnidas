@@ -1038,6 +1038,7 @@ app.post('/api/analyst/register-complete-characterization', authenticateToken, i
     });
   }
 
+  await ensureHabeasTrace();
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -1067,7 +1068,12 @@ app.post('/api/analyst/register-complete-characterization', authenticateToken, i
     // 2. Create or update the survey (presential validation is automatically 'approved')
     const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
     await client.query(
-      'INSERT INTO surveys (user_id, answers, status, current_step, habeas_data_accepted) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (user_id) DO UPDATE SET answers = $2, status = $3, current_step = $4, habeas_data_accepted = $5, updated_at = CURRENT_TIMESTAMP',
+      `INSERT INTO surveys (user_id, answers, status, current_step, habeas_data_accepted, habeas_accepted_at)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id) DO UPDATE SET
+         answers = $2, status = $3, current_step = $4, habeas_data_accepted = $5,
+         habeas_accepted_at = COALESCE(surveys.habeas_accepted_at, CURRENT_TIMESTAMP),
+         updated_at = CURRENT_TIMESTAMP`,
       [userId, answersJson, 'approved', 7, 1]
     );
 
@@ -1156,7 +1162,7 @@ app.get('/api/analyst/encuesta-dos', authenticateToken, isAdmin, async (_req: an
   try {
     await ensureEncuestaDosSchema();
     const r = await pool.query(
-      'SELECT id, full_name, document_type, document_number, edad, is_minor, answers, analyst_name, created_at FROM encuesta_dos.responses ORDER BY created_at DESC'
+      'SELECT id, full_name, document_type, document_number, edad, is_minor, answers, analyst_name, habeas_accepted_at, created_at FROM encuesta_dos.responses ORDER BY created_at DESC'
     );
     res.json(r.rows);
   } catch (err: any) {

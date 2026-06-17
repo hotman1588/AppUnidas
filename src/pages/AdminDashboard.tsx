@@ -734,7 +734,7 @@ export default function AdminDashboard() {
     }
 
     // 1. Definir el orden lógico de los metadatos y de los módulos de la encuesta
-    const baseHeaders = ['ID Encuesta', 'Nombre Cuidadora', 'Documento', 'Rol Activo', 'Estado', 'Fecha Actualización'];
+    const baseHeaders = ['ID Encuesta', 'Nombre Cuidadora', 'Documento', 'Rol Activo', 'Estado', 'Fecha Actualización', 'Habeas Data - Fecha/Hora Lectura'];
     const moduleLabels: Record<string, string> = {
       socio: 'PERFIL SOCIODEMOGRÁFICO',
       economia: 'ECONOMÍA Y AUTONOMÍA',
@@ -773,6 +773,7 @@ export default function AdminDashboard() {
         'Rol Activo': s.user_role === 'admin' ? 'Administrador' : s.user_role === 'analyst' ? 'Recolector' : 'Cuidadora',
         'Estado': s.status === 'approved' ? 'Aprobada' : s.status === 'pending' ? 'Pendiente' : 'Borrador',
         'Fecha Actualización': new Date(s.updated_at).toLocaleDateString(),
+        'Habeas Data - Fecha/Hora Lectura': s.habeas_accepted_at ? new Date(s.habeas_accepted_at).toLocaleString() : 'No aceptado',
       };
 
       if (s.answers && typeof s.answers === 'object') {
@@ -833,7 +834,7 @@ export default function AdminDashboard() {
       const rows: any[] = await res.json();
       if (!Array.isArray(rows) || rows.length === 0) { alert('Aún no hay registros de la Encuesta Dos para exportar.'); return; }
 
-      const baseHeaders = ['ID', 'Nombre Completo', 'Tipo Documento', 'N° Documento', 'Celular', 'Correo', 'Edad', 'Menor (TI)', 'Recolector', 'Fecha'];
+      const baseHeaders = ['ID', 'Nombre Completo', 'Tipo Documento', 'N° Documento', 'Celular', 'Correo', 'Edad', 'Menor (TI)', 'Recolector', 'Habeas Data - Fecha/Hora Lectura', 'Fecha'];
       const orderedHeaders = [...baseHeaders];
       // Mapa id de pregunta -> 'MÓDULO N. TÍTULO - Etiqueta'
       const fieldMap: Record<string, string> = {};
@@ -861,6 +862,7 @@ export default function AdminDashboard() {
           'Edad': r.edad ?? '',
           'Menor (TI)': r.is_minor ? 'Sí' : 'No',
           'Recolector': r.analyst_name || '',
+          'Habeas Data - Fecha/Hora Lectura': r.habeas_accepted_at ? new Date(r.habeas_accepted_at).toLocaleString() : 'No aceptado',
           'Fecha': r.created_at ? new Date(r.created_at).toLocaleDateString() : '',
         };
         const ans = r.answers && typeof r.answers === 'object' ? r.answers : {};
