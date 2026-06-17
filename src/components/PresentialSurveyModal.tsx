@@ -40,6 +40,7 @@ const BARRIO_TO_UPL: Record<string, string> = {
   'Los Andes': 'Los Andes',
   'Metrópolis': 'Los Alcázares',
   'Modelo Norte': 'Los Alcázares',
+  'Muequetá': 'Los Alcázares',
   'Parque Salitre': 'Parque Salitre',
   'Polo Club': 'Los Alcázares',
   'Popular Modelo': 'Los Alcázares',
