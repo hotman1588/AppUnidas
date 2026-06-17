@@ -172,31 +172,37 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
     }
   }, [userData, answers, birthDate, currentStep, habeasAccepted, isOpen]);
 
+  // Reinicia todo el estado en memoria y borra el backup local para empezar
+  // un nuevo registro en limpio (sin confirmación). Se usa tras un registro exitoso.
+  const resetState = () => {
+    localStorage.removeItem(PERSISTENCE_KEY);
+    setUserData({
+      full_name: '',
+      document_type: 'CC',
+      document_number: '',
+      phone: '',
+      email: '',
+      password: ''
+    });
+    setAnswers({
+      socio: {},
+      economia: {},
+      cuidado: {},
+      bienestar: {},
+      proyecciones: {},
+      dinamica_familiar: {},
+      documentos: {}
+    });
+    setBirthDate({ day: '', month: '', year: '' });
+    setCurrentStep(0);
+    setHabeasAccepted(false);
+    setHasViewedHabeas(false);
+    setValidationErrors([]);
+  };
+
   const clearData = () => {
     if (window.confirm("¿Deseas borrar todos los datos actuales y empezar de cero?")) {
-      localStorage.removeItem(PERSISTENCE_KEY);
-      setUserData({
-        full_name: '',
-        document_type: 'CC',
-        document_number: '',
-        phone: '',
-        email: '',
-        password: ''
-      });
-      setAnswers({
-        socio: {},
-        economia: {},
-        cuidado: {},
-        bienestar: {},
-        proyecciones: {},
-        dinamica_familiar: {},
-        documentos: {}
-      });
-      setBirthDate({ day: '', month: '', year: '' });
-      setCurrentStep(0);
-      setHabeasAccepted(false);
-      setHasViewedHabeas(false);
-      setValidationErrors([]);
+      resetState();
     }
   };
 
@@ -501,7 +507,9 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al guardar');
       
-      localStorage.removeItem(PERSISTENCE_KEY); // Clear cache on success
+      // Registro completado: se borra el backup local y se reinicia el estado
+      // para que el próximo registro del recolector inicie totalmente en limpio.
+      resetState();
       onSuccess();
       onClose();
     } catch (err: any) {
