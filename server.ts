@@ -1164,6 +1164,28 @@ app.get('/api/analyst/encuesta-dos', authenticateToken, isAdmin, async (_req: an
   }
 });
 
+// Alta de usuario desde el panel admin. Crea el registro en Supabase con la
+// contraseña hasheada (por defecto '1234' si no se envía).
+app.post('/api/admin/users', authenticateToken, isAdmin, async (req: any, res: any) => {
+  const { full_name, document_type, document_number, phone, email, password, role } = req.body;
+  if (!full_name || !document_number) {
+    return res.status(400).json({ error: "Faltan datos requeridos: 'full_name' y 'document_number'." });
+  }
+  try {
+    const hashedPassword = await bcrypt.hash(password || '1234', 10);
+    const result = await pool.query(
+      'INSERT INTO users (full_name, document_type, document_number, phone, email, password, role) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+      [full_name, document_type || 'CC', document_number, phone || null, email || null, hashedPassword, role || 'user']
+    );
+    res.json({ success: true, id: result.rows[0].id });
+  } catch (err: any) {
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'El documento o email ya está registrado' });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.patch('/api/admin/users/:id', authenticateToken, isAdmin, async (req: any, res: any) => {
   const { full_name, document_type, document_number, phone, email, password, role } = req.body;
   try {
