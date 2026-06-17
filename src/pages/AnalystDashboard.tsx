@@ -31,11 +31,18 @@ export default function AnalystDashboard() {
   const [viewerConfig, setViewerConfig] = useState<{ url: string; title: string } | null>(null);
   const [showPresentialModal, setShowPresentialModal] = useState(false);
   const [showSurveyTwoModal, setShowSurveyTwoModal] = useState(false);
+  // Encuesta activa (controlada por el admin/landing): 'uno' (landing original)
+  // o 'dos' (landing componente 4). El recolector solo ve la encuesta activa.
+  const [activeSurvey, setActiveSurvey] = useState<'uno' | 'dos'>('uno');
 
   useEffect(() => {
     fetchSurveys();
     fetchEvents();
     fetchUsers();
+    fetch('/api/settings/active_survey')
+      .then(r => r.json())
+      .then(d => setActiveSurvey(d?.value === 'dos' ? 'dos' : 'uno'))
+      .catch(() => {});
   }, [token]);
 
   const fetchSurveys = async () => {
@@ -207,14 +214,17 @@ export default function AnalystDashboard() {
                <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Pendientes por revisar</p>
              </div>
           </div>
-          {/* Botón Encuesta Dos — ubicado debajo del perfil del analista */}
-          <button
-            onClick={() => setShowSurveyTwoModal(true)}
-            className="w-full flex items-center justify-center space-x-2 bg-unidas-secondary text-white px-6 py-3 rounded-2xl font-bold hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-unidas-secondary/20"
-          >
-            <ClipboardList className="w-5 h-5" />
-            <span>Encuesta Dos</span>
-          </button>
+          {/* Botón Encuesta Dos — solo visible cuando la Encuesta Dos está activa
+              (landing componente 4). Si está activa la Encuesta Uno, se oculta. */}
+          {activeSurvey === 'dos' && (
+            <button
+              onClick={() => setShowSurveyTwoModal(true)}
+              className="w-full flex items-center justify-center space-x-2 bg-unidas-secondary text-white px-6 py-3 rounded-2xl font-bold hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-unidas-secondary/20"
+            >
+              <ClipboardList className="w-5 h-5" />
+              <span>Encuesta Dos</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -237,13 +247,17 @@ export default function AnalystDashboard() {
           {activeTab === 'surveys' && (
             <div className="flex space-x-3 w-full md:w-auto">
               <div className="flex items-center space-x-3">
-              <button 
-                onClick={() => setShowPresentialModal(true)}
-                className="flex items-center space-x-2 bg-unidas-primary text-white px-4 py-2 rounded-xl font-bold hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-unidas-primary/20"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Nueva Encuesta</span>
-              </button>
+              {/* "Nueva Encuesta" (Encuesta Uno presencial) solo cuando la
+                  Encuesta Uno está activa (landing original). */}
+              {activeSurvey === 'uno' && (
+                <button
+                  onClick={() => setShowPresentialModal(true)}
+                  className="flex items-center space-x-2 bg-unidas-primary text-white px-4 py-2 rounded-xl font-bold hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-unidas-primary/20"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Nueva Encuesta</span>
+                </button>
+              )}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input 
