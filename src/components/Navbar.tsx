@@ -174,13 +174,16 @@ export default function Navbar() {
                     </motion.div>
                   )}
                 </div>
-                <button
+                <motion.button
                   onClick={handleLogout}
-                  className="p-2 text-white/40 hover:text-white transition-colors"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="group relative flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 font-black text-sm hover:bg-red-500 hover:text-white hover:border-red-500 hover:shadow-lg hover:shadow-red-500/40 transition-all duration-300"
                   title="Cerrar sesión"
                 >
-                  <LogOut className="w-5 h-5" />
-                </button>
+                  <LogOut className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-0.5" />
+                  <span className="hidden lg:inline uppercase tracking-widest text-xs">Salir</span>
+                </motion.button>
               </div>
             ) : (
               <div className="flex items-center space-x-6">
