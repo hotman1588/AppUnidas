@@ -111,6 +111,22 @@ const ensureHabeasTrace = async () => {
   // Trazabilidad de personal: recolector que generó/diligenció la encuesta.
   await pool.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS analyst_name TEXT;`);
   await pool.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS analyst_id INTEGER;`);
+  // Backfill: recupera el recolector de registros presenciales antiguos desde el
+  // historial ("...aprobada por el analista <NOMBRE>.") cuando analyst_name está vacío.
+  await pool.query(`
+    UPDATE surveys s
+    SET analyst_name = sub.name
+    FROM (
+      SELECT DISTINCT ON (user_id) user_id,
+        trim(trailing '.' from regexp_replace(details, '^.*por el analista ', '')) AS name
+      FROM survey_history
+      WHERE action = 'Registro Presencial' AND details LIKE '%por el analista %'
+      ORDER BY user_id, created_at DESC
+    ) sub
+    WHERE s.user_id = sub.user_id
+      AND (s.analyst_name IS NULL OR s.analyst_name = '')
+      AND sub.name IS NOT NULL AND sub.name <> '';
+  `).catch((e: any) => console.error('Backfill recolector error:', e.message));
   habeasTraceReady = true;
 };
 
@@ -674,8 +690,9 @@ app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
 
 app.get('/api/admin/surveys', authenticateToken, isAdmin, async (req, res) => {
   try {
+    await ensureHabeasTrace();
     const q = `
-        SELECT s.*, u.full_name, u.full_name as user_name, u.document_number, u.role as user_role 
+        SELECT s.*, u.full_name, u.full_name as user_name, u.document_number, u.role as user_role
         FROM surveys s 
         JOIN users u ON s.user_id = u.id 
         ORDER BY s.updated_at DESC
