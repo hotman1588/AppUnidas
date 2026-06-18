@@ -111,7 +111,7 @@ const FreqBar = ({data,title,color=P.primary}: any) => (
 );
 
 // ─── MAPA SVG BARRIOS UNIDOS ─────────────────────────────────────────────────
-const MapaBarriosUnidos = ({ data }: { data: any[] }) => {
+const MapaBarriosUnidos = ({ data, uplData = [] }: { data: any[]; uplData?: any[] }) => {
   const zonas = [
     // UPZ Los Alcázares
     {id:"escuela",name:"Escuela Militar",upz:"Los Alcázares",x:90,y:55,r:22},
@@ -136,16 +136,16 @@ const MapaBarriosUnidos = ({ data }: { data: any[] }) => {
   const upzColors: Record<string, string> = {"Los Alcázares":"#9333EA","Doce de Octubre":"#0D9488","Los Andes":"#F59E0B"};
   const [hov,setHov] = useState<string | null>(null);
 
-  if (zonas.length === 0) {
+  if (zonas.length === 0 && (!uplData || uplData.length === 0)) {
     return (
-      <Card title="Distribución Territorial — Barrios y UPZ · Barrios Unidos">
+      <Card title="Distribución Territorial — Barrios y UPL · Barrios Unidos">
         <div style={{padding: "20px", color: "#64748B", textAlign: "center", fontSize: 12}}>No hay datos territoriales suficientes para mostrar el mapa.</div>
       </Card>
     );
   }
 
   return (
-    <Card title="Distribución Territorial — Barrios y UPZ · Barrios Unidos">
+    <Card title="Distribución Territorial — Barrios y UPL · Barrios Unidos">
       <div style={{display:"flex",gap:16,alignItems:"flex-start",flexWrap:"wrap"}}>
         <svg viewBox="0 0 420 310" style={{width:"100%",maxWidth:380,height:"auto",background:"#F8F5FF",borderRadius:12,border:`1.5px solid ${P.muted}`}}>
           {/* UPZ regions */}
@@ -175,19 +175,27 @@ const MapaBarriosUnidos = ({ data }: { data: any[] }) => {
           <line x1="392" y1="22" x2="392" y2="32" stroke={P.primary} strokeWidth="2" markerEnd="url(#arrow)"/>
         </svg>
         <div style={{flex:1,minWidth:120}}>
-          <div style={{fontSize:11.5,fontWeight:800,color:P.slate,marginBottom:10}}>Leyenda UPZ</div>
-          {Object.entries(upzColors).map(([upz,col])=>{
-            const total = zonas.filter(z=>z.upz===upz).reduce((s,z)=>s+z.count,0);
-            return (
-              <div key={upz} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-                <div style={{width:14,height:14,borderRadius:3,background:col,flexShrink:0}}/>
-                <div>
-                  <div style={{fontSize:11.5,fontWeight:700,color:P.slate}}>{upz}</div>
-                  <div style={{fontSize:10.5,color:"#64748B"}}>{total} cuidadora{total>1?"s":""}</div>
+          <div style={{fontSize:11.5,fontWeight:800,color:P.slate,marginBottom:10}}>Leyenda UPL</div>
+          {(() => {
+            // La leyenda usa los totales REALES por UPL (todos los registrados),
+            // no solo los barrios dibujados en el mapa. Color del catálogo o de respaldo.
+            const fallbackPalette = [P.primary, P.teal, P.accent, P.rose, "#7C3AED", "#2563EB", "#DB2777"];
+            const rows = (uplData && uplData.length > 0)
+              ? uplData.map(u => ({ name: u.name, total: u.value }))
+              : Object.keys(upzColors).map(upz => ({ name: upz, total: zonas.filter(z=>z.upz===upz).reduce((s,z)=>s+z.count,0) }));
+            return rows.map((r, i) => {
+              const col = upzColors[r.name] || fallbackPalette[i % fallbackPalette.length];
+              return (
+                <div key={r.name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                  <div style={{width:14,height:14,borderRadius:3,background:col,flexShrink:0}}/>
+                  <div>
+                    <div style={{fontSize:11.5,fontWeight:700,color:P.slate}}>{r.name}</div>
+                    <div style={{fontSize:10.5,color:"#64748B"}}>{r.total} cuidadora{r.total!==1?"s":""}</div>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            });
+          })()}
         </div>
       </div>
     </Card>
@@ -557,7 +565,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
             </div>
 
             {/* MAPA */}
-            <div style={{marginBottom:18}}><MapaBarriosUnidos data={data.barrios} /></div>
+            <div style={{marginBottom:18}}><MapaBarriosUnidos data={data.barrios} uplData={data.uplData} /></div>
 
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
               <HBar data={data.barrios} title="Distribución por Barrio" total={TOTAL}/>
