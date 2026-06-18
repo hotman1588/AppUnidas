@@ -43,11 +43,14 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ url, title, onCl
           headers['Authorization'] = `Bearer ${token}`;
         }
 
-        // Try loading from local server API first (since citizen uploads go there)
-        const localUrl = `/api/documents/view/${url}`;
+        // Acepta tanto un nombre de archivo como una ruta ya completa
+        // (/api/documents/view/...) sin duplicar el prefijo.
+        const isApiPath = url.startsWith('/api/');
+        const filename = isApiPath ? url.split('/').pop() || url : url;
+        const localUrl = isApiPath ? url : `/api/documents/view/${url}`;
         console.log('DocumentViewer: Loading local document:', localUrl);
         const res = await fetch(localUrl, { headers });
-        
+
         if (res.ok) {
           const blob = await res.blob();
           const objUrl = URL.createObjectURL(blob);
@@ -58,7 +61,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ url, title, onCl
         } else {
           // Fallback to Supabase public URL if the local server returns an error (404/etc)
           console.log('DocumentViewer: Local load failed, falling back to Supabase');
-          const { data } = supabase.storage.from('documents').getPublicUrl(url);
+          const { data } = supabase.storage.from('documents').getPublicUrl(filename);
           if (data?.publicUrl) {
             if (active) {
               setObjectUrl(data.publicUrl);
