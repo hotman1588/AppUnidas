@@ -134,45 +134,48 @@ const MapaBarriosUnidos = ({ data, uplData = [] }: { data: any[]; uplData?: any[
   }).filter(z => z.count > 0);
 
   const upzColors: Record<string, string> = {"Los Alcázares":"#9333EA","Doce de Octubre":"#0D9488","Los Andes":"#F59E0B"};
+  const fallbackPalette = [P.primary, P.teal, P.accent, P.rose, "#7C3AED", "#2563EB", "#DB2777"];
   const [hov,setHov] = useState<string | null>(null);
 
-  if (zonas.length === 0 && (!uplData || uplData.length === 0)) {
+  // Burbujas por UPL construidas con los datos REALES (no con barrios fijos),
+  // así el mapa refleja todos los registros con UPL.
+  const bubbles = (uplData || [])
+    .filter(u => u.name && u.value > 0)
+    .map((u, i) => ({ name: u.name as string, count: u.value as number, color: upzColors[u.name] || fallbackPalette[i % fallbackPalette.length] }));
+  const maxCount = Math.max(1, ...bubbles.map(b => b.count));
+  const cols = Math.min(3, Math.max(1, bubbles.length));
+  const cellW = 420 / cols;
+  const positioned = bubbles.map((b, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const r = 22 + Math.round((b.count / maxCount) * 30);
+    return { ...b, r, x: cellW * col + cellW / 2, y: 70 + row * 120 };
+  });
+
+  if (bubbles.length === 0) {
     return (
-      <Card title="Distribución Territorial — Barrios y UPL · Barrios Unidos">
+      <Card title="Distribución Territorial — UPL · Barrios Unidos">
         <div style={{padding: "20px", color: "#64748B", textAlign: "center", fontSize: 12}}>No hay datos territoriales suficientes para mostrar el mapa.</div>
       </Card>
     );
   }
 
+  const rows = Math.ceil(bubbles.length / cols);
+  const vbH = Math.max(220, 40 + rows * 120);
+
   return (
-    <Card title="Distribución Territorial — Barrios y UPL · Barrios Unidos">
+    <Card title="Distribución Territorial — UPL · Barrios Unidos">
       <div style={{display:"flex",gap:16,alignItems:"flex-start",flexWrap:"wrap"}}>
-        <svg viewBox="0 0 420 310" style={{width:"100%",maxWidth:380,height:"auto",background:"#F8F5FF",borderRadius:12,border:`1.5px solid ${P.muted}`}}>
-          {/* UPZ regions */}
-          <ellipse cx="118" cy="95" rx="88" ry="75" fill="#9333EA15" stroke="#9333EA" strokeWidth="1.5" strokeDasharray="6,3"/>
-          <ellipse cx="285" cy="95" rx="75" ry="75" fill="#0D948815" stroke="#0D9488" strokeWidth="1.5" strokeDasharray="6,3"/>
-          <ellipse cx="210" cy="225" rx="85" ry="60" fill="#F59E0B15" stroke="#F59E0B" strokeWidth="1.5" strokeDasharray="6,3"/>
-          {/* UPZ labels */}
-          <text x="58" y="168" fontSize="9.5" fill="#9333EA" fontWeight="700">Los Alcázares</text>
-          <text x="248" y="170" fontSize="9.5" fill="#0D9488" fontWeight="700">Doce de Octubre</text>
-          <text x="162" y="290" fontSize="9.5" fill="#F59E0B" fontWeight="700">Los Andes</text>
-          {/* Barrio circles */}
-          {zonas.map(z=>(
-            <g key={z.id} onMouseEnter={()=>setHov(z.id)} onMouseLeave={()=>setHov(null)} style={{cursor:"pointer"}}>
-              <circle cx={z.x} cy={z.y} r={z.r} fill={upzColors[z.upz]} fillOpacity={hov===z.id?0.9:0.65} stroke="white" strokeWidth="2"/>
-              <text x={z.x} y={z.y} textAnchor="middle" dominantBaseline="middle" fontSize="13" fontWeight="800" fill="white">{z.count}</text>
-              {hov===z.id && (
-                <g>
-                  <rect x={z.x-55} y={z.y-z.r-32} width={110} height={26} rx="5" fill={P.slate} fillOpacity={0.92}/>
-                  <text x={z.x} y={z.y-z.r-19} textAnchor="middle" fontSize="9.5" fill="white" fontWeight="700">{z.name}</text>
-                  <text x={z.x} y={z.y-z.r-8} textAnchor="middle" fontSize="8.5" fill="#C4B5FD">{z.upz}</text>
-                </g>
-              )}
+        <svg viewBox={`0 0 420 ${vbH}`} style={{width:"100%",maxWidth:380,height:"auto",background:"#F8F5FF",borderRadius:12,border:`1.5px solid ${P.muted}`}}>
+          {positioned.map(b=>(
+            <g key={b.name} onMouseEnter={()=>setHov(b.name)} onMouseLeave={()=>setHov(null)} style={{cursor:"pointer"}}>
+              <circle cx={b.x} cy={b.y} r={b.r} fill={b.color} fillOpacity={hov===b.name?0.95:0.7} stroke="white" strokeWidth="2"/>
+              <text x={b.x} y={b.y} textAnchor="middle" dominantBaseline="middle" fontSize="16" fontWeight="800" fill="white">{b.count}</text>
+              <text x={b.x} y={b.y + b.r + 14} textAnchor="middle" fontSize="10" fontWeight="700" fill={P.slate}>{b.name}</text>
             </g>
           ))}
           {/* North indicator */}
-          <text x="390" y="20" fontSize="14" fill={P.primary} fontWeight="900">N</text>
-          <line x1="392" y1="22" x2="392" y2="32" stroke={P.primary} strokeWidth="2" markerEnd="url(#arrow)"/>
+          <text x="402" y="20" fontSize="14" fill={P.primary} fontWeight="900">N</text>
         </svg>
         <div style={{flex:1,minWidth:120}}>
           <div style={{fontSize:11.5,fontWeight:800,color:P.slate,marginBottom:10}}>Leyenda UPL</div>
