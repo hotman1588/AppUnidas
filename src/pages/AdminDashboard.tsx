@@ -2045,15 +2045,22 @@ export default function AdminDashboard() {
                     <span>Documentos de Soporte</span>
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {['id_frontal', 'id_reverso', 'utility_bill'].map(type => {
-                      const doc = userDocuments.find(d => d.type === type);
-                      const label = type === 'id_frontal' ? 'Cédula Frontal' : type === 'id_reverso' ? 'Cédula Reverso' : 'Recibo';
+                    {[
+                      { label: 'Cédula Frontal', keys: ['id_frontal', 'cedula_frontal'] },
+                      { label: 'Cédula Reverso', keys: ['id_reverso', 'cedula_reverso'] },
+                      { label: 'Recibo', keys: ['utility_bill', 'recibo_publico', 'recibo'] },
+                    ].map(({ label, keys }) => {
+                      const doc = userDocuments.find(d => keys.includes(d.type));
+                      // URL completa guardada en las respuestas (caso presencial: URL pública de Supabase).
+                      const answerUrl = keys.map(k => surveyAnswers?.documentos?.[k]).find(Boolean);
+                      const imageUrl = answerUrl || (doc ? `/api/documents/view/${doc.file_path}` : null);
                       return (
-                        <DocThumbnail 
-                          key={type}
-                          label={label} 
+                        <DocThumbnail
+                          key={label}
+                          label={label}
                           doc={doc}
-                          onView={(url: string) => setViewerConfig({ url, title: label })}
+                          imageUrl={imageUrl}
+                          onView={() => imageUrl && setViewerConfig({ url: imageUrl, title: label })}
                         />
                       );
                     })}
@@ -2485,8 +2492,43 @@ function Section({ title, children }: any) {
   );
 }
 
-function DocThumbnail({ label, doc, onView }: any) {
-  if (!doc) {
+// Carga una imagen resolviendo URLs públicas (http) directamente y rutas internas
+// (/api/documents/view/...) mediante fetch autenticado con el token del admin.
+function AuthImage({ src, alt }: { src: string; alt: string }) {
+  const [objUrl, setObjUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    let createdUrl: string | null = null;
+    setFailed(false);
+    setObjUrl(null);
+
+    if (/^https?:\/\//.test(src)) {
+      setObjUrl(src);
+      return;
+    }
+    const token = useAuthStore.getState().token;
+    fetch(src, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then(r => { if (!r.ok) throw new Error('No se pudo cargar'); return r.blob(); })
+      .then(blob => {
+        if (!active) return;
+        createdUrl = URL.createObjectURL(blob);
+        setObjUrl(createdUrl);
+      })
+      .catch(() => active && setFailed(true));
+
+    return () => { active = false; if (createdUrl) URL.revokeObjectURL(createdUrl); };
+  }, [src]);
+
+  if (failed) return <FileText className="w-8 h-8 text-unidas-primary" />;
+  if (!objUrl) return <div className="w-6 h-6 border-2 border-unidas-primary border-t-transparent rounded-full animate-spin" />;
+  return <img src={objUrl} alt={alt} className="absolute inset-0 w-full h-full object-cover" />;
+}
+
+function DocThumbnail({ label, doc, imageUrl, onView }: any) {
+  const hasImage = !!imageUrl;
+  if (!doc && !hasImage) {
     return (
       <div className="aspect-square bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center p-4 opacity-30">
         <XCircle className="w-8 h-8 text-white/20 mb-2" />
@@ -2496,19 +2538,28 @@ function DocThumbnail({ label, doc, onView }: any) {
     );
   }
 
+  const isPdf = typeof imageUrl === 'string' && imageUrl.toLowerCase().includes('.pdf');
+
   return (
-    <div 
-      onClick={() => onView(doc.file_path)}
-      className="aspect-square bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center p-4 hover:border-unidas-primary transition-all cursor-pointer group"
+    <div
+      onClick={onView}
+      className="relative aspect-square bg-white/5 rounded-2xl border border-white/5 overflow-hidden flex flex-col items-center justify-center p-4 hover:border-unidas-primary transition-all cursor-pointer group"
     >
-      <FileText className="w-8 h-8 text-unidas-primary mb-2 transition-transform group-hover:scale-110" />
-      <span className="text-[9px] font-black text-white/40 text-center uppercase tracking-tighter group-hover:text-white/60 transition-colors">{label}</span>
-      <span className={cn(
-        "text-[7px] font-black mt-2 px-2 py-0.5 rounded-full border",
-        doc.status === 'approved' ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
-      )}>
-        {doc.status === 'approved' ? 'APROBADO' : 'PENDIENTE'}
-      </span>
+      {hasImage && !isPdf ? (
+        <AuthImage src={imageUrl} alt={label} />
+      ) : (
+        <FileText className="w-8 h-8 text-unidas-primary mb-2 transition-transform group-hover:scale-110" />
+      )}
+      {/* Capa con etiqueta y estado, legible sobre la imagen */}
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 flex flex-col items-center">
+        <span className="text-[9px] font-black text-white text-center uppercase tracking-tighter">{label}</span>
+        <span className={cn(
+          "text-[7px] font-black mt-1 px-2 py-0.5 rounded-full border",
+          doc?.status === 'approved' ? "bg-green-500/20 text-green-300 border-green-500/30" : "bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
+        )}>
+          {doc?.status === 'approved' ? 'APROBADO' : 'PENDIENTE'}
+        </span>
+      </div>
     </div>
   );
 }
