@@ -4,6 +4,7 @@ import {
   PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis,
   PolarRadiusAxis, Legend
 } from "recharts";
+import { BARRIO_TO_UPL } from "../lib/surveyTwoSchema";
 
 // ─────────────── PALETTE ────────────────────────────────────────────────────
 const P = {
@@ -123,11 +124,13 @@ const MapaBarriosUnidos = ({ data }: { data: any[] }) => {
     {id:"doce",name:"Doce de Octubre",upz:"Doce de Octubre",x:310,y:95,r:22},
     // UPZ Los Andes
     {id:"benjamin",name:"Benjamín Herrera",upz:"Los Andes",x:210,y:210,r:28},
-    {id:"gaitan",name:"J.E. Gaitán",upz:"Los Andes",x:155,y:225,r:22},
+    {id:"gaitan",name:"Jorge Eliécer Gaitán",upz:"Los Andes",x:155,y:225,r:22},
     {id:"castellana",name:"La Castellana",upz:"Los Andes",x:265,y:240,r:22},
   ].map(z => {
     const found = data.find(d => d.name === z.name);
-    return { ...z, count: found ? found.value : 0 };
+    // La UPL se toma del catálogo oficial BARRIO_TO_UPL para que el mapa quede
+    // consistente con los datos (evita asignaciones hardcodeadas erróneas).
+    return { ...z, upz: BARRIO_TO_UPL[z.name] || z.upz, count: found ? found.value : 0 };
   }).filter(z => z.count > 0);
 
   const upzColors: Record<string, string> = {"Los Alcázares":"#9333EA","Doce de Octubre":"#0D9488","Los Andes":"#F59E0B"};
@@ -294,6 +297,9 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
     // MÓDULO 1
     const barrios = countFreq(a => a.socio?.barrio);
     const upzData = countFreq(a => a.socio?.upz);
+    // UPL robusta: usa la zona registrada (socio.upz) y, si falta, la deriva del
+    // barrio con el catálogo oficial, para que el panel siempre conecte la UPL.
+    const uplData = countFreq(a => a.socio?.upz || (a.socio?.barrio ? BARRIO_TO_UPL[a.socio.barrio] : ''));
     const generoData = countFreq(a => a.socio?.genero);
     const educData = countFreq(a => a.socio?.nivel_educativo);
     const pertData = countFreq(a => a.socio?.pertenencia);
@@ -444,7 +450,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
        TOTAL: realTotal,
        avgH,
        avgIngresos,
-       barrios, upzData, generoData, educData, pertData, edadGrupos,
+       barrios, upzData, uplData, generoData, educData, pertData, edadGrupos,
        fuenteData, laboralData, viviendaData, ingresosData,
        horasData, poblCuidadaData, reconocData, sentimData,
        agotFreq, cansFreq, estresFreq, autocuidFreq, respExcFreq, conoceProg, radarCarga,
@@ -514,7 +520,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
               <KPICard icon="🔕" label="Sin Reconocimiento" value={`${kpis.sinReconPct}%`} sub="Nada reconocidas" color="#7C3AED"/>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
-              <SmallPie data={data.upzData} title="Distribución por UPZ" total={TOTAL}/>
+              <SmallPie data={data.uplData} title="Distribución por UPL" total={TOTAL}/>
               <Card title="Radar de Carga de Cuidado (escala 1–5)">
                 <ResponsiveContainer minWidth={0} minHeight={0} width="100%" height={210}>
                   <RadarChart data={data.radarCarga}>
@@ -555,7 +561,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
 
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
               <HBar data={data.barrios} title="Distribución por Barrio" total={TOTAL}/>
-              <SmallPie data={data.upzData} title="Distribución por UPZ" total={TOTAL}/>
+              <SmallPie data={data.uplData} title="Distribución por UPL" total={TOTAL}/>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:18,marginBottom:18}}>
               <SmallPie data={data.generoData} title="Género" total={TOTAL}/>
