@@ -514,7 +514,9 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       onSuccess();
       onClose();
     } catch (err: any) {
+      // No fallar en silencio: avisar al recolector para que reintente.
       setError(err.message);
+      alert(`No se pudo guardar la encuesta: ${err.message}`);
     } finally {
       setLoading(false);
     }
