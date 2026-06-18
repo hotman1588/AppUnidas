@@ -494,6 +494,12 @@ app.post('/api/user/survey/save', authenticateToken, async (req: any, res) => {
 
 app.post('/api/user/survey/submit', authenticateToken, async (req: any, res) => {
   try {
+    // No se permite finalizar/enviar la encuesta sin aceptar el Habeas Data.
+    const chk = await pool.query('SELECT habeas_data_accepted FROM surveys WHERE user_id = $1', [req.user.id]);
+    const accepted = chk.rows[0]?.habeas_data_accepted;
+    if (!accepted || accepted === 0) {
+      return res.status(400).json({ error: 'Debe aceptarse el tratamiento de datos (Habeas Data) para finalizar la encuesta.' });
+    }
     await pool.query(
       'INSERT INTO surveys (user_id, status) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET status = $2, updated_at = CURRENT_TIMESTAMP',
       [req.user.id, 'pending']
@@ -1021,6 +1027,14 @@ app.post('/api/admin/surveys/:surveyId/review', authenticateToken, isAdmin, asyn
   const reviewerName = req.user?.name || null;
   try {
     await ensureHabeasTrace();
+    // No se puede aprobar una encuesta sin la aceptación del Habeas Data.
+    if (status === 'approved') {
+      const chk = await pool.query('SELECT habeas_data_accepted FROM surveys WHERE id = $1', [req.params.surveyId]);
+      const accepted = chk.rows[0]?.habeas_data_accepted;
+      if (!accepted || accepted === 0) {
+        return res.status(400).json({ error: 'No se puede aprobar: la encuesta no tiene aceptado el tratamiento de datos (Habeas Data).' });
+      }
+    }
     // 1. Update survey status. Si se aprueba, se registra el aprobador.
     await pool.query(
       `UPDATE surveys SET status = $1,
@@ -1052,7 +1066,7 @@ app.post('/api/admin/surveys/:surveyId/review', authenticateToken, isAdmin, asyn
 });
 
 app.post('/api/analyst/register-complete-characterization', authenticateToken, isAdmin, async (req: any, res: any) => {
-  const { user, answers } = req.body;
+  const { user, answers, habeas_data_accepted } = req.body;
   console.log('Received register-complete-characterization request:', {
     hasBody: !!req.body,
     hasUser: !!user,
@@ -1062,9 +1076,14 @@ app.post('/api/analyst/register-complete-characterization', authenticateToken, i
   });
   
   if (!user || !user.document_number || !user.full_name) {
-    return res.status(400).json({ 
-      error: `Faltan datos requeridos del usuario. Recibido: ${JSON.stringify(user || {})}. Los campos 'full_name' (Nombre) y 'document_number' (Documento) son obligatorios.` 
+    return res.status(400).json({
+      error: `Faltan datos requeridos del usuario. Recibido: ${JSON.stringify(user || {})}. Los campos 'full_name' (Nombre) y 'document_number' (Documento) son obligatorios.`
     });
+  }
+
+  // No se permite finalizar la encuesta sin la aceptación del Habeas Data.
+  if (!habeas_data_accepted) {
+    return res.status(400).json({ error: 'Debe aceptarse el tratamiento de datos (Habeas Data) para finalizar la encuesta.' });
   }
 
   await ensureHabeasTrace();

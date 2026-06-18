@@ -502,7 +502,7 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ user: userData, answers })
+        body: JSON.stringify({ user: userData, answers, habeas_data_accepted: habeasAccepted })
       });
       
       const data = await res.json();

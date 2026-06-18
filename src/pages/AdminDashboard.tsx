@@ -475,9 +475,13 @@ export default function AdminDashboard() {
       if (res.ok) {
         setShowSurveyModal(false);
         fetchData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'No se pudo guardar la revisión.');
       }
     } catch (err) {
       console.error(err);
+      alert('Error en la comunicación con el servidor.');
     } finally {
       setFormLoading(false);
     }
