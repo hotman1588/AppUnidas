@@ -113,8 +113,8 @@ export const MODULES: ModuleDef[] = [
     id: 2, title: 'Economía y Autonomía', icon: 'Wallet',
     questions: [
       { id: 'ingresos_mensuales', label: 'Ingresos Mensuales', subtitle: '¿Cuánto suman aproximadamente sus ingresos mensuales? (COP)', type: 'range', min: 0, max: 5000000, step: 50000, audience: 'major' },
-      { id: 'fuente_ingresos', label: 'Fuente de Ingresos', subtitle: '¿De dónde provienen principalmente sus ingresos?', type: 'pills', options: ['Trabajo formal', 'Trabajo informal', 'Apoyo familiar', 'Subsidios', 'Pensión', 'Otro'], audience: 'major', showOther: true },
-      { id: 'situacion_laboral', label: 'Situación Laboral', subtitle: '¿Cuál es su situación laboral actual?', type: 'pills', options: ['Empleado', 'Independiente', 'Buscando empleo', 'Hogar', 'Estudiante', 'Jubilado', 'Otro'], audience: 'all', showOther: true },
+      { id: 'fuente_ingresos', label: 'Fuente de Ingresos', subtitle: '¿De dónde provienen principalmente sus ingresos? Puede elegir varias.', type: 'checkbox-group', options: ['Trabajo formal', 'Trabajo informal', 'Apoyo familiar', 'Subsidios', 'Pensión', 'Otro'], audience: 'major', multi: true, showOther: true },
+      { id: 'situacion_laboral', label: 'Situación Laboral', subtitle: '¿Cuál es su situación laboral actual? Puede elegir varias.', type: 'checkbox-group', options: ['Empleado', 'Independiente', 'Buscando empleo', 'Hogar', 'Estudiante', 'Jubilado', 'Otro'], audience: 'all', multi: true, showOther: true },
       { id: 'tipo_vivienda', label: 'Tipo de Vivienda', subtitle: '¿En qué tipo de vivienda habita?', type: 'pills', options: ['Propia', 'Arriendo', 'Compartida', 'Familiar', 'Otro'], audience: 'all', showOther: true },
     ],
   },

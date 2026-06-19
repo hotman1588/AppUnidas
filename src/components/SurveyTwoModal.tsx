@@ -111,6 +111,8 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
       MODULES.forEach(m => m.questions.forEach(q => {
         if (q.conditional && q.id === id && value !== q.conditional.on) delete next[q.conditional.targetId];
         if (q.showOther && q.id === id && !q.multi && value !== 'Otro' && value !== 'Otra') delete next[`${q.id}_otro`];
+        // Multi: limpia la caja "Otro" si ya no está marcada en el arreglo.
+        if (q.showOther && q.id === id && q.multi && Array.isArray(value) && !value.includes('Otro') && !value.includes('Otra')) delete next[`${q.id}_otro`];
       }));
       return next;
     });
