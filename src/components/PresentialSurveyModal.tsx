@@ -252,9 +252,11 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
         }
       }
 
-      // Clear insecure barrio info if difficulty is changed away from Seguridad del sector
-      if (module === 'bienestar' && key === 'dificultad' && value !== 'Seguridad del sector') {
-        if (newAnswers.bienestar) {
+      // Limpia barrio inseguro si "Seguridad del sector" ya no está seleccionada
+      // (dificultad es multi-select: se evalúa con includes()).
+      if (module === 'bienestar' && key === 'dificultad') {
+        const hasSeguridad = Array.isArray(value) ? value.includes('Seguridad del sector') : value === 'Seguridad del sector';
+        if (!hasSeguridad && newAnswers.bienestar) {
           delete newAnswers.bienestar.barrio_inseguro;
           delete newAnswers.bienestar.upl_inseguro;
         }
@@ -293,7 +295,9 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
 
     setValidationErrors(prev => {
       const cleared = prev.filter(f => f !== `${module}.${key}`);
-      if (module === 'bienestar' && key === 'dificultad' && value !== 'Seguridad del sector') {
+      const dificultadSinSeguridad = module === 'bienestar' && key === 'dificultad' &&
+        (Array.isArray(value) ? !value.includes('Seguridad del sector') : value !== 'Seguridad del sector');
+      if (dificultadSinSeguridad) {
         return cleared.filter(f => f !== 'bienestar.barrio_inseguro' && f !== 'bienestar.upl_inseguro');
       }
       if (module === 'bienestar' && key === 'enfermedad_diagnosticada' && value !== 'Sí') {
@@ -310,7 +314,9 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
   };
 
   const handleCheckboxChange = (module: string, key: string, value: string) => {
-    const current = answers[module]?.[key] || [];
+    const raw = answers[module]?.[key];
+    // Tolerante: si venía como texto (dato viejo), se normaliza a arreglo.
+    const current: string[] = Array.isArray(raw) ? raw : (raw ? [raw] : []);
     const updated = current.includes(value)
       ? current.filter((v: string) => v !== value)
       : [...current, value];
@@ -345,6 +351,8 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
 
   const validateStep = () => {
     const missing: string[] = [];
+    // Vacío para texto o arreglo (multi-select sin selección).
+    const empty = (v: any) => v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
     if (currentStep === 0) {
       if (!userData.full_name) missing.push('full_name');
       if (!userData.document_number) missing.push('document_number');
@@ -359,22 +367,22 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       if (!answers.socio?.pertenencia || answers.socio.pertenencia.length === 0) missing.push('socio.pertenencia');
       if (!answers.socio?.estado_civil) missing.push('socio.estado_civil');
     } else if (currentStep === 2) {
-      if (!answers.economia?.fuente_ingresos) missing.push('economia.fuente_ingresos');
+      if (empty(answers.economia?.fuente_ingresos)) missing.push('economia.fuente_ingresos');
       if (!answers.economia?.responsable_economica) missing.push('economia.responsable_economica');
       if (!answers.economia?.personas_dependientes) missing.push('economia.personas_dependientes');
       if (!answers.economia?.profesion) missing.push('economia.profesion');
-      if (!answers.economia?.situacion_laboral) missing.push('economia.situacion_laboral');
+      if (empty(answers.economia?.situacion_laboral)) missing.push('economia.situacion_laboral');
     } else if (currentStep === 3) {
       if (!answers.cuidado?.es_cuidadora) missing.push('cuidado.es_cuidadora');
       if (answers.cuidado?.es_cuidadora === 'Sí') {
-        if (!answers.cuidado?.poblacion) missing.push('cuidado.poblacion');
+        if (empty(answers.cuidado?.poblacion)) missing.push('cuidado.poblacion');
         if (!answers.cuidado?.horas) missing.push('cuidado.horas');
         if (!answers.cuidado?.carga_emocional) missing.push('cuidado.carga_emocional');
         if (!answers.cuidado?.reconocimiento_economico) missing.push('cuidado.reconocimiento_economico');
         if (!answers.cuidado?.valoracion_labores) missing.push('cuidado.valoracion_labores');
         if (!answers.cuidado?.tiempo_realizando_cuidado) missing.push('cuidado.tiempo_realizando_cuidado');
         if (!answers.cuidado?.reconocimiento) missing.push('cuidado.reconocimiento');
-        if (!answers.cuidado?.sentimiento) missing.push('cuidado.sentimiento');
+        if (empty(answers.cuidado?.sentimiento)) missing.push('cuidado.sentimiento');
         if (!answers.cuidado?.cansancio_fisico) missing.push('cuidado.cansancio_fisico');
         if (!answers.cuidado?.responsabilidades_excesivas) missing.push('cuidado.responsabilidades_excesivas');
         if (!answers.cuidado?.poco_tiempo_autocuidado) missing.push('cuidado.poco_tiempo_autocuidado');
@@ -392,9 +400,12 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       if (!answers.bienestar?.enfermedad_diagnosticada) missing.push('bienestar.enfermedad_diagnosticada');
       if (!answers.bienestar?.afectacion_vida_social) missing.push('bienestar.afectacion_vida_social');
       if (answers.bienestar?.participar === 'Sí' || answers.bienestar?.participar === 'Tal vez') {
-        if (!answers.bienestar?.dificultad) missing.push('bienestar.dificultad');
+        if (empty(answers.bienestar?.dificultad)) missing.push('bienestar.dificultad');
       }
-      if (answers.bienestar?.dificultad === 'Seguridad del sector') {
+      const dificultadIncluyeSeguridad = Array.isArray(answers.bienestar?.dificultad)
+        ? answers.bienestar.dificultad.includes('Seguridad del sector')
+        : answers.bienestar?.dificultad === 'Seguridad del sector';
+      if (dificultadIncluyeSeguridad) {
         if (!answers.bienestar?.barrio_inseguro) missing.push('bienestar.barrio_inseguro');
         if (!answers.bienestar?.upl_inseguro) missing.push('bienestar.upl_inseguro');
       }
@@ -402,7 +413,7 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
         if (!answers.bienestar?.enfermedades_cuales) missing.push('bienestar.enfermedades_cuales');
       }
     } else if (currentStep === 5) {
-      if (!answers.proyecciones?.prioridad) missing.push('proyecciones.prioridad');
+      if (empty(answers.proyecciones?.prioridad)) missing.push('proyecciones.prioridad');
       if (!answers.proyecciones?.interes_formacion || answers.proyecciones.interes_formacion.length === 0) missing.push('proyecciones.interes_formacion');
       if (!answers.proyecciones?.bienestar_deseado || answers.proyecciones.bienestar_deseado.length === 0) missing.push('proyecciones.bienestar_deseado');
       if (!answers.proyecciones?.dificultades_actividades_cotidianas) missing.push('proyecciones.dificultades_actividades_cotidianas');
@@ -417,7 +428,7 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       if (!answers.dinamica_familiar?.relaciones) missing.push('dinamica_familiar.relaciones');
       if (!answers.dinamica_familiar?.compartir_habilidades) missing.push('dinamica_familiar.compartir_habilidades');
       if (answers.dinamica_familiar?.compartir_habilidades === 'Sí' && !answers.dinamica_familiar?.compartir_habilidades_cuales) missing.push('dinamica_familiar.compartir_habilidades_cuales');
-      if (!answers.dinamica_familiar?.apoyo_emergencia) missing.push('dinamica_familiar.apoyo_emergencia');
+      if (empty(answers.dinamica_familiar?.apoyo_emergencia)) missing.push('dinamica_familiar.apoyo_emergencia');
       if (!answers.dinamica_familiar?.participacion_social) missing.push('dinamica_familiar.participacion_social');
     } else if (currentStep === 7) {
       if (!habeasAccepted) missing.push('habeas');
@@ -429,19 +440,20 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
     // Si se elige "Otra/Otro" y la caja de texto queda vacía, resaltar la pregunta padre en rojo y bloquear el avance
     const otherRules: Record<number, Array<{ parent: string; other: string; trigger: 'array' | string }>> = {
       1: [
+        { parent: 'socio.genero', other: 'socio.genero_otro', trigger: 'Otro' },
         { parent: 'socio.nivel_educativo', other: 'socio.nivel_educativo_otro', trigger: 'Otro' },
         { parent: 'socio.pertenencia', other: 'socio.pertenencia_otro', trigger: 'array' },
         { parent: 'socio.orientacion_sexual', other: 'socio.orientacion_sexual_otra', trigger: 'Otra' },
         { parent: 'socio.estado_civil', other: 'socio.estado_civil_otra', trigger: 'Otra' },
       ],
       2: [
-        { parent: 'economia.fuente_ingresos', other: 'economia.fuente_ingresos_otro', trigger: 'Otro' },
-        { parent: 'economia.situacion_laboral', other: 'economia.situacion_laboral_otro', trigger: 'Otro' },
+        { parent: 'economia.fuente_ingresos', other: 'economia.fuente_ingresos_otro', trigger: 'array' },
+        { parent: 'economia.situacion_laboral', other: 'economia.situacion_laboral_otro', trigger: 'array' },
         { parent: 'economia.tipo_vivienda', other: 'economia.tipo_vivienda_otro', trigger: 'Otro' },
       ],
       3: answers.cuidado?.es_cuidadora === 'Sí' ? [
-        { parent: 'cuidado.poblacion', other: 'cuidado.poblacion_otro', trigger: 'Otro' },
-        { parent: 'cuidado.sentimiento', other: 'cuidado.sentimiento_otro', trigger: 'Otro' },
+        { parent: 'cuidado.poblacion', other: 'cuidado.poblacion_otro', trigger: 'array' },
+        { parent: 'cuidado.sentimiento', other: 'cuidado.sentimiento_otro', trigger: 'array' },
         { parent: 'cuidado.conoce_programas', other: 'cuidado.cuales_programas', trigger: 'Sí' },
       ] : [],
       4: [
@@ -451,7 +463,7 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
         { parent: 'bienestar.participar', other: 'bienestar.participar_porque', trigger: 'No' },
       ],
       5: [
-        { parent: 'proyecciones.prioridad', other: 'proyecciones.prioridad_otro', trigger: 'Otro' },
+        { parent: 'proyecciones.prioridad', other: 'proyecciones.prioridad_otro', trigger: 'array' },
         { parent: 'proyecciones.interes_formacion', other: 'proyecciones.interes_formacion_otro', trigger: 'array' },
         { parent: 'proyecciones.bienestar_deseado', other: 'proyecciones.bienestar_deseado_otro', trigger: 'array' },
         { parent: 'proyecciones.desea_mas_apoyo', other: 'proyecciones.apoyo_cuales', trigger: 'Sí' },
@@ -459,6 +471,7 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       6: [
         { parent: 'dinamica_familiar.estructura', other: 'dinamica_familiar.estructura_otra', trigger: 'Otra' },
         { parent: 'dinamica_familiar.compartir_habilidades', other: 'dinamica_familiar.compartir_habilidades_cuales', trigger: 'Sí' },
+        { parent: 'dinamica_familiar.apoyo_emergencia', other: 'dinamica_familiar.apoyo_emergencia_otro', trigger: 'array' },
       ],
     };
     (otherRules[currentStep] || []).forEach(({ parent, other, trigger }) => {
@@ -622,9 +635,12 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                     label="IDENTIDAD DE GÉNERO" 
                     subtitle="Cómo se identifica actualmente."
                     type="pills"
-                    options={['Femenino', 'Masculino', 'No binario', 'Transgénero', 'Otro']} 
+                    options={['Femenino', 'Masculino', 'No binario', 'Transgénero', 'Otro']}
                     value={answers.socio.genero}
                     onChange={(v: string) => handleInputChange('socio', 'genero', v)}
+                    showOther={answers.socio.genero === 'Otro'}
+                    otherValue={answers.socio.genero_otro}
+                    onOtherChange={(v: string) => handleInputChange('socio', 'genero_otro', v)}
                     error={validationErrors.includes('socio.genero')}
                   />
                   <Question
@@ -726,13 +742,13 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                   />
                   <Question
                     label="FUENTE DE INGRESOS"
-                    subtitle="Principal origen de sus recursos."
-                    type="pills"
-                    options={['Trabajo formal', 'Trabajo informal', 'Apoyo familiar', 'Subsidios', 'Pensión', 'Otro']} 
-                    value={answers.economia.fuente_ingresos} 
-                    onChange={(v: string) => handleInputChange('economia', 'fuente_ingresos', v)} 
-                    showOther={answers.economia.fuente_ingresos === 'Otro'} 
-                    otherValue={answers.economia.fuente_ingresos_otro} 
+                    subtitle="Principal origen de sus recursos. Puede elegir varias."
+                    type="checkbox-group"
+                    options={['Trabajo formal', 'Trabajo informal', 'Apoyo familiar', 'Subsidios', 'Pensión', 'Otro']}
+                    value={Array.isArray(answers.economia.fuente_ingresos) ? answers.economia.fuente_ingresos : (answers.economia.fuente_ingresos ? [answers.economia.fuente_ingresos] : [])}
+                    onChange={(v: string) => handleCheckboxChange('economia', 'fuente_ingresos', v)}
+                    showOther={Array.isArray(answers.economia.fuente_ingresos) && answers.economia.fuente_ingresos.includes('Otro')}
+                    otherValue={answers.economia.fuente_ingresos_otro}
                     onOtherChange={(v: string) => handleInputChange('economia', 'fuente_ingresos_otro', v)}
                     error={validationErrors.includes('economia.fuente_ingresos')}
                   />
@@ -776,15 +792,15 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                   />
                   <Question
                     label="SITUACIÓN LABORAL"
-                    subtitle="Estado ocupacional actual."
-                    type="pills"
-                    options={['Empleado', 'Independiente', 'Buscando empleo', 'Hogar', 'Estudiante', 'Jubilado', 'Otro']} 
-                    value={answers.economia.situacion_laboral} 
-                    onChange={(v: string) => handleInputChange('economia', 'situacion_laboral', v)} 
-                    showOther={answers.economia.situacion_laboral === 'Otro'} 
-                    otherValue={answers.economia.situacion_laboral_otro} 
+                    subtitle="Estado ocupacional actual. Puede elegir varias."
+                    type="checkbox-group"
+                    options={['Empleado', 'Independiente', 'Buscando empleo', 'Hogar', 'Estudiante', 'Jubilado', 'Otro']}
+                    value={Array.isArray(answers.economia.situacion_laboral) ? answers.economia.situacion_laboral : (answers.economia.situacion_laboral ? [answers.economia.situacion_laboral] : [])}
+                    onChange={(v: string) => handleCheckboxChange('economia', 'situacion_laboral', v)}
+                    showOther={Array.isArray(answers.economia.situacion_laboral) && answers.economia.situacion_laboral.includes('Otro')}
+                    otherValue={answers.economia.situacion_laboral_otro}
                     onOtherChange={(v: string) => handleInputChange('economia', 'situacion_laboral_otro', v)}
-                    error={validationErrors.includes('economia.situacion_laboral')} 
+                    error={validationErrors.includes('economia.situacion_laboral')}
                     className="md:col-span-2"
                   />
                   <Question 
@@ -825,9 +841,8 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                   {answers.cuidado.es_cuidadora === 'Sí' && (
                     <>
                       <Question 
-                        label="POBLACIÓN BAJO CUIDADO" 
-                        subtitle="A quién brinda cuidado habitualmente."
-                        type="pills" 
+                        label="POBLACIÓN BAJO CUIDADO"
+                        subtitle="A quién brinda cuidado habitualmente. Puede elegir varias."
                         options={[
                           'Hijos, hijas o menores de edad',
                           'Personas mayores',
@@ -838,13 +853,14 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                           'Mascotas',
                           'Plantas o huertas',
                           'Otro'
-                        ]} 
-                        value={answers.cuidado.poblacion} 
-                        onChange={(v: string) => handleInputChange('cuidado', 'poblacion', v)} 
-                        showOther={answers.cuidado.poblacion === 'Otro'} 
-                        otherValue={answers.cuidado.poblacion_otro} 
+                        ]}
+                        type="checkbox-group"
+                        value={Array.isArray(answers.cuidado.poblacion) ? answers.cuidado.poblacion : (answers.cuidado.poblacion ? [answers.cuidado.poblacion] : [])}
+                        onChange={(v: string) => handleCheckboxChange('cuidado', 'poblacion', v)}
+                        showOther={Array.isArray(answers.cuidado.poblacion) && answers.cuidado.poblacion.includes('Otro')}
+                        otherValue={answers.cuidado.poblacion_otro}
                         onOtherChange={(v: string) => handleInputChange('cuidado', 'poblacion_otro', v)}
-                        error={validationErrors.includes('cuidado.poblacion')} 
+                        error={validationErrors.includes('cuidado.poblacion')}
                       />
                       <Question 
                         label="HORAS DIARIAS" 
@@ -906,16 +922,16 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                         error={validationErrors.includes('cuidado.reconocimiento')} 
                       />
                       <Question 
-                        label="SENTIMIENTO FRECUENTE" 
-                        subtitle="¿Qué sentimiento experimenta con más frecuencia al cuidar?"
-                        type="pills"
-                        options={['Ira', 'Incertidumbre', 'Temor', 'Tranquilidad', 'Felicidad', 'Angustia', 'Tristeza', 'Otro']} 
-                        value={answers.cuidado.sentimiento} 
-                        onChange={(v: string) => handleInputChange('cuidado', 'sentimiento', v)} 
-                        showOther={answers.cuidado.sentimiento === 'Otro'} 
-                        otherValue={answers.cuidado.sentimiento_otro} 
+                        label="SENTIMIENTO FRECUENTE"
+                        subtitle="¿Qué sentimiento experimenta con más frecuencia al cuidar? Puede elegir varios."
+                        type="checkbox-group"
+                        options={['Ira', 'Incertidumbre', 'Temor', 'Tranquilidad', 'Felicidad', 'Angustia', 'Tristeza', 'Otro']}
+                        value={Array.isArray(answers.cuidado.sentimiento) ? answers.cuidado.sentimiento : (answers.cuidado.sentimiento ? [answers.cuidado.sentimiento] : [])}
+                        onChange={(v: string) => handleCheckboxChange('cuidado', 'sentimiento', v)}
+                        showOther={Array.isArray(answers.cuidado.sentimiento) && answers.cuidado.sentimiento.includes('Otro')}
+                        otherValue={answers.cuidado.sentimiento_otro}
                         onOtherChange={(v: string) => handleInputChange('cuidado', 'sentimiento_otro', v)}
-                        error={validationErrors.includes('cuidado.sentimiento')} 
+                        error={validationErrors.includes('cuidado.sentimiento')}
                         className="md:col-span-2" 
                       />
                       <Question
@@ -1030,17 +1046,17 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                   />
                   {(answers.bienestar.participar === 'Sí' || answers.bienestar.participar === 'Tal vez') && (
                     <Question 
-                      label="PRINCIPAL DIFICULTAD" 
-                      subtitle="¿Cuál sería el mayor obstáculo para su asistencia?"
-                      type="pills"
-                      options={['Tiempo', 'Movilidad', 'Motivación', 'Seguridad del sector', 'Prevención social', 'Falta de empatía']} 
-                      value={answers.bienestar.dificultad} 
-                      onChange={(v: string) => handleInputChange('bienestar', 'dificultad', v)} 
+                      label="PRINCIPAL DIFICULTAD"
+                      subtitle="¿Cuál sería el mayor obstáculo para su asistencia? Puede elegir varias."
+                      type="checkbox-group"
+                      options={['Tiempo', 'Movilidad', 'Motivación', 'Seguridad del sector', 'Prevención social', 'Falta de empatía']}
+                      value={Array.isArray(answers.bienestar.dificultad) ? answers.bienestar.dificultad : (answers.bienestar.dificultad ? [answers.bienestar.dificultad] : [])}
+                      onChange={(v: string) => handleCheckboxChange('bienestar', 'dificultad', v)}
                       className="md:col-span-2"
                     />
                   )}
 
-                  {answers.bienestar?.dificultad === 'Seguridad del sector' && (
+                  {(Array.isArray(answers.bienestar?.dificultad) ? answers.bienestar.dificultad.includes('Seguridad del sector') : answers.bienestar?.dificultad === 'Seguridad del sector') && (
                     <>
                       <Question
                         label="BARRIO DE INSEGURIDAD"
@@ -1124,16 +1140,16 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                 <StepHeader icon={Star} title="Sueños y Proyecciones" color="purple" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Question 
-                    label="PRIORIDAD URGENTE" 
-                    subtitle="Identifique su necesidad más inmediata para mejorar su bienestar."
-                    type="pills"
-                    options={['Salud', 'Empleo', 'Educación', 'Vivienda', 'Apoyo Psicosocial', 'Seguridad', 'Otro']} 
-                    value={answers.proyecciones.prioridad} 
-                    onChange={(v: string) => handleInputChange('proyecciones', 'prioridad', v)} 
-                    showOther={answers.proyecciones.prioridad === 'Otro'} 
-                    otherValue={answers.proyecciones.prioridad_otro} 
+                    label="PRIORIDAD URGENTE"
+                    subtitle="Identifique sus necesidades más inmediatas para mejorar su bienestar. Puede elegir varias."
+                    type="checkbox-group"
+                    options={['Salud', 'Empleo', 'Educación', 'Vivienda', 'Apoyo Psicosocial', 'Seguridad', 'Otro']}
+                    value={Array.isArray(answers.proyecciones.prioridad) ? answers.proyecciones.prioridad : (answers.proyecciones.prioridad ? [answers.proyecciones.prioridad] : [])}
+                    onChange={(v: string) => handleCheckboxChange('proyecciones', 'prioridad', v)}
+                    showOther={Array.isArray(answers.proyecciones.prioridad) && answers.proyecciones.prioridad.includes('Otro')}
+                    otherValue={answers.proyecciones.prioridad_otro}
                     onOtherChange={(v) => handleInputChange('proyecciones', 'prioridad_otro', v)}
-                    error={validationErrors.includes('proyecciones.prioridad')} 
+                    error={validationErrors.includes('proyecciones.prioridad')}
                   />
                   <Question 
                     label="INTERÉS DE FORMACIÓN" 
@@ -1269,11 +1285,14 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
 
                   <Question
                     label="APOYO EN EMERGENCIAS"
-                    subtitle="Cuando tiene una emergencia o necesita apoyo, ¿quién suele ayudarle?"
-                    type="pills"
+                    subtitle="Cuando tiene una emergencia o necesita apoyo, ¿quién suele ayudarle? Puede elegir varios."
+                    type="checkbox-group"
                     options={['Pareja', 'Hijos o hijas', 'Padres o familiares', 'Amigos', 'Vecinos', 'Líderes comunitarios', 'Nadie', 'Otro']}
-                    value={answers.dinamica_familiar?.apoyo_emergencia}
-                    onChange={(v: string) => handleInputChange('dinamica_familiar', 'apoyo_emergencia', v)}
+                    value={Array.isArray(answers.dinamica_familiar?.apoyo_emergencia) ? answers.dinamica_familiar?.apoyo_emergencia : (answers.dinamica_familiar?.apoyo_emergencia ? [answers.dinamica_familiar?.apoyo_emergencia] : [])}
+                    onChange={(v: string) => handleCheckboxChange('dinamica_familiar', 'apoyo_emergencia', v)}
+                    showOther={Array.isArray(answers.dinamica_familiar?.apoyo_emergencia) && answers.dinamica_familiar?.apoyo_emergencia.includes('Otro')}
+                    otherValue={answers.dinamica_familiar?.apoyo_emergencia_otro}
+                    onOtherChange={(v: string) => handleInputChange('dinamica_familiar', 'apoyo_emergencia_otro', v)}
                     error={validationErrors.includes('dinamica_familiar.apoyo_emergencia')}
                     className="md:col-span-2"
                   />
