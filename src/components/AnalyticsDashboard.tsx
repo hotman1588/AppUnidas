@@ -111,28 +111,7 @@ const FreqBar = ({data,title,color=P.primary}: any) => (
 );
 
 // ─── MAPA SVG BARRIOS UNIDOS ─────────────────────────────────────────────────
-const MapaBarriosUnidos = ({ data, uplData = [] }: { data: any[]; uplData?: any[] }) => {
-  const zonas = [
-    // UPZ Los Alcázares
-    {id:"escuela",name:"Escuela Militar",upz:"Los Alcázares",x:90,y:55,r:22},
-    {id:"metropolis",name:"Metrópolis",upz:"Los Alcázares",x:140,y:75,r:22},
-    {id:"colombia",name:"Colombia",upz:"Los Alcázares",x:95,y:115,r:22},
-    {id:"baquero",name:"Baquero",upz:"Los Alcázares",x:150,y:130,r:22},
-    // UPZ Doce de Octubre
-    {id:"andesnorte",name:"Andes Norte",upz:"Doce de Octubre",x:265,y:65,r:28},
-    {id:"diezago",name:"7 de Agosto",upz:"Doce de Octubre",x:265,y:130,r:22},
-    {id:"doce",name:"Doce de Octubre",upz:"Doce de Octubre",x:310,y:95,r:22},
-    // UPZ Los Andes
-    {id:"benjamin",name:"Benjamín Herrera",upz:"Los Andes",x:210,y:210,r:28},
-    {id:"gaitan",name:"Jorge Eliécer Gaitán",upz:"Los Andes",x:155,y:225,r:22},
-    {id:"castellana",name:"La Castellana",upz:"Los Andes",x:265,y:240,r:22},
-  ].map(z => {
-    const found = data.find(d => d.name === z.name);
-    // La UPL se toma del catálogo oficial BARRIO_TO_UPL para que el mapa quede
-    // consistente con los datos (evita asignaciones hardcodeadas erróneas).
-    return { ...z, upz: BARRIO_TO_UPL[z.name] || z.upz, count: found ? found.value : 0 };
-  }).filter(z => z.count > 0);
-
+const MapaBarriosUnidos = ({ uplData = [] }: { uplData?: any[] }) => {
   const upzColors: Record<string, string> = {"Los Alcázares":"#9333EA","Doce de Octubre":"#0D9488","Los Andes":"#F59E0B"};
   const fallbackPalette = [P.primary, P.teal, P.accent, P.rose, "#7C3AED", "#2563EB", "#DB2777"];
   const [hov,setHov] = useState<string | null>(null);
@@ -179,26 +158,19 @@ const MapaBarriosUnidos = ({ data, uplData = [] }: { data: any[]; uplData?: any[
         </svg>
         <div style={{flex:1,minWidth:120}}>
           <div style={{fontSize:11.5,fontWeight:800,color:P.slate,marginBottom:10}}>Leyenda UPL</div>
-          {(() => {
-            // La leyenda usa los totales REALES por UPL (todos los registrados),
-            // no solo los barrios dibujados en el mapa. Color del catálogo o de respaldo.
-            const fallbackPalette = [P.primary, P.teal, P.accent, P.rose, "#7C3AED", "#2563EB", "#DB2777"];
-            const rows = (uplData && uplData.length > 0)
-              ? uplData.map(u => ({ name: u.name, total: u.value }))
-              : Object.keys(upzColors).map(upz => ({ name: upz, total: zonas.filter(z=>z.upz===upz).reduce((s,z)=>s+z.count,0) }));
-            return rows.map((r, i) => {
-              const col = upzColors[r.name] || fallbackPalette[i % fallbackPalette.length];
-              return (
-                <div key={r.name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-                  <div style={{width:14,height:14,borderRadius:3,background:col,flexShrink:0}}/>
-                  <div>
-                    <div style={{fontSize:11.5,fontWeight:700,color:P.slate}}>{r.name}</div>
-                    <div style={{fontSize:10.5,color:"#64748B"}}>{r.total} cuidadora{r.total!==1?"s":""}</div>
-                  </div>
+          {/* La leyenda usa los totales reales por UPL (todos los registrados). */}
+          {uplData.map((u, i) => {
+            const col = upzColors[u.name] || fallbackPalette[i % fallbackPalette.length];
+            return (
+              <div key={u.name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                <div style={{width:14,height:14,borderRadius:3,background:col,flexShrink:0}}/>
+                <div>
+                  <div style={{fontSize:11.5,fontWeight:700,color:P.slate}}>{u.name}</div>
+                  <div style={{fontSize:10.5,color:"#64748B"}}>{u.value} cuidadora{u.value!==1?"s":""}</div>
                 </div>
-              );
-            });
-          })()}
+              </div>
+            );
+          })}
         </div>
       </div>
     </Card>
@@ -307,7 +279,6 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
 
     // MÓDULO 1
     const barrios = countFreq(a => a.socio?.barrio);
-    const upzData = countFreq(a => a.socio?.upz);
     // UPL robusta: usa la zona registrada (socio.upz) y, si falta, la deriva del
     // barrio con el catálogo oficial, para que el panel siempre conecte la UPL.
     const uplData = countFreq(a => a.socio?.upz || (a.socio?.barrio ? BARRIO_TO_UPL[a.socio.barrio] : ''));
@@ -461,7 +432,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
        TOTAL: realTotal,
        avgH,
        avgIngresos,
-       barrios, upzData, uplData, generoData, educData, pertData, edadGrupos,
+       barrios, uplData, generoData, educData, pertData, edadGrupos,
        fuenteData, laboralData, viviendaData, ingresosData,
        horasData, poblCuidadaData, reconocData, sentimData,
        agotFreq, cansFreq, estresFreq, autocuidFreq, respExcFreq, conoceProg, radarCarga,
@@ -568,7 +539,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
             </div>
 
             {/* MAPA */}
-            <div style={{marginBottom:18}}><MapaBarriosUnidos data={data.barrios} uplData={data.uplData} /></div>
+            <div style={{marginBottom:18}}><MapaBarriosUnidos uplData={data.uplData} /></div>
 
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
               <HBar data={data.barrios} title="Distribución por Barrio" total={TOTAL}/>
