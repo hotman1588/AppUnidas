@@ -298,9 +298,11 @@ export default function SurveyWizard() {
         }
       }
 
-      // Clear insecure barrio info if difficulty is changed away from Seguridad del sector
-      if (module === 'bienestar' && question === 'dificultad' && value !== 'Seguridad del sector') {
-        if (newAnswers.bienestar) {
+      // Limpia el barrio inseguro si "Seguridad del sector" ya no está seleccionada.
+      // dificultad ahora es multi-select (arreglo): se evalúa con includes().
+      if (module === 'bienestar' && question === 'dificultad') {
+        const hasSeguridad = Array.isArray(value) ? value.includes('Seguridad del sector') : value === 'Seguridad del sector';
+        if (!hasSeguridad && newAnswers.bienestar) {
           delete newAnswers.bienestar.barrio_inseguro;
           delete newAnswers.bienestar.upl_inseguro;
         }
@@ -340,7 +342,9 @@ export default function SurveyWizard() {
 
   const handleCheckboxChange = (module: string, question: string, value: string) => {
     setAnswers((prev: any) => {
-      const current = prev[module]?.[question] || [];
+      const raw = prev[module]?.[question];
+      // Tolerante: si venía como texto (dato viejo), se normaliza a arreglo.
+      const current: string[] = Array.isArray(raw) ? raw : (raw ? [raw] : []);
       const updated = current.includes(value)
         ? current.filter((v: string) => v !== value)
         : [...current, value];
@@ -365,7 +369,7 @@ export default function SurveyWizard() {
         'bienestar.tiempo_cuidado_mayor_parte', 'bienestar.poco_apoyo_familiar', 'bienestar.afectacion_sueño',
         'bienestar.enfermedad_diagnosticada', 'bienestar.afectacion_vida_social',
         ...(answers.bienestar?.participar === 'Sí' || answers.bienestar?.participar === 'Tal vez' ? ['bienestar.dificultad'] : []),
-        ...(answers.bienestar?.dificultad === 'Seguridad del sector' ? ['bienestar.barrio_inseguro', 'bienestar.upl_inseguro'] : []),
+        ...(Array.isArray(answers.bienestar?.dificultad) ? answers.bienestar.dificultad.includes('Seguridad del sector') : answers.bienestar?.dificultad === 'Seguridad del sector') ? ['bienestar.barrio_inseguro', 'bienestar.upl_inseguro'] : [],
         ...(answers.bienestar?.enfermedad_diagnosticada === 'Sí' ? ['bienestar.enfermedades_cuales'] : [])
       ],
       5: [
@@ -405,19 +409,20 @@ export default function SurveyWizard() {
     // Si se elige "Otra/Otro" y la caja de texto queda vacía, resaltar la pregunta padre en rojo y bloquear el avance
     const otherRules: Record<number, Array<{ parent: string; other: string; trigger: 'array' | string }>> = {
       1: [
+        { parent: 'socio.genero', other: 'socio.genero_otro', trigger: 'Otro' },
         { parent: 'socio.nivel_educativo', other: 'socio.nivel_educativo_otro', trigger: 'Otro' },
         { parent: 'socio.pertenencia', other: 'socio.pertenencia_otro', trigger: 'array' },
         { parent: 'socio.orientacion_sexual', other: 'socio.orientacion_sexual_otra', trigger: 'Otra' },
         { parent: 'socio.estado_civil', other: 'socio.estado_civil_otra', trigger: 'Otra' },
       ],
       2: [
-        { parent: 'economia.fuente_ingresos', other: 'economia.fuente_ingresos_otro', trigger: 'Otro' },
-        { parent: 'economia.situacion_laboral', other: 'economia.situacion_laboral_otro', trigger: 'Otro' },
+        { parent: 'economia.fuente_ingresos', other: 'economia.fuente_ingresos_otro', trigger: 'array' },
+        { parent: 'economia.situacion_laboral', other: 'economia.situacion_laboral_otro', trigger: 'array' },
         { parent: 'economia.tipo_vivienda', other: 'economia.tipo_vivienda_otro', trigger: 'Otro' },
       ],
       3: answers.cuidado?.es_cuidadora === 'Sí' ? [
-        { parent: 'cuidado.poblacion', other: 'cuidado.poblacion_otro', trigger: 'Otro' },
-        { parent: 'cuidado.sentimiento', other: 'cuidado.sentimiento_otro', trigger: 'Otro' },
+        { parent: 'cuidado.poblacion', other: 'cuidado.poblacion_otro', trigger: 'array' },
+        { parent: 'cuidado.sentimiento', other: 'cuidado.sentimiento_otro', trigger: 'array' },
         { parent: 'cuidado.conoce_programas', other: 'cuidado.cuales_programas', trigger: 'Sí' },
       ] : [],
       4: [
@@ -427,7 +432,7 @@ export default function SurveyWizard() {
         { parent: 'bienestar.participar', other: 'bienestar.participar_porque', trigger: 'No' },
       ],
       5: [
-        { parent: 'proyecciones.prioridad', other: 'proyecciones.prioridad_otro', trigger: 'Otro' },
+        { parent: 'proyecciones.prioridad', other: 'proyecciones.prioridad_otro', trigger: 'array' },
         { parent: 'proyecciones.interes_formacion', other: 'proyecciones.interes_formacion_otro', trigger: 'array' },
         { parent: 'proyecciones.bienestar_deseado', other: 'proyecciones.bienestar_deseado_otro', trigger: 'array' },
         { parent: 'proyecciones.proyectos_ideales', other: 'proyecciones.proyectos_ideales_otro', trigger: 'array' },
@@ -436,6 +441,7 @@ export default function SurveyWizard() {
       6: [
         { parent: 'dinamica_familiar.estructura', other: 'dinamica_familiar.estructura_otra', trigger: 'Otra' },
         { parent: 'dinamica_familiar.compartir_habilidades', other: 'dinamica_familiar.compartir_habilidades_cuales', trigger: 'Sí' },
+        { parent: 'dinamica_familiar.apoyo_emergencia', other: 'dinamica_familiar.apoyo_emergencia_otro', trigger: 'array' },
       ],
     };
     (otherRules[step] || []).forEach(({ parent, other, trigger }) => {
@@ -848,6 +854,9 @@ export default function SurveyWizard() {
                     value={answers.socio?.genero}
                     onChange={(v: string) => handleInputChange('socio', 'genero', v)}
                     error={validationErrors.includes('socio.genero')}
+                    showOther={answers.socio?.genero === 'Otro'}
+                    otherValue={answers.socio?.genero_otro}
+                    onOtherChange={(v: string) => handleInputChange('socio', 'genero_otro', v)}
                     disabled={isLocked}
                   />
                   <Question
@@ -957,13 +966,13 @@ export default function SurveyWizard() {
                   />
                   <Question
                     label="FUENTE DE INGRESOS"
-                    subtitle="Principal origen de sus recursos."
-                    type="pills"
+                    subtitle="Principal origen de sus recursos. Puede elegir varias."
+                    type="checkbox-group"
                     options={['Trabajo formal', 'Trabajo informal', 'Apoyo familiar', 'Subsidios', 'Pensión', 'Otro']}
-                    value={answers.economia?.fuente_ingresos}
-                    onChange={(v: string) => handleInputChange('economia', 'fuente_ingresos', v)}
+                    value={Array.isArray(answers.economia?.fuente_ingresos) ? answers.economia?.fuente_ingresos : (answers.economia?.fuente_ingresos ? [answers.economia?.fuente_ingresos] : [])}
+                    onChange={(v) => handleCheckboxChange('economia', 'fuente_ingresos', v)}
                     error={validationErrors.includes('economia.fuente_ingresos')}
-                    showOther={answers.economia?.fuente_ingresos === 'Otro'}
+                    showOther={Array.isArray(answers.economia?.fuente_ingresos) && answers.economia?.fuente_ingresos.includes('Otro')}
                     otherValue={answers.economia?.fuente_ingresos_otro}
                     onOtherChange={(v: string) => handleInputChange('economia', 'fuente_ingresos_otro', v)}
                     disabled={isLocked}
@@ -1011,13 +1020,13 @@ export default function SurveyWizard() {
                   />
                   <Question
                     label="SITUACIÓN LABORAL"
-                    subtitle="Estado ocupacional actual."
-                    type="pills"
+                    subtitle="Estado ocupacional actual. Puede elegir varias."
+                    type="checkbox-group"
                     options={['Empleado', 'Independiente', 'Buscando empleo', 'Hogar', 'Estudiante', 'Jubilado', 'Otro']}
-                    value={answers.economia?.situacion_laboral}
-                    onChange={(v: string) => handleInputChange('economia', 'situacion_laboral', v)}
+                    value={Array.isArray(answers.economia?.situacion_laboral) ? answers.economia?.situacion_laboral : (answers.economia?.situacion_laboral ? [answers.economia?.situacion_laboral] : [])}
+                    onChange={(v) => handleCheckboxChange('economia', 'situacion_laboral', v)}
                     error={validationErrors.includes('economia.situacion_laboral')}
-                    showOther={answers.economia?.situacion_laboral === 'Otro'}
+                    showOther={Array.isArray(answers.economia?.situacion_laboral) && answers.economia?.situacion_laboral.includes('Otro')}
                     otherValue={answers.economia?.situacion_laboral_otro}
                     onOtherChange={(v: string) => handleInputChange('economia', 'situacion_laboral_otro', v)}
                     disabled={isLocked}
@@ -1106,11 +1115,11 @@ export default function SurveyWizard() {
                           'Plantas o huertas',
                           'Otro'
                         ]}
-                        type="pills"
-                        value={answers.cuidado?.poblacion}
-                        onChange={(v: string) => handleInputChange('cuidado', 'poblacion', v)}
+                        type="checkbox-group"
+                        value={Array.isArray(answers.cuidado?.poblacion) ? answers.cuidado?.poblacion : (answers.cuidado?.poblacion ? [answers.cuidado?.poblacion] : [])}
+                        onChange={(v) => handleCheckboxChange('cuidado', 'poblacion', v)}
                         error={validationErrors.includes('cuidado.poblacion')}
-                        showOther={answers.cuidado?.poblacion === 'Otro'}
+                        showOther={Array.isArray(answers.cuidado?.poblacion) && answers.cuidado?.poblacion.includes('Otro')}
                         otherValue={answers.cuidado?.poblacion_otro}
                         onOtherChange={(v: string) => handleInputChange('cuidado', 'poblacion_otro', v)}
                         disabled={isLocked}
@@ -1188,13 +1197,13 @@ export default function SurveyWizard() {
                       />
                       <Question
                         label="SENTIMIENTO FRECUENTE"
-                        subtitle="¿Qué sentimiento experimenta con más frecuencia?"
-                        type="pills"
+                        subtitle="¿Qué sentimiento experimenta con más frecuencia? Puede elegir varios."
+                        type="checkbox-group"
                         options={['Ira', 'Incertidumbre', 'Temor', 'Tranquilidad', 'Felicidad', 'Angustia', 'Tristeza', 'Otro']}
-                        value={answers.cuidado?.sentimiento}
-                        onChange={(v: string) => handleInputChange('cuidado', 'sentimiento', v)}
+                        value={Array.isArray(answers.cuidado?.sentimiento) ? answers.cuidado?.sentimiento : (answers.cuidado?.sentimiento ? [answers.cuidado?.sentimiento] : [])}
+                        onChange={(v) => handleCheckboxChange('cuidado', 'sentimiento', v)}
                         error={validationErrors.includes('cuidado.sentimiento')}
-                        showOther={answers.cuidado?.sentimiento === 'Otro'}
+                        showOther={Array.isArray(answers.cuidado?.sentimiento) && answers.cuidado?.sentimiento.includes('Otro')}
                         otherValue={answers.cuidado?.sentimiento_otro}
                         onOtherChange={(v: string) => handleInputChange('cuidado', 'sentimiento_otro', v)}
                         disabled={isLocked}
@@ -1325,17 +1334,17 @@ export default function SurveyWizard() {
                   {(answers.bienestar?.participar === 'Sí' || answers.bienestar?.participar === 'Tal vez') && (
                     <Question
                       label="PRINCIPAL DIFICULTAD"
-                      subtitle="¿Cuál sería el mayor obstáculo para su asistencia?"
-                      type="pills"
+                      subtitle="¿Cuál sería el mayor obstáculo para su asistencia? Puede elegir varias."
+                      type="checkbox-group"
                       options={['Tiempo', 'Movilidad', 'Motivación', 'Seguridad del sector', 'Prevención social', 'Falta de empatía']}
-                      value={answers.bienestar?.dificultad}
-                      onChange={(v) => handleInputChange('bienestar', 'dificultad', v)}
+                      value={Array.isArray(answers.bienestar?.dificultad) ? answers.bienestar?.dificultad : (answers.bienestar?.dificultad ? [answers.bienestar?.dificultad] : [])}
+                      onChange={(v) => handleCheckboxChange('bienestar', 'dificultad', v)}
                       disabled={isLocked}
                       className="md:col-span-2"
                     />
                   )}
 
-                  {answers.bienestar?.dificultad === 'Seguridad del sector' && (
+                  {(Array.isArray(answers.bienestar?.dificultad) ? answers.bienestar.dificultad.includes('Seguridad del sector') : answers.bienestar?.dificultad === 'Seguridad del sector') && (
                     <>
                       <Question
                         label="BARRIO DE INSEGURIDAD"
@@ -1423,13 +1432,13 @@ export default function SurveyWizard() {
                 <>
                   <Question
                     label="PRIORIDAD URGENTE"
-                    subtitle="Identifique su necesidad más inmediata para mejorar su bienestar."
-                    type="pills"
+                    subtitle="Identifique sus necesidades más inmediatas para mejorar su bienestar. Puede elegir varias."
+                    type="checkbox-group"
                     options={['Salud', 'Empleo', 'Educación', 'Vivienda', 'Apoyo Psicosocial', 'Seguridad', 'Otro']}
-                    value={answers.proyecciones?.prioridad}
-                    onChange={(v) => handleInputChange('proyecciones', 'prioridad', v)}
+                    value={Array.isArray(answers.proyecciones?.prioridad) ? answers.proyecciones?.prioridad : (answers.proyecciones?.prioridad ? [answers.proyecciones?.prioridad] : [])}
+                    onChange={(v) => handleCheckboxChange('proyecciones', 'prioridad', v)}
                     error={validationErrors.includes('proyecciones.prioridad')}
-                    showOther={answers.proyecciones?.prioridad === 'Otro'}
+                    showOther={Array.isArray(answers.proyecciones?.prioridad) && answers.proyecciones?.prioridad.includes('Otro')}
                     otherValue={answers.proyecciones?.prioridad_otro}
                     onOtherChange={(v) => handleInputChange('proyecciones', 'prioridad_otro', v)}
                     disabled={isLocked}
@@ -1579,12 +1588,15 @@ export default function SurveyWizard() {
 
                   <Question
                     label="APOYO EN EMERGENCIAS"
-                    subtitle="Cuando tiene una emergencia o necesita apoyo, ¿quién suele ayudarle?"
-                    type="pills"
+                    subtitle="Cuando tiene una emergencia o necesita apoyo, ¿quién suele ayudarle? Puede elegir varios."
+                    type="checkbox-group"
                     options={['Pareja', 'Hijos o hijas', 'Padres o familiares', 'Amigos', 'Vecinos', 'Líderes comunitarios', 'Nadie', 'Otro']}
-                    value={answers.dinamica_familiar?.apoyo_emergencia}
-                    onChange={(v: string) => handleInputChange('dinamica_familiar', 'apoyo_emergencia', v)}
+                    value={Array.isArray(answers.dinamica_familiar?.apoyo_emergencia) ? answers.dinamica_familiar?.apoyo_emergencia : (answers.dinamica_familiar?.apoyo_emergencia ? [answers.dinamica_familiar?.apoyo_emergencia] : [])}
+                    onChange={(v) => handleCheckboxChange('dinamica_familiar', 'apoyo_emergencia', v)}
                     error={validationErrors.includes('dinamica_familiar.apoyo_emergencia')}
+                    showOther={Array.isArray(answers.dinamica_familiar?.apoyo_emergencia) && answers.dinamica_familiar?.apoyo_emergencia.includes('Otro')}
+                    otherValue={answers.dinamica_familiar?.apoyo_emergencia_otro}
+                    onOtherChange={(v: string) => handleInputChange('dinamica_familiar', 'apoyo_emergencia_otro', v)}
                     disabled={isLocked}
                     className="md:col-span-2"
                   />
