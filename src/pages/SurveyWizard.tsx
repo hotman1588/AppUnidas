@@ -979,7 +979,7 @@ export default function SurveyWizard() {
                   />
                   <Question
                     label="RESPONSABLE ECONÓMICA DEL HOGAR"
-                    subtitle="¿Es usted la principal responsable económica de su hogar?"
+                    subtitle="¿Su hogar depende económicamente de usted?"
                     type="pills"
                     options={['Sí', 'No', 'Comparte esta responsabilidad con otra persona']}
                     value={answers.economia?.responsable_economica}
@@ -1279,7 +1279,7 @@ export default function SurveyWizard() {
                 <>
                   <Question
                     label="SEGURIDAD EN HOGAR"
-                    subtitle="Percepción de tranquilidad y protección en su vivienda."
+                    subtitle="¿Qué tan protegido y seguro se siente en su hogar?"
                     type="pills"
                     options={['Siempre', 'Casi siempre', 'A veces', 'Nunca']}
                     value={answers.bienestar?.seguridad_hogar}
