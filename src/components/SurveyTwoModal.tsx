@@ -421,8 +421,8 @@ function Card({ label, subtitle, children, error, className, ageDisplay }: any) 
   return (
     <div className={cn('bg-white/5 border p-3 rounded-2xl backdrop-blur-xl flex flex-col', error ? 'border-red-500/50 bg-red-500/5' : 'border-white/10', className)}>
       <div className="mb-2 border-b border-white/5 pb-2">
-        <label className="text-[11px] font-black text-white/70 uppercase tracking-[0.05em] block mb-0.5">{label}</label>
-        {subtitle && <p className="text-[9px] text-white/30 font-medium italic leading-tight">{subtitle}</p>}
+        <label className="text-[11px] font-black text-white uppercase tracking-[0.05em] block mb-0.5">{label}</label>
+        {subtitle && <p className="text-[9px] text-white font-medium italic leading-tight">{subtitle}</p>}
       </div>
       <div className="flex-grow flex flex-col justify-center">{children}</div>
       {ageDisplay && (
