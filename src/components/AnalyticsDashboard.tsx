@@ -238,18 +238,28 @@ const TABS = [
 
 export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
   const [tab, setTab] = useState("resumen");
+  // Filtro principal del dashboard por estado (default 'Aprobada'): todas las
+  // visualizaciones y KPIs se recalculan según el estado seleccionado.
+  const [estadoFiltro, setEstadoFiltro] = useState<'Aprobada' | 'Pendiente' | 'Todas'>('Aprobada');
 
   const data = useMemo(() => {
     // 1. Considerar todas las encuestas REGISTRADAS (con respuestas), no solo las
     // aprobadas, para que el tablero refleje lo mismo que el archivo consolidado.
-    const approved = surveys.filter(s =>
+    const registered = surveys.filter(s =>
       s.answers && typeof s.answers === 'object' && Object.keys(s.answers).length > 0
     );
+    // Conteos globales por estado (siempre sobre el total registrado).
+    const aprobadasCount = registered.filter((s: any) => s.status === 'approved').length;
+    const pendientesCount = registered.length - aprobadasCount;
+    const registeredCount = registered.length;
+    // Conjunto de trabajo según el filtro principal (recalcula KPIs y gráficas).
+    const approved = registered.filter((s: any) => {
+      if (estadoFiltro === 'Todas') return true;
+      if (estadoFiltro === 'Aprobada') return s.status === 'approved';
+      return s.status !== 'approved'; // 'Pendiente' (pendiente/borrador)
+    });
     const TOTAL = approved.length || 1; // evitar division por cero
     const realTotal = approved.length;
-    // Conteos por estado para reflejar el consolidado (registradas = aprobadas + pendientes/borrador).
-    const aprobadasCount = approved.filter((s: any) => s.status === 'approved').length;
-    const pendientesCount = realTotal - aprobadasCount;
 
     // Helper to count frequencies
     const countFreq = (extractor: (a: any) => string | string[]) => {
@@ -435,6 +445,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
        TOTAL: realTotal,
        aprobadasCount,
        pendientesCount,
+       registeredCount,
        avgH,
        avgIngresos,
        barrios, uplData, generoData, educData, pertData, edadGrupos,
@@ -451,9 +462,9 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
           sinReconPct: realTotal > 0 ? Math.round((sinRecon / realTotal) * 100) : 0,
        }
     };
-  }, [surveys]);
+  }, [surveys, estadoFiltro]);
 
-  const { TOTAL, avgH, avgIngresos, kpis, aprobadasCount, pendientesCount } = data;
+  const { TOTAL, avgH, avgIngresos, kpis, aprobadasCount, pendientesCount, registeredCount } = data;
 
   return (
     <div style={{fontFamily:"'Segoe UI',system-ui,sans-serif",background:P.surface,minHeight:"100vh",color:P.slate}}>
@@ -468,8 +479,8 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
           </div>
           <h1 style={{margin:0,fontSize:24,fontWeight:900,color:"white",lineHeight:1.2}}>Diagnóstico de Necesidades</h1>
           <h2 style={{margin:"3px 0 0",fontSize:15,fontWeight:400,color:"#C4B5FD"}}>Mujeres Cuidadoras — Localidad Barrios Unidos · Bogotá D.C.</h2>
-          <div style={{display:"flex",gap:20,marginTop:14,flexWrap:"wrap"}}>
-            {[["👩‍👧", TOTAL.toString(), "Cuidadoras analizadas"],["✅",aprobadasCount.toString(),"Aprobadas"],["⏳",pendientesCount.toString(),"Pendientes / borrador"],["📋","5","Módulos diagnósticos"]].map(([icon,val,label])=>(
+          <div style={{display:"flex",gap:20,marginTop:14,flexWrap:"wrap",alignItems:"center"}}>
+            {[["👩‍👧", registeredCount.toString(), "Registradas"],["✅",aprobadasCount.toString(),"Aprobadas"],["⏳",pendientesCount.toString(),"Pendientes / borrador"],["📋","5","Módulos diagnósticos"]].map(([icon,val,label])=>(
               <div key={label} style={{display:"flex",alignItems:"center",gap:7}}>
                 <span style={{fontSize:15}}>{icon}</span>
                 <div>
@@ -478,6 +489,15 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
                 </div>
               </div>
             ))}
+            {/* Filtro principal por estado: recalcula todo el panel. */}
+            <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:10.5,color:"#C4B5FD",fontWeight:700}}>Filtro estado</span>
+              <div style={{display:"flex",background:"rgba(255,255,255,0.12)",borderRadius:10,padding:3}}>
+                {(['Aprobada','Pendiente','Todas'] as const).map(op=>(
+                  <button key={op} onClick={()=>setEstadoFiltro(op)} style={{border:"none",cursor:"pointer",fontSize:11,fontWeight:800,padding:"6px 12px",borderRadius:8,background:estadoFiltro===op?"white":"transparent",color:estadoFiltro===op?P.primary:"#E9D5FF",transition:"all .2s"}}>{op}</button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -497,9 +517,9 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
         {/* RESUMEN */}
         {tab==="resumen" && (
           <div>
-            <SecTitle icon="📊" module="Vista General" title="Panel de Indicadores Clave" subtitle={`Síntesis del diagnóstico de resistencia y necesidades — n=${TOTAL} registradas (${aprobadasCount} aprobadas · ${pendientesCount} pendientes)`}/>
+            <SecTitle icon="📊" module="Vista General" title="Panel de Indicadores Clave" subtitle={`Síntesis del diagnóstico — n=${TOTAL} · filtro: ${estadoFiltro} (registradas: ${registeredCount} · ${aprobadasCount} aprobadas · ${pendientesCount} pendientes)`}/>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:14,marginBottom:26}}>
-              <KPICard icon="👩‍👧" label="Total Cuidadoras" value={TOTAL} sub={`${aprobadasCount} aprobadas · ${pendientesCount} pendientes`} color={P.primary}/>
+              <KPICard icon="👩‍👧" label="Cuidadoras (filtro)" value={TOTAL} sub={`Estado: ${estadoFiltro}`} color={P.primary}/>
               <KPICard icon="⏱️" label="Prom. Horas/Día" value={avgH.toFixed(1)+"h"} sub="Máx: 24h diarias" color={P.secondary}/>
               <KPICard icon="💸" label="Ingreso Promedio" value={"$" + (avgIngresos/1000).toFixed(0) + "K"} sub="Estimación mensual" color={P.accent}/>
               <KPICard icon="😔" label="Estrés Frecuente" value={`${kpis.estresPct}%`} sub="Casi siempre o siempre" color={P.rose}/>
@@ -719,7 +739,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
         {/* FOOTER */}
         <div style={{marginTop:32,borderTop:`1px solid ${P.muted}`,paddingTop:14,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
           <div style={{fontSize:10.5,color:"#94A3B8"}}>Diagnóstico en Vivo — Alcaldía Local de Barrios Unidos</div>
-          <div style={{fontSize:10.5,color:P.primary,fontWeight:700}}>n={TOTAL} registradas ({aprobadasCount} aprobadas · {pendientesCount} pendientes) | Fuente: UNIDAS Database</div>
+          <div style={{fontSize:10.5,color:P.primary,fontWeight:700}}>n={TOTAL} | Filtro: {estadoFiltro} | Registradas: {registeredCount} ({aprobadasCount} aprobadas · {pendientesCount} pendientes) | Fuente: UNIDAS Database</div>
         </div>
       </div>
     </div>
