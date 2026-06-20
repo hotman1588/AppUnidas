@@ -247,6 +247,9 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
     );
     const TOTAL = approved.length || 1; // evitar division por cero
     const realTotal = approved.length;
+    // Conteos por estado para reflejar el consolidado (registradas = aprobadas + pendientes/borrador).
+    const aprobadasCount = approved.filter((s: any) => s.status === 'approved').length;
+    const pendientesCount = realTotal - aprobadasCount;
 
     // Helper to count frequencies
     const countFreq = (extractor: (a: any) => string | string[]) => {
@@ -430,6 +433,8 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
 
     return {
        TOTAL: realTotal,
+       aprobadasCount,
+       pendientesCount,
        avgH,
        avgIngresos,
        barrios, uplData, generoData, educData, pertData, edadGrupos,
@@ -448,7 +453,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
     };
   }, [surveys]);
 
-  const { TOTAL, avgH, avgIngresos, kpis } = data;
+  const { TOTAL, avgH, avgIngresos, kpis, aprobadasCount, pendientesCount } = data;
 
   return (
     <div style={{fontFamily:"'Segoe UI',system-ui,sans-serif",background:P.surface,minHeight:"100vh",color:P.slate}}>
@@ -464,7 +469,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
           <h1 style={{margin:0,fontSize:24,fontWeight:900,color:"white",lineHeight:1.2}}>Diagnóstico de Necesidades</h1>
           <h2 style={{margin:"3px 0 0",fontSize:15,fontWeight:400,color:"#C4B5FD"}}>Mujeres Cuidadoras — Localidad Barrios Unidos · Bogotá D.C.</h2>
           <div style={{display:"flex",gap:20,marginTop:14,flexWrap:"wrap"}}>
-            {[["👩‍👧", TOTAL.toString(), "Cuidadoras analizadas"],["✅","Aprobadas","Estado registros"],["🏷️","Cuidadora","Tipo de usuario"],["📋","5","Módulos diagnósticos"]].map(([icon,val,label])=>(
+            {[["👩‍👧", TOTAL.toString(), "Cuidadoras analizadas"],["✅",aprobadasCount.toString(),"Aprobadas"],["⏳",pendientesCount.toString(),"Pendientes / borrador"],["📋","5","Módulos diagnósticos"]].map(([icon,val,label])=>(
               <div key={label} style={{display:"flex",alignItems:"center",gap:7}}>
                 <span style={{fontSize:15}}>{icon}</span>
                 <div>
@@ -492,9 +497,9 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
         {/* RESUMEN */}
         {tab==="resumen" && (
           <div>
-            <SecTitle icon="📊" module="Vista General" title="Panel de Indicadores Clave" subtitle={`Síntesis del diagnóstico de resistencia y necesidades — n=${TOTAL} cuidadoras aprobadas`}/>
+            <SecTitle icon="📊" module="Vista General" title="Panel de Indicadores Clave" subtitle={`Síntesis del diagnóstico de resistencia y necesidades — n=${TOTAL} registradas (${aprobadasCount} aprobadas · ${pendientesCount} pendientes)`}/>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:14,marginBottom:26}}>
-              <KPICard icon="👩‍👧" label="Total Cuidadoras" value={TOTAL} sub="Estado: Aprobada" color={P.primary}/>
+              <KPICard icon="👩‍👧" label="Total Cuidadoras" value={TOTAL} sub={`${aprobadasCount} aprobadas · ${pendientesCount} pendientes`} color={P.primary}/>
               <KPICard icon="⏱️" label="Prom. Horas/Día" value={avgH.toFixed(1)+"h"} sub="Máx: 24h diarias" color={P.secondary}/>
               <KPICard icon="💸" label="Ingreso Promedio" value={"$" + (avgIngresos/1000).toFixed(0) + "K"} sub="Estimación mensual" color={P.accent}/>
               <KPICard icon="😔" label="Estrés Frecuente" value={`${kpis.estresPct}%`} sub="Casi siempre o siempre" color={P.rose}/>
@@ -714,7 +719,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
         {/* FOOTER */}
         <div style={{marginTop:32,borderTop:`1px solid ${P.muted}`,paddingTop:14,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
           <div style={{fontSize:10.5,color:"#94A3B8"}}>Diagnóstico en Vivo — Alcaldía Local de Barrios Unidos</div>
-          <div style={{fontSize:10.5,color:P.primary,fontWeight:700}}>n={TOTAL} | Estado: Aprobadas | Fuente: UNIDAS Database</div>
+          <div style={{fontSize:10.5,color:P.primary,fontWeight:700}}>n={TOTAL} registradas ({aprobadasCount} aprobadas · {pendientesCount} pendientes) | Fuente: UNIDAS Database</div>
         </div>
       </div>
     </div>
