@@ -25,13 +25,15 @@ import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import { useLandingStore } from '../store/useLandingStore';
 import { supabase } from '../lib/supabase';
 
-// Formatea segundos a "Xm Ys" para los consolidados; vacío si no hay dato.
+// Formatea segundos a "hh:mm:ss" para los consolidados; 'Sin registro' si no hay dato.
 const formatDuracion = (segs: any): string => {
   const s = Number(segs);
   if (!Number.isFinite(s) || s <= 0) return 'Sin registro';
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return m > 0 ? `${m}m ${r}s` : `${r}s`;
+  const total = Math.round(s);
+  const hh = String(Math.floor(total / 3600)).padStart(2, '0');
+  const mm = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
+  const ss = String(total % 60).padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
 };
 
 const BARRIO_TO_UPL: Record<string, string> = {
