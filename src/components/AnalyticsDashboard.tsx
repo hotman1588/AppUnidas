@@ -234,6 +234,7 @@ const TABS = [
   {id:"cuidado",label:"Módulo 3 · Cuidado",icon:"💜"},
   {id:"bienestar",label:"Módulo 4 · Bienestar",icon:"🛡️"},
   {id:"suenos",label:"Módulo 5 · Sueños",icon:"🌟"},
+  {id:"familiar",label:"Módulo 6 · Bienestar Familiar",icon:"🏠"},
 ];
 
 export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
@@ -432,6 +433,21 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
     const bienestarDeseadoData = countFreq(a => a.proyecciones?.bienestar_deseado);
     const apoyoData = countFreq(a => a.proyecciones?.desea_mas_apoyo);
 
+    // MÓDULO 6 · Bienestar Familiar (dinámica familiar)
+    const estructuraData = countFreq(a => a.dinamica_familiar?.estructura);
+    const personasHogarData = countFreq(a => {
+      const v = a.dinamica_familiar?.personas_hogar;
+      return v === undefined || v === null || v === '' ? '' : String(parseInt(String(v), 10));
+    });
+    const relacionesData = countFreq(a => a.dinamica_familiar?.relaciones);
+    const compartirHabilidadesData = countFreq(a => a.dinamica_familiar?.compartir_habilidades);
+    const apoyoEmergenciaData = countFreq(a => a.dinamica_familiar?.apoyo_emergencia);
+    const participacionSocialData = countFreq(a => a.dinamica_familiar?.participacion_social);
+    const sinApoyoEmergencia = approved.filter(s => {
+      const v = s.answers?.dinamica_familiar?.apoyo_emergencia;
+      return Array.isArray(v) ? v.includes('Nadie') : v === 'Nadie';
+    }).length;
+
     // Custom calculations for the KPI cards
     const estresFrecuente = approved.filter(s => {
        const a = s.answers?.cuidado?.estres_constante;
@@ -456,6 +472,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
        apoioFamFreq, suenoFreq, vidaSocialFreq, segHogarData, tiempoCuidData,
        barrioInseg, uplInseg, inseguridadCruzada,
        prioridadesData, formacionData, proyectosData, bienestarDeseadoData, apoyoData,
+       estructuraData, personasHogarData, relacionesData, compartirHabilidadesData, apoyoEmergenciaData, participacionSocialData, sinApoyoEmergencia,
        kpis: {
           estresPct: realTotal > 0 ? Math.round((estresFrecuente / realTotal) * 100) : 0,
           enfPct: realTotal > 0 ? Math.round((enfDiagnostico / realTotal) * 100) : 0,
@@ -480,7 +497,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
           <h1 style={{margin:0,fontSize:24,fontWeight:900,color:"white",lineHeight:1.2}}>Diagnóstico de Necesidades</h1>
           <h2 style={{margin:"3px 0 0",fontSize:15,fontWeight:400,color:"#C4B5FD"}}>Mujeres Cuidadoras — Localidad Barrios Unidos · Bogotá D.C.</h2>
           <div style={{display:"flex",gap:20,marginTop:14,flexWrap:"wrap",alignItems:"center"}}>
-            {[["👩‍👧", registeredCount.toString(), "Registradas"],["✅",aprobadasCount.toString(),"Aprobadas"],["⏳",pendientesCount.toString(),"Pendientes / borrador"],["📋","5","Módulos diagnósticos"]].map(([icon,val,label])=>(
+            {[["👩‍👧", registeredCount.toString(), "Registradas"],["✅",aprobadasCount.toString(),"Aprobadas"],["⏳",pendientesCount.toString(),"Pendientes / borrador"],["📋","6","Módulos diagnósticos"]].map(([icon,val,label])=>(
               <div key={label} style={{display:"flex",alignItems:"center",gap:7}}>
                 <span style={{fontSize:15}}>{icon}</span>
                 <div>
@@ -733,6 +750,31 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
               <HBar data={data.bienestarDeseadoData} title="Actividades de Bienestar Deseadas" note="Multi-selección" total={TOTAL}/>
             </div>
             <SmallPie data={data.apoyoData} title="¿Desea Más Apoyo Institucional?" total={TOTAL}/>
+          </div>
+        )}
+
+        {/* MÓDULO 6 · BIENESTAR FAMILIAR */}
+        {tab==="familiar" && (
+          <div>
+            <SecTitle icon="🏠" module="Módulo 6" title="Bienestar Familiar" subtitle="Estructura del hogar, convivencia, redes de apoyo y participación social"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(185px,1fr))",gap:13,marginBottom:22}}>
+              <KPICard icon="🏠" label="Tipos de Estructura" value={data.estructuraData.length} sub="Conformación del hogar" color={P.primary}/>
+              <KPICard icon="🤝" label="Comparten Habilidades" value={data.compartirHabilidadesData.find(d => d.name === "Sí")?.value || 0} sub="Disposición a aportar" color={P.teal}/>
+              <KPICard icon="🚨" label="Sin Apoyo en Emergencia" value={data.sinApoyoEmergencia} sub="Responde 'Nadie'" color={P.rose}/>
+              <KPICard icon="👥" label="Participación Social" value={data.participacionSocialData.find(d => d.name === "Sí, frecuentemente")?.value || 0} sub="Participa frecuentemente" color={P.secondary}/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
+              <HBar data={data.estructuraData} title="Estructura Familiar" total={TOTAL}/>
+              <SmallPie data={data.relacionesData} title="Relaciones en el Hogar" total={TOTAL}/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
+              <HBar data={data.apoyoEmergenciaData} title="Apoyo en Emergencias" note="Multi-selección" total={TOTAL}/>
+              <HBar data={data.personasHogarData} title="Personas en el Hogar" total={TOTAL}/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
+              <SmallPie data={data.compartirHabilidadesData} title="¿Comparte Habilidades?" total={TOTAL}/>
+              <SmallPie data={data.participacionSocialData} title="Participación Social" total={TOTAL}/>
+            </div>
           </div>
         )}
 
