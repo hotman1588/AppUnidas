@@ -99,6 +99,8 @@ const ensureEncuestaDosSchema = async () => {
   `);
   // Trazabilidad Habeas Data: fecha/hora exacta de aceptación.
   await pool.query(`ALTER TABLE encuesta_dos.responses ADD COLUMN IF NOT EXISTS habeas_accepted_at TIMESTAMP;`);
+  // Tiempo total de diligenciamiento de la encuesta, en segundos.
+  await pool.query(`ALTER TABLE encuesta_dos.responses ADD COLUMN IF NOT EXISTS tiempo_ejecucion_segundos INTEGER;`);
   encuestaDosReady = true;
 };
 
@@ -113,6 +115,8 @@ const ensureHabeasTrace = async () => {
   await pool.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS analyst_id INTEGER;`);
   // Aprobador: quien valida/aprueba la encuesta.
   await pool.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS approved_by TEXT;`);
+  // Tiempo total de diligenciamiento de la encuesta, en segundos.
+  await pool.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS tiempo_ejecucion_segundos INTEGER;`);
   // Backfill: recupera el recolector de registros presenciales antiguos desde el
   // historial ("...aprobada por el analista <NOMBRE>.") cuando analyst_name está vacío.
   await pool.query(`
@@ -494,15 +498,18 @@ app.post('/api/user/survey/save', authenticateToken, async (req: any, res) => {
 
 app.post('/api/user/survey/submit', authenticateToken, async (req: any, res) => {
   try {
+    await ensureHabeasTrace();
     // No se permite finalizar/enviar la encuesta sin aceptar el Habeas Data.
     const chk = await pool.query('SELECT habeas_data_accepted FROM surveys WHERE user_id = $1', [req.user.id]);
     const accepted = chk.rows[0]?.habeas_data_accepted;
     if (!accepted || accepted === 0) {
       return res.status(400).json({ error: 'Debe aceptarse el tratamiento de datos (Habeas Data) para finalizar la encuesta.' });
     }
+    // Tiempo total de diligenciamiento (segundos), medido por el frontend.
+    const tiempo = Number.isFinite(Number(req.body?.tiempo_ejecucion_segundos)) ? Math.max(0, Math.round(Number(req.body.tiempo_ejecucion_segundos))) : null;
     await pool.query(
-      'INSERT INTO surveys (user_id, status) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET status = $2, updated_at = CURRENT_TIMESTAMP',
-      [req.user.id, 'pending']
+      'INSERT INTO surveys (user_id, status, tiempo_ejecucion_segundos) VALUES ($1, $2, $3) ON CONFLICT (user_id) DO UPDATE SET status = $2, tiempo_ejecucion_segundos = COALESCE($3, surveys.tiempo_ejecucion_segundos), updated_at = CURRENT_TIMESTAMP',
+      [req.user.id, 'pending', tiempo]
     );
     await pool.query('INSERT INTO survey_history (user_id, action, details) VALUES ($1, $2, $3)', [req.user.id, 'Envío de encuesta', 'Encuesta enviada para validación.']);
     res.json({ success: true });
@@ -1067,6 +1074,7 @@ app.post('/api/admin/surveys/:surveyId/review', authenticateToken, isAdmin, asyn
 
 app.post('/api/analyst/register-complete-characterization', authenticateToken, isAdmin, async (req: any, res: any) => {
   const { user, answers, habeas_data_accepted } = req.body;
+  const tiempoExec = Number.isFinite(Number(req.body?.tiempo_ejecucion_segundos)) ? Math.max(0, Math.round(Number(req.body.tiempo_ejecucion_segundos))) : null;
   console.log('Received register-complete-characterization request:', {
     hasBody: !!req.body,
     hasUser: !!user,
@@ -1116,14 +1124,15 @@ app.post('/api/analyst/register-complete-characterization', authenticateToken, i
     // 2. Create or update the survey (presential validation is automatically 'approved')
     const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
     await client.query(
-      `INSERT INTO surveys (user_id, answers, status, current_step, habeas_data_accepted, habeas_accepted_at, analyst_name, analyst_id, approved_by)
-       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, $7, $6)
+      `INSERT INTO surveys (user_id, answers, status, current_step, habeas_data_accepted, habeas_accepted_at, analyst_name, analyst_id, approved_by, tiempo_ejecucion_segundos)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, $7, $6, $8)
        ON CONFLICT (user_id) DO UPDATE SET
          answers = $2, status = $3, current_step = $4, habeas_data_accepted = $5,
          habeas_accepted_at = COALESCE(surveys.habeas_accepted_at, CURRENT_TIMESTAMP),
          analyst_name = $6, analyst_id = $7, approved_by = $6,
+         tiempo_ejecucion_segundos = COALESCE($8, surveys.tiempo_ejecucion_segundos),
          updated_at = CURRENT_TIMESTAMP`,
-      [userId, answersJson, 'approved', 7, 1, req.user?.name || null, req.user?.id || null]
+      [userId, answersJson, 'approved', 7, 1, req.user?.name || null, req.user?.id || null, tiempoExec]
     );
 
     // 3. Write to survey history
@@ -1161,6 +1170,7 @@ app.post('/api/analyst/register-complete-characterization', authenticateToken, i
 // ============================================================================
 app.post('/api/analyst/encuesta-dos', authenticateToken, isAdmin, async (req: any, res: any) => {
   const { user, answers, habeas_data_accepted } = req.body;
+  const tiempoExec = Number.isFinite(Number(req.body?.tiempo_ejecucion_segundos)) ? Math.max(0, Math.round(Number(req.body.tiempo_ejecucion_segundos))) : null;
 
   if (!user || !user.document_number || !user.full_name || !user.document_type) {
     return res.status(400).json({
@@ -1181,8 +1191,8 @@ app.post('/api/analyst/encuesta-dos', authenticateToken, isAdmin, async (req: an
     const surveyUserId = await upsertSurveyUser(user);
     const result = await pool.query(
       `INSERT INTO encuesta_dos.responses
-        (full_name, document_type, document_number, phone, email, password, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id, user_id, habeas_accepted_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP) RETURNING id`,
+        (full_name, document_type, document_number, phone, email, password, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id, user_id, habeas_accepted_at, tiempo_ejecucion_segundos)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP, $15) RETURNING id`,
       [
         user.full_name,
         user.document_type,
@@ -1197,7 +1207,8 @@ app.post('/api/analyst/encuesta-dos', authenticateToken, isAdmin, async (req: an
         true,
         req.user.name || null,
         req.user.id || null,
-        surveyUserId
+        surveyUserId,
+        tiempoExec
       ]
     );
     res.json({ success: true, id: result.rows[0].id, userId: surveyUserId });
@@ -1211,7 +1222,7 @@ app.get('/api/analyst/encuesta-dos', authenticateToken, isAdmin, async (_req: an
   try {
     await ensureEncuestaDosSchema();
     const r = await pool.query(
-      'SELECT id, full_name, document_type, document_number, edad, is_minor, answers, analyst_name, habeas_accepted_at, created_at FROM encuesta_dos.responses ORDER BY created_at DESC'
+      'SELECT id, full_name, document_type, document_number, edad, is_minor, answers, analyst_name, habeas_accepted_at, tiempo_ejecucion_segundos, created_at FROM encuesta_dos.responses ORDER BY created_at DESC'
     );
     res.json(r.rows);
   } catch (err: any) {
@@ -1412,6 +1423,7 @@ app.post('/api/admin/settings/active-survey', authenticateToken, requireAdminOnl
 // Inserta en el mismo esquema aislado encuesta_dos.responses. No toca 'surveys'.
 app.post('/api/user/encuesta-dos', authenticateToken, async (req: any, res) => {
   const { user, answers, habeas_data_accepted } = req.body;
+  const tiempoExec = Number.isFinite(Number(req.body?.tiempo_ejecucion_segundos)) ? Math.max(0, Math.round(Number(req.body.tiempo_ejecucion_segundos))) : null;
   if (!user || !user.document_number || !user.full_name || !user.document_type) {
     return res.status(400).json({ error: "Faltan datos requeridos: 'full_name', 'document_number' y 'document_type'." });
   }
@@ -1427,10 +1439,10 @@ app.post('/api/user/encuesta-dos', authenticateToken, async (req: any, res) => {
     const surveyUserId = await upsertSurveyUser(user);
     const result = await pool.query(
       `INSERT INTO encuesta_dos.responses
-        (full_name, document_type, document_number, phone, email, password, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id, user_id, habeas_accepted_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP) RETURNING id`,
+        (full_name, document_type, document_number, phone, email, password, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id, user_id, habeas_accepted_at, tiempo_ejecucion_segundos)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP, $15) RETURNING id`,
       [user.full_name, user.document_type, user.document_number, user.phone || null, user.email || null, hashedPin,
-       user.birth_date || null, user.edad ?? null, isMinor, answersJson, true, req.user.name || 'Autodiligenciada', req.user.id || null, surveyUserId]
+       user.birth_date || null, user.edad ?? null, isMinor, answersJson, true, req.user.name || 'Autodiligenciada', req.user.id || null, surveyUserId, tiempoExec]
     );
     res.json({ success: true, id: result.rows[0].id, userId: surveyUserId });
   } catch (err: any) {

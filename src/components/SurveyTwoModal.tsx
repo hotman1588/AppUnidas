@@ -21,6 +21,8 @@ interface SurveyTwoModalProps {
 }
 
 const PERSISTENCE_KEY = 'encuesta_dos_draft';
+// Cronómetro en segundo plano (persistente: sobrevive recargas/desconexión).
+const TIMER_KEY = 'encuesta_dos_started_at';
 
 export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoint = '/api/analyst/encuesta-dos' }: SurveyTwoModalProps) {
   const [currentStep, setCurrentStep] = useState(0); // 0 = identificación
@@ -50,6 +52,8 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
   // ---- Persistencia local ----
   useEffect(() => {
     if (!isOpen) return;
+    // Marca de inicio del cronómetro (solo si aún no existe).
+    if (!localStorage.getItem(TIMER_KEY)) localStorage.setItem(TIMER_KEY, String(Date.now()));
     try {
       const cached = localStorage.getItem(PERSISTENCE_KEY);
       if (cached) {
@@ -186,6 +190,7 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
     setCurrentStep(0);
     setValidationErrors([]);
     localStorage.removeItem(PERSISTENCE_KEY);
+    localStorage.removeItem(TIMER_KEY);
   };
 
   const handleSubmit = async () => {
@@ -209,11 +214,16 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
           },
           answers,
           habeas_data_accepted: habeasAccepted,
+          tiempo_ejecucion_segundos: (() => {
+            const startedAt = Number(localStorage.getItem(TIMER_KEY));
+            return startedAt ? Math.max(0, Math.round((Date.now() - startedAt) / 1000)) : null;
+          })(),
         }),
       });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Error al guardar'); }
       setShowSuccess(true);
       localStorage.removeItem(PERSISTENCE_KEY);
+      localStorage.removeItem(TIMER_KEY);
       setTimeout(() => { setShowSuccess(false); clearData(); onSuccess(); onClose(); }, 2500);
     } catch (err: any) {
       setError(err.message);

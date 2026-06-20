@@ -163,6 +163,14 @@ export default function SurveyWizard() {
   useEffect(() => {
     fetchActiveLanding();
   }, []);
+
+  // Cronómetro en segundo plano: marca de inicio persistente (sobrevive recargas
+  // y desconexiones). Se fija una sola vez al abrir la encuesta.
+  useEffect(() => {
+    if (!localStorage.getItem('survey_started_at')) {
+      localStorage.setItem('survey_started_at', String(Date.now()));
+    }
+  }, []);
   useEffect(() => {
     if (!landingLoading) {
       setActiveSurvey(activeLanding === 'component-4' ? 'dos' : 'uno');
@@ -512,10 +520,13 @@ export default function SurveyWizard() {
         })
       });
 
-      // 2. Submit the survey
+      // 2. Submit the survey (con el tiempo total de diligenciamiento en segundos)
+      const startedAt = Number(localStorage.getItem('survey_started_at'));
+      const tiempo_ejecucion_segundos = startedAt ? Math.max(0, Math.round((Date.now() - startedAt) / 1000)) : null;
       const response = await fetch('/api/user/survey/submit', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tiempo_ejecucion_segundos })
       });
 
       if (!response.ok) throw new Error('Failed to submit');
@@ -525,6 +536,7 @@ export default function SurveyWizard() {
       localStorage.removeItem('survey_step');
       localStorage.removeItem('survey_habeas');
       localStorage.removeItem('survey_habeas_viewed');
+      localStorage.removeItem('survey_started_at');
 
       setTimeout(() => {
         window.location.href = '/dashboard?submitted=true';

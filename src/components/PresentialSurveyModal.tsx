@@ -146,6 +146,8 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
 
   // --- PERSISTENCE LOGIC ---
   const PERSISTENCE_KEY = 'presential_survey_cache';
+  // Cronómetro en segundo plano (persistente: sobrevive recargas/desconexión).
+  const TIMER_KEY = 'presential_started_at';
 
   // Load from localStorage on mount (when modal opens)
   useEffect(() => {
@@ -160,6 +162,11 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
         }
       };
       fetchHabeas();
+
+      // Marca de inicio del cronómetro (solo si aún no existe).
+      if (!localStorage.getItem(TIMER_KEY)) {
+        localStorage.setItem(TIMER_KEY, String(Date.now()));
+      }
 
       const cached = localStorage.getItem(PERSISTENCE_KEY);
       if (cached) {
@@ -189,6 +196,7 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
   // un nuevo registro en limpio (sin confirmación). Se usa tras un registro exitoso.
   const resetState = () => {
     localStorage.removeItem(PERSISTENCE_KEY);
+    localStorage.removeItem(TIMER_KEY);
     setUserData({
       full_name: '',
       document_type: 'CC',
@@ -527,7 +535,15 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ user: userData, answers, habeas_data_accepted: habeasAccepted })
+        body: JSON.stringify({
+          user: userData,
+          answers,
+          habeas_data_accepted: habeasAccepted,
+          tiempo_ejecucion_segundos: (() => {
+            const startedAt = Number(localStorage.getItem(TIMER_KEY));
+            return startedAt ? Math.max(0, Math.round((Date.now() - startedAt) / 1000)) : null;
+          })()
+        })
       });
       
       const data = await res.json();

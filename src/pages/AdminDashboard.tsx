@@ -25,6 +25,15 @@ import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import { useLandingStore } from '../store/useLandingStore';
 import { supabase } from '../lib/supabase';
 
+// Formatea segundos a "Xm Ys" para los consolidados; vacío si no hay dato.
+const formatDuracion = (segs: any): string => {
+  const s = Number(segs);
+  if (!Number.isFinite(s) || s <= 0) return 'Sin registro';
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return m > 0 ? `${m}m ${r}s` : `${r}s`;
+};
+
 const BARRIO_TO_UPL: Record<string, string> = {
   // UPL Los Andes
   'Villa Calasanz': 'Los Andes',
@@ -751,7 +760,7 @@ export default function AdminDashboard() {
     }
 
     // 1. Definir el orden lógico de los metadatos y de los módulos de la encuesta
-    const baseHeaders = ['ID Encuesta', 'Nombre Cuidadora', 'Documento', 'Rol Activo', 'Recolector', 'Estado', 'Fecha Actualización', 'Habeas Data - Fecha/Hora Lectura'];
+    const baseHeaders = ['ID Encuesta', 'Nombre Cuidadora', 'Documento', 'Rol Activo', 'Recolector', 'Estado', 'Fecha Actualización', 'Habeas Data - Fecha/Hora Lectura', 'Tiempo Diligenciamiento'];
     const moduleLabels: Record<string, string> = {
       socio: 'PERFIL SOCIODEMOGRÁFICO',
       economia: 'ECONOMÍA Y AUTONOMÍA',
@@ -792,6 +801,7 @@ export default function AdminDashboard() {
         'Estado': s.status === 'approved' ? 'Aprobada' : s.status === 'pending' ? 'Pendiente' : 'Borrador',
         'Fecha Actualización': new Date(s.updated_at).toLocaleDateString(),
         'Habeas Data - Fecha/Hora Lectura': s.habeas_accepted_at ? new Date(s.habeas_accepted_at).toLocaleString() : 'No aceptado',
+        'Tiempo Diligenciamiento': formatDuracion(s.tiempo_ejecucion_segundos),
       };
 
       if (s.answers && typeof s.answers === 'object') {
@@ -858,7 +868,7 @@ export default function AdminDashboard() {
       const rows: any[] = await res.json();
       if (!Array.isArray(rows) || rows.length === 0) { alert('Aún no hay registros de la Encuesta Dos para exportar.'); return; }
 
-      const baseHeaders = ['ID', 'Nombre Completo', 'Tipo Documento', 'N° Documento', 'Celular', 'Correo', 'Edad', 'Menor (TI)', 'Recolector', 'Habeas Data - Fecha/Hora Lectura', 'Fecha'];
+      const baseHeaders = ['ID', 'Nombre Completo', 'Tipo Documento', 'N° Documento', 'Celular', 'Correo', 'Edad', 'Menor (TI)', 'Recolector', 'Habeas Data - Fecha/Hora Lectura', 'Tiempo Diligenciamiento', 'Fecha'];
       const orderedHeaders = [...baseHeaders];
       // Mapa id de pregunta -> 'MÓDULO N. TÍTULO - Etiqueta'
       const fieldMap: Record<string, string> = {};
@@ -887,6 +897,7 @@ export default function AdminDashboard() {
           'Menor (TI)': r.is_minor ? 'Sí' : 'No',
           'Recolector': r.analyst_name || '',
           'Habeas Data - Fecha/Hora Lectura': r.habeas_accepted_at ? new Date(r.habeas_accepted_at).toLocaleString() : 'No aceptado',
+          'Tiempo Diligenciamiento': formatDuracion(r.tiempo_ejecucion_segundos),
           'Fecha': r.created_at ? new Date(r.created_at).toLocaleDateString() : '',
         };
         const ans = r.answers && typeof r.answers === 'object' ? r.answers : {};
