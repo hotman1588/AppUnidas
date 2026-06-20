@@ -301,6 +301,16 @@ export default function AdminDashboard() {
     fetchData();
   }, [token]);
 
+  // El Panel Analítico se alimenta de la misma fuente que el consolidado
+  // (/api/admin/surveys). Al entrar a la pestaña se refresca, y mientras esté
+  // abierta se sondea periódicamente para reflejar los registros nuevos sin recargar.
+  useEffect(() => {
+    if (activeTab !== 'analytics') return;
+    fetchData();
+    const id = setInterval(fetchData, 30000);
+    return () => clearInterval(id);
+  }, [activeTab, token]);
+
   const handleUpdateRole = async (userId: string, newRole: string) => {
     try {
       const res = await fetch(`/api/admin/users/${userId}/role`, {
