@@ -79,6 +79,9 @@ export default function AnalystDashboard() {
   };
 
   const handleReviewOpen = async (survey: any) => {
+    // Al reabrir una encuesta (incluidas devueltas/rechazadas) el formulario
+    // arranca en "Aprobar" para facilitar la aprobación tras corregir documentos.
+    setReviewForm({ status: 'approved', observations: '' });
     try {
       // Fetch answers
       const res = await fetch(`/api/admin/users/${survey.user_id}/survey`, {
@@ -465,6 +468,7 @@ export default function AnalystDashboard() {
                   </Section>
 
                   <Section title="Documentos Cargados">
+                    {(() => { const _editable = ['pending','rejected','rejected_final'].includes(selectedSurvey.status); return (
                     <div className="grid grid-cols-3 gap-4">
                       {[
                         { label: 'Cédula Front', keys: ['id_frontal', 'cedula_frontal'] },
@@ -481,12 +485,14 @@ export default function AnalystDashboard() {
                             doc={doc}
                             imageUrl={imageUrl}
                             uploadType={keys[0]}
+                            editable={_editable}
                             onUpload={handleUploadMissingDoc}
                             onView={() => imageUrl && setViewerConfig({ url: imageUrl, title: label })}
                           />
                         );
                       })}
                     </div>
+                    ); })()}
                   </Section>
 
                   <Section title="Respuestas de la Encuesta">
@@ -745,7 +751,7 @@ function AuthImage({ src, alt }: { src: string; alt: string }) {
   return <img src={objUrl} alt={alt} className="absolute inset-0 w-full h-full object-cover" />;
 }
 
-function DocThumbnail({ label, doc, imageUrl, onView, uploadType, onUpload }: any) {
+function DocThumbnail({ label, doc, imageUrl, onView, uploadType, onUpload, editable }: any) {
   const hasImage = !!imageUrl;
   if (!doc && !hasImage) {
     // Documento faltante: permite cargarlo desde la bandeja (revisión posterior).
@@ -755,7 +761,7 @@ function DocThumbnail({ label, doc, imageUrl, onView, uploadType, onUpload }: an
         <XCircle className="w-7 h-7 text-amber-500/40 mb-2" />
         <span className="text-[9px] font-black text-white/40 uppercase tracking-tighter">{label}</span>
         <span className="text-[7px] text-amber-400/70 mt-0.5 uppercase mb-2">Pendiente</span>
-        {onUpload && uploadType && (
+        {editable && onUpload && uploadType && (
           <>
             <input
               id={inputId}
@@ -774,6 +780,7 @@ function DocThumbnail({ label, doc, imageUrl, onView, uploadType, onUpload }: an
   }
 
   const isPdf = typeof imageUrl === 'string' && imageUrl.toLowerCase().includes('.pdf');
+  const changeId = `change-doc-${uploadType || label}`;
 
   return (
     <div
@@ -784,6 +791,25 @@ function DocThumbnail({ label, doc, imageUrl, onView, uploadType, onUpload }: an
         <AuthImage src={imageUrl} alt={label} />
       ) : (
         <FileText className="w-8 h-8 text-unidas-primary mb-2 transition-transform group-hover:scale-110" />
+      )}
+      {/* Reemplazo de documento (encuestas pendientes/devueltas/rechazadas). */}
+      {editable && onUpload && uploadType && (
+        <>
+          <input
+            id={changeId}
+            type="file"
+            accept="image/*,.pdf"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(uploadType, f); e.currentTarget.value = ''; }}
+          />
+          <label
+            htmlFor={changeId}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute top-2 right-2 z-10 cursor-pointer text-[8px] font-black uppercase tracking-widest text-white bg-unidas-primary/80 hover:bg-unidas-primary rounded-lg px-2 py-1 transition-all"
+          >
+            Cambiar
+          </label>
+        </>
       )}
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 flex flex-col items-center">
         <span className="text-[9px] font-black text-white text-center uppercase tracking-tighter">{label}</span>
