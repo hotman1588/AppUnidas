@@ -1121,24 +1121,33 @@ app.post('/api/analyst/register-complete-characterization', authenticateToken, i
       userId = userRes.rows[0].id;
     }
 
-    // 2. Create or update the survey (presential validation is automatically 'approved')
+    // 2. Create or update the survey.
+    // Documentos opcionales en campo: si faltan, queda 'pending' para cargarlos
+    // y aprobar después en la bandeja. Si están completos, queda 'approved'.
     const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
+    const docs = (answers && typeof answers === 'object' ? answers.documentos : null) || {};
+    const hasAllDocs = !!(docs.id_frontal && docs.id_reverso && docs.utility_bill);
+    const estado = hasAllDocs ? 'approved' : 'pending';
+    const aprobadoPor = hasAllDocs ? (req.user?.name || null) : null;
     await client.query(
       `INSERT INTO surveys (user_id, answers, status, current_step, habeas_data_accepted, habeas_accepted_at, analyst_name, analyst_id, approved_by, tiempo_ejecucion_segundos)
-       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, $7, $6, $8)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, $7, $9, $8)
        ON CONFLICT (user_id) DO UPDATE SET
          answers = $2, status = $3, current_step = $4, habeas_data_accepted = $5,
          habeas_accepted_at = COALESCE(surveys.habeas_accepted_at, CURRENT_TIMESTAMP),
-         analyst_name = $6, analyst_id = $7, approved_by = $6,
+         analyst_name = $6, analyst_id = $7, approved_by = $9,
          tiempo_ejecucion_segundos = COALESCE($8, surveys.tiempo_ejecucion_segundos),
          updated_at = CURRENT_TIMESTAMP`,
-      [userId, answersJson, 'approved', 7, 1, req.user?.name || null, req.user?.id || null, tiempoExec]
+      [userId, answersJson, estado, 7, 1, req.user?.name || null, req.user?.id || null, tiempoExec, aprobadoPor]
     );
 
     // 3. Write to survey history
+    const histDetalle = hasAllDocs
+      ? `Caracterización presencial completada y aprobada por el analista ${req.user.name}.`
+      : `Caracterización presencial registrada por ${req.user.name}. Documentos pendientes — queda en estado Pendiente para revisión y aprobación posterior.`;
     await client.query(
       'INSERT INTO survey_history (user_id, action, details) VALUES ($1, $2, $3)',
-      [userId, 'Registro Presencial', `Caracterización presencial completada y aprobada por el analista ${req.user.name}.`]
+      [userId, 'Registro Presencial', histDetalle]
     );
 
     // 4. Insert documents if uploaded

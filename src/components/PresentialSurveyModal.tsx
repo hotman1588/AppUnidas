@@ -439,10 +439,10 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       if (empty(answers.dinamica_familiar?.apoyo_emergencia)) missing.push('dinamica_familiar.apoyo_emergencia');
       if (!answers.dinamica_familiar?.participacion_social) missing.push('dinamica_familiar.participacion_social');
     } else if (currentStep === 7) {
+      // Solo el Habeas Data es obligatorio para finalizar. Los documentos son
+      // OPCIONALES en campo: si faltan, la encuesta se guarda como "Pendiente"
+      // y queda en la bandeja para cargarlos y aprobarla después.
       if (!habeasAccepted) missing.push('habeas');
-      if (!answers.documentos?.id_frontal) missing.push('document.id_frontal');
-      if (!answers.documentos?.id_reverso) missing.push('document.id_reverso');
-      if (!answers.documentos?.utility_bill) missing.push('document.utility_bill');
     }
 
     // Si se elige "Otra/Otro" y la caja de texto queda vacía, resaltar la pregunta padre en rojo y bloquear el avance
@@ -548,7 +548,14 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al guardar');
-      
+
+      // Informar al recolector el estado resultante según los documentos cargados.
+      const d = answers.documentos || {};
+      const docsCompletos = !!(d.id_frontal && d.id_reverso && d.utility_bill);
+      alert(docsCompletos
+        ? 'Encuesta registrada y APROBADA (documentos completos).'
+        : 'Usuario registrado. La encuesta quedó en estado PENDIENTE por documentos faltantes; podrás cargarlos y aprobarla luego desde la bandeja.');
+
       // Registro completado: se borra el backup local y se reinicia el estado
       // para que el próximo registro del recolector inicie totalmente en limpio.
       resetState();
