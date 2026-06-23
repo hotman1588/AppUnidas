@@ -1017,6 +1017,31 @@ app.get('/api/admin/users/:userId/documents', authenticateToken, isAdmin, async 
   }
 });
 
+// Carga de documentos faltantes desde la bandeja (recolector/admin) para un
+// usuario específico. Permite completar los soportes de encuestas en 'pending'.
+app.post('/api/admin/users/:userId/documents/upload', authenticateToken, isAdmin, upload.single('file'), async (req: any, res: any) => {
+  if (!req.file) return res.status(400).json({ error: 'No file' });
+  const { type } = req.body;
+  const userId = req.params.userId;
+  try {
+    // Reemplaza el documento previo del mismo tipo (si existía) para no duplicar.
+    await pool.query('DELETE FROM documents WHERE user_id = $1 AND type = $2', [userId, type]);
+    const result = await pool.query(
+      "INSERT INTO documents (user_id, type, file_path, status) VALUES ($1, $2, $3, 'approved') RETURNING *",
+      [userId, type, req.file.filename]
+    );
+    if (supabase) {
+      try {
+        const fileBuffer = fs.readFileSync(req.file.path);
+        await supabase.storage.from('documents').upload(req.file.filename, fileBuffer, { contentType: req.file.mimetype, upsert: true });
+      } catch (e: any) { console.error('Supabase mirror (admin doc) failed:', e.message); }
+    }
+    res.json({ ...result.rows[0], url: `/api/documents/view/${req.file.filename}` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/admin/surveys/:surveyId/history', authenticateToken, isAdmin, async (req, res) => {
   try {
     const r = await pool.query(

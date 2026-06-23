@@ -107,6 +107,33 @@ export default function AnalystDashboard() {
     }
   };
 
+  // Refresca solo los documentos del usuario abierto (tras cargar uno faltante).
+  const refreshUserDocuments = async (userId: number) => {
+    try {
+      const docRes = await fetch(`/api/admin/users/${userId}/documents`, { headers: { 'Authorization': `Bearer ${token}` } });
+      setUserDocuments(await docRes.json() || []);
+    } catch (err) { console.error(err); }
+  };
+
+  // Carga un documento faltante desde la bandeja para el usuario del expediente.
+  const handleUploadMissingDoc = async (type: string, file: File) => {
+    if (!selectedSurvey?.user_id) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('type', type);
+    try {
+      const res = await fetch(`/api/admin/users/${selectedSurvey.user_id}/documents/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: fd
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Error al subir'); }
+      await refreshUserDocuments(selectedSurvey.user_id);
+    } catch (err: any) {
+      alert(`No se pudo cargar el documento: ${err.message}`);
+    }
+  };
+
   const handleOpenEnroll = async (event: any) => {
     setSelectedEventForEnroll(event);
     try {
@@ -453,6 +480,8 @@ export default function AnalystDashboard() {
                             label={label}
                             doc={doc}
                             imageUrl={imageUrl}
+                            uploadType={keys[0]}
+                            onUpload={handleUploadMissingDoc}
                             onView={() => imageUrl && setViewerConfig({ url: imageUrl, title: label })}
                           />
                         );
@@ -716,14 +745,30 @@ function AuthImage({ src, alt }: { src: string; alt: string }) {
   return <img src={objUrl} alt={alt} className="absolute inset-0 w-full h-full object-cover" />;
 }
 
-function DocThumbnail({ label, doc, imageUrl, onView }: any) {
+function DocThumbnail({ label, doc, imageUrl, onView, uploadType, onUpload }: any) {
   const hasImage = !!imageUrl;
   if (!doc && !hasImage) {
+    // Documento faltante: permite cargarlo desde la bandeja (revisión posterior).
+    const inputId = `upload-doc-${uploadType || label}`;
     return (
-      <div className="aspect-square bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center p-4 opacity-30">
-        <XCircle className="w-8 h-8 text-white/20 mb-2" />
-        <span className="text-[9px] font-black text-white/20 text-center uppercase tracking-tighter">{label}</span>
-        <span className="text-[7px] text-white/10 mt-1 uppercase">No cargado</span>
+      <div className="aspect-square bg-white/5 rounded-2xl border border-dashed border-amber-500/30 flex flex-col items-center justify-center p-4 text-center">
+        <XCircle className="w-7 h-7 text-amber-500/40 mb-2" />
+        <span className="text-[9px] font-black text-white/40 uppercase tracking-tighter">{label}</span>
+        <span className="text-[7px] text-amber-400/70 mt-0.5 uppercase mb-2">Pendiente</span>
+        {onUpload && uploadType && (
+          <>
+            <input
+              id={inputId}
+              type="file"
+              accept="image/*,.pdf"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(uploadType, f); e.currentTarget.value = ''; }}
+            />
+            <label htmlFor={inputId} className="cursor-pointer text-[8px] font-black uppercase tracking-widest text-unidas-primary border border-unidas-primary/40 rounded-lg px-2 py-1 hover:bg-unidas-primary/10 transition-all">
+              Cargar
+            </label>
+          </>
+        )}
       </div>
     );
   }
