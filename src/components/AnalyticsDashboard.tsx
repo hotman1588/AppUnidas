@@ -25,8 +25,34 @@ const FREQ_MAP: Record<string, number> = {
 
 const FREQ_SCALE = ["Nunca", "Casi nunca", "Algunas veces", "Casi siempre", "Siempre"];
 
+const REMOVED_ANALYTICS_TERMS = [
+  'ENF. DIAGNOSTICADA',
+  'SIN RECONOCIMIENTO',
+  'AGOTADAS',
+  'AGOTAMIENTO EMOCIONAL',
+  'CANSANCIO',
+  'NIVEL DE RECONOCIMIENTO',
+  'TIENE ENFERMEDAD',
+  'TIPO DE ENFERMEDAD',
+  'TIEMPO CUIDADO',
+  'SEGURIDAD EN EL HOGAR',
+  'DESEAN M',
+  'BIENESTAR DESEADAS',
+  'APOYO INSTITUCIONAL',
+  'COMPARTEN HABILIDADES',
+  'COMPARTE HABILIDADES'
+];
+
+const isRemovedAnalyticsBlock = (text?: string) => {
+  const normalized = String(text || '').toUpperCase();
+  if (normalized.includes('PARTICIPACI')) return normalized.includes('SOCIAL');
+  return REMOVED_ANALYTICS_TERMS.some(term => normalized.includes(term));
+};
+
 // ─────────────── COMPONENTS ─────────────────────────────────────────────────
-const KPICard = ({icon,label,value,sub,color=P.primary}: any) => (
+const KPICard = ({icon,label,value,sub,color=P.primary}: any) => {
+  if (isRemovedAnalyticsBlock(label)) return null;
+  return (
   <div style={{background:"white",borderRadius:16,padding:"18px 22px",display:"flex",alignItems:"center",gap:14,boxShadow:"0 2px 16px rgba(107,33,168,0.10)",borderLeft:`4px solid ${color}`}}>
     <div style={{width:50,height:50,borderRadius:13,background:color+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{icon}</div>
     <div>
@@ -35,7 +61,8 @@ const KPICard = ({icon,label,value,sub,color=P.primary}: any) => (
       {sub && <div style={{fontSize:11,color:"#64748B",marginTop:2}}>{sub}</div>}
     </div>
   </div>
-);
+  );
+};
 
 const SecTitle = ({icon,title,subtitle,module}: any) => (
   <div style={{borderBottom:`2px solid ${P.muted}`,paddingBottom:14,marginBottom:22,marginTop:4,display:"flex",alignItems:"flex-start",gap:12}}>
@@ -65,7 +92,9 @@ const Insight = ({emoji,text,highlight,color=P.primary}: any) => (
   </div>
 );
 
-const HBar = ({data,title,note,total}: any) => (
+const HBar = ({data,title,note,total}: any) => {
+  if (isRemovedAnalyticsBlock(title)) return null;
+  return (
   <Card title={title}>
     {note && <div style={{fontSize:11,color:"#94A3B8",marginBottom:8,fontStyle:"italic"}}>{note}</div>}
     <ResponsiveContainer minWidth={0} minHeight={0} width="100%" height={Math.max((data?.length || 0)*34+20, 100)}>
@@ -80,9 +109,12 @@ const HBar = ({data,title,note,total}: any) => (
       </BarChart>
     </ResponsiveContainer>
   </Card>
-);
+  );
+};
 
-const SmallPie = ({data,title,total}: any) => (
+const SmallPie = ({data,title,total}: any) => {
+  if (isRemovedAnalyticsBlock(title)) return null;
+  return (
   <Card title={title}>
     <ResponsiveContainer minWidth={0} minHeight={0} width="100%" height={200}>
       <PieChart>
@@ -94,9 +126,12 @@ const SmallPie = ({data,title,total}: any) => (
       </PieChart>
     </ResponsiveContainer>
   </Card>
-);
+  );
+};
 
-const FreqBar = ({data,title,color=P.primary}: any) => (
+const FreqBar = ({data,title,color=P.primary}: any) => {
+  if (isRemovedAnalyticsBlock(title)) return null;
+  return (
   <Card title={title}>
     <ResponsiveContainer minWidth={0} minHeight={0} width="100%" height={155}>
       <BarChart data={data} margin={{left:0,right:6,top:2,bottom:2}}>
@@ -108,7 +143,8 @@ const FreqBar = ({data,title,color=P.primary}: any) => (
       </BarChart>
     </ResponsiveContainer>
   </Card>
-);
+  );
+};
 
 // ─── MAPA SVG BARRIOS UNIDOS ─────────────────────────────────────────────────
 const MapaBarriosUnidos = ({ uplData = [] }: { uplData?: any[] }) => {
@@ -387,13 +423,13 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
     };
 
     const radarCarga = [
-      {item:"Agot. Emocional", score: calcScore(a => a.cuidado?.agotamiento_emocional)},
       {item:"Cansancio Físico", score: calcScore(a => a.cuidado?.cansancio_fisico)},
       {item:"Estrés Constante", score: calcScore(a => a.cuidado?.estres_constante)},
       {item:"Poco Autocuidado", score: calcScore(a => a.cuidado?.poco_tiempo_autocuidado)},
       {item:"Resp. Excesivas", score: calcScore(a => a.cuidado?.responsabilidades_excesivas)},
       {item:"Carga Emocional", score: calcCargaEmocional()},
     ];
+    const radarCargaVisible = radarCarga.filter(item => !item.item.startsWith("Cansancio"));
 
     // MÓDULO 4
     const violenciaData = countFreq(a => a.bienestar?.violencia);
@@ -467,7 +503,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
        barrios, uplData, generoData, educData, pertData, edadGrupos,
        fuenteData, laboralData, viviendaData, ingresosData,
        horasData, poblCuidadaData, reconocData, sentimData,
-       agotFreq, cansFreq, estresFreq, autocuidFreq, respExcFreq, conoceProg, radarCarga,
+       agotFreq, cansFreq, estresFreq, autocuidFreq, respExcFreq, conoceProg, radarCarga: radarCargaVisible,
        violenciaData, factoresRiesgoData, enfermedadData, enfermedadesCuales, dificultadData, participarData,
        apoioFamFreq, suenoFreq, vidaSocialFreq, segHogarData, tiempoCuidData,
        barrioInseg, uplInseg, inseguridadCruzada,
@@ -644,7 +680,7 @@ export default function AnalyticsDashboard({ surveys }: { surveys: any[] }) {
         {/* MÓDULO 3 */}
         {tab==="cuidado" && (
           <div>
-            <SecTitle icon="💜" module="Módulo 3" title="Carga de Cuidado" subtitle="Horas, agotamiento, reconocimiento, bienestar emocional y acceso a programas"/>
+            <SecTitle icon="💜" module="Módulo 3" title="Carga de Cuidado" subtitle="Horas, bienestar emocional y acceso a programas"/>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(185px,1fr))",gap:13,marginBottom:22}}>
               <KPICard icon="⏱️" label="Prom. Horas/Día" value={avgH.toFixed(1)+"h"} sub="Carga de trabajo no remunerado" color={P.primary}/>
               <KPICard icon="😰" label="Agotadas emocionalmente" value={`${kpis.estresPct}%`} sub="Casi siempre o siempre" color={P.rose}/>

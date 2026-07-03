@@ -65,6 +65,45 @@ const BARRIO_TO_UPL: Record<string, string> = {
 const ALL_BARRIOS = Object.keys(BARRIO_TO_UPL).sort();
 const ALL_UPLS = Array.from(new Set(Object.values(BARRIO_TO_UPL))).sort();
 
+const REMOVED_SURVEY_FIELD_PATHS = new Set([
+  'economia.responsable_economica',
+  'cuidado.reconocimiento',
+  'cuidado.cansancio_fisico',
+  'cuidado.agotamiento_emocional',
+  'bienestar.seguridad_hogar',
+  'bienestar.tiempo_cuidado_mayor_parte',
+  'bienestar.enfermedad_diagnosticada',
+  'bienestar.enfermedades_cuales',
+  'proyecciones.bienestar_deseado',
+  'proyecciones.bienestar_deseado_otro',
+  'proyecciones.dificultades_actividades_cotidianas',
+  'proyecciones.desea_mas_apoyo',
+  'proyecciones.apoyo_cuales',
+  'dinamica_familiar.compartir_habilidades',
+  'dinamica_familiar.compartir_habilidades_cuales',
+  'dinamica_familiar.participacion_social'
+]);
+
+const REMOVED_QUESTION_LABEL_PREFIXES = [
+  'RESPONSABLE ECON',
+  'RECONOCIMIENTO PERCIBIDO',
+  'CANSANCIO F',
+  'AGOTAMIENTO EMOCIONAL',
+  'SEGURIDAD EN HOGAR',
+  'TIEMPO DEDICADO AL CUIDADO',
+  'ENFERMEDAD POR LABORES',
+  'BIENESTAR DESEADO',
+  'DIFICULTAD EN ACTIVIDADES',
+  'APOYO O ACOMPA',
+  'HABILIDADES PARA COMPARTIR'
+];
+
+const isRemovedSurveyQuestionLabel = (label?: string) => {
+  const text = String(label || '').toUpperCase();
+  if (text.startsWith('PARTICIPACI')) return text.includes('SOCIAL');
+  return REMOVED_QUESTION_LABEL_PREFIXES.some(prefix => text.startsWith(prefix));
+};
+
 const STEPS = [
   { id: 1, title: 'Perfil Sociodemográfico', icon: User },
   { id: 2, title: 'Economía y Autonomía', icon: Wallet },
@@ -394,7 +433,7 @@ export default function SurveyWizard() {
       7: ['habeas_data']
     };
 
-    const fields = required[step] || [];
+    const fields = (required[step] || []).filter(path => !REMOVED_SURVEY_FIELD_PATHS.has(path));
     const missing = fields.filter(path => {
       if (path === 'habeas_data') return !habeasAccepted;
       const [mod, key] = path.split('.');
@@ -453,6 +492,7 @@ export default function SurveyWizard() {
       ],
     };
     (otherRules[step] || []).forEach(({ parent, other, trigger }) => {
+      if (REMOVED_SURVEY_FIELD_PATHS.has(parent) || REMOVED_SURVEY_FIELD_PATHS.has(other)) return;
       const [pMod, pKey] = parent.split('.');
       const [oMod, oKey] = other.split('.');
       const pVal = answers[pMod]?.[pKey];
@@ -593,7 +633,7 @@ export default function SurveyWizard() {
       'habeas_data'
     ];
     let filled = 0;
-    allFields.forEach(path => {
+    allFields.filter(path => !REMOVED_SURVEY_FIELD_PATHS.has(path)).forEach(path => {
       if (path === 'habeas_data') {
         if (habeasAccepted) filled++;
       } else {
@@ -607,7 +647,8 @@ export default function SurveyWizard() {
       }
     });
     // Limitar al 100% en caso de que llenen condicionales extra
-    return Math.min(100, Math.round((filled / allFields.length) * 100));
+    const activeFields = allFields.filter(path => !REMOVED_SURVEY_FIELD_PATHS.has(path));
+    return Math.min(100, Math.round((filled / activeFields.length) * 100));
   };
 
   if (loading || activeSurvey === null) return (
@@ -1821,6 +1862,8 @@ function Question({
   showOther, otherValue, onOtherChange, otherPlaceholder, error, ageDisplay,
   min, max, step, suffix, labels
 }: any) {
+  if (isRemovedSurveyQuestionLabel(label)) return null;
+
   return (
     <div className={cn(
       "bg-white/5 border p-3 rounded-2xl backdrop-blur-xl shadow-sm transition-all hover:bg-white/[0.08] group flex flex-col h-full min-h-[100px] notranslate",

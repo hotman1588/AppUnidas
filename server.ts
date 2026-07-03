@@ -133,6 +133,7 @@ const ensureHabeasTrace = async () => {
       AND (s.analyst_name IS NULL OR s.analyst_name = '')
       AND sub.name IS NOT NULL AND sub.name <> '';
   `).catch((e: any) => console.error('Backfill recolector error:', e.message));
+  await cleanupRemovedSurveyOneAnswers();
   habeasTraceReady = true;
 };
 
@@ -397,6 +398,40 @@ const deleteUsersWithRecords = async (userIds: string[]) => {
   }
 };
 
+const REMOVED_SURVEY_ONE_FIELDS: Record<string, string[]> = {
+  economia: ['responsable_economica'],
+  cuidado: ['reconocimiento', 'cansancio_fisico', 'agotamiento_emocional'],
+  bienestar: ['seguridad_hogar', 'tiempo_cuidado_mayor_parte', 'enfermedad_diagnosticada', 'enfermedades_cuales'],
+  proyecciones: ['bienestar_deseado', 'bienestar_deseado_otro', 'dificultades_actividades_cotidianas', 'desea_mas_apoyo', 'apoyo_cuales'],
+  dinamica_familiar: ['compartir_habilidades', 'compartir_habilidades_cuales', 'participacion_social']
+};
+
+const sanitizeSurveyOneAnswers = (answers: any) => {
+  const parsed = typeof answers === 'string' ? JSON.parse(answers || '{}') : (answers || {});
+  const clean = JSON.parse(JSON.stringify(parsed));
+
+  Object.entries(REMOVED_SURVEY_ONE_FIELDS).forEach(([moduleKey, fieldKeys]) => {
+    if (!clean[moduleKey] || typeof clean[moduleKey] !== 'object') return;
+    fieldKeys.forEach(fieldKey => delete clean[moduleKey][fieldKey]);
+  });
+
+  return clean;
+};
+
+const buildSurveyOneAnswersCleanupExpression = (columnName = 'answers') => {
+  return Object.entries(REMOVED_SURVEY_ONE_FIELDS).reduce((expression, [moduleKey, fieldKeys]) => {
+    return fieldKeys.reduce((innerExpression, fieldKey) => {
+      return `${innerExpression} #- '{${moduleKey},${fieldKey}}'`;
+    }, expression);
+  }, columnName);
+};
+
+const cleanupRemovedSurveyOneAnswers = async () => {
+  const cleanedAnswers = buildSurveyOneAnswersCleanupExpression('answers');
+  await pool.query(`UPDATE surveys SET answers = ${cleanedAnswers} WHERE answers IS NOT NULL;`)
+    .catch((e: any) => console.error('Cleanup removed survey fields error:', e.message));
+};
+
 
 // --- AUTH ---
 app.post(['/api/auth/register', '/api/auth/registro'], async (req, res) => {
@@ -478,7 +513,8 @@ app.post('/api/user/survey/save', authenticateToken, async (req: any, res) => {
   const { answers, step, habeas_data_accepted } = req.body;
   try {
     await ensureHabeasTrace();
-    const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
+    const cleanAnswers = sanitizeSurveyOneAnswers(answers);
+    const answersJson = JSON.stringify(cleanAnswers);
     // Trazabilidad: al aceptar, se fija el timestamp una sola vez (COALESCE conserva
     // el primero); si se desmarca, se limpia el registro.
     await pool.query(
@@ -1149,8 +1185,9 @@ app.post('/api/analyst/register-complete-characterization', authenticateToken, i
     // 2. Create or update the survey.
     // Documentos opcionales en campo: si faltan, queda 'pending' para cargarlos
     // y aprobar después en la bandeja. Si están completos, queda 'approved'.
-    const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
-    const docs = (answers && typeof answers === 'object' ? answers.documentos : null) || {};
+    const cleanAnswers = sanitizeSurveyOneAnswers(answers);
+    const answersJson = JSON.stringify(cleanAnswers);
+    const docs = cleanAnswers.documentos || {};
     const hasAllDocs = !!(docs.id_frontal && docs.id_reverso && docs.utility_bill);
     const estado = hasAllDocs ? 'approved' : 'pending';
     const aprobadoPor = hasAllDocs ? (req.user?.name || null) : null;
@@ -1176,8 +1213,8 @@ app.post('/api/analyst/register-complete-characterization', authenticateToken, i
     );
 
     // 4. Insert documents if uploaded
-    if (answers && answers.documentos) {
-      for (const [type, url] of Object.entries(answers.documentos)) {
+    if (cleanAnswers.documentos) {
+      for (const [type, url] of Object.entries(cleanAnswers.documentos)) {
         if (url && typeof url === 'string') {
           const filename = url.split('/').pop() || url;
           await client.query(
