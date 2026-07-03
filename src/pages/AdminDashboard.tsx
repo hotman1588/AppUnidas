@@ -25,6 +25,25 @@ import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import { useLandingStore } from '../store/useLandingStore';
 import { supabase } from '../lib/supabase';
 
+const REMOVED_SURVEY_FIELD_PATHS = new Set([
+  'economia.responsable_economica',
+  'cuidado.reconocimiento',
+  'cuidado.cansancio_fisico',
+  'cuidado.agotamiento_emocional',
+  'bienestar.seguridad_hogar',
+  'bienestar.tiempo_cuidado_mayor_parte',
+  'bienestar.enfermedad_diagnosticada',
+  'bienestar.enfermedades_cuales',
+  'proyecciones.bienestar_deseado',
+  'proyecciones.bienestar_deseado_otro',
+  'proyecciones.dificultades_actividades_cotidianas',
+  'proyecciones.desea_mas_apoyo',
+  'proyecciones.apoyo_cuales',
+  'dinamica_familiar.compartir_habilidades',
+  'dinamica_familiar.compartir_habilidades_cuales',
+  'dinamica_familiar.participacion_social'
+]);
+
 // Formatea segundos a "hh:mm:ss" para los consolidados; 'Sin registro' si no hay dato.
 const formatDuracion = (segs: any): string => {
   const s = Number(segs);
@@ -829,6 +848,7 @@ export default function AdminDashboard() {
           if (questions && typeof questions === 'object') {
             Object.entries(questions).forEach(([fieldKey, a]: [string, any]) => {
               const fullFieldKey = `${moduleKey}.${fieldKey}`;
+              if (REMOVED_SURVEY_FIELD_PATHS.has(fullFieldKey)) return;
               const colName = questionMap[fullFieldKey];
               
               const val = Array.isArray(a) ? a.join(', ') : String(a);

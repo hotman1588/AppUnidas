@@ -14,7 +14,7 @@ export interface SurveyQuestion {
   fieldName: string;
 }
 
-export const SURVEY_QUESTIONS: SurveyQuestion[] = [
+const ALL_SURVEY_QUESTIONS: SurveyQuestion[] = [
   // Módulo 1: Perfil Sociodemográfico
   {
     id: '1.1',
@@ -854,6 +854,29 @@ export const SURVEY_QUESTIONS: SurveyQuestion[] = [
     fieldName: 'documentos.habeas_data'
   }
 ];
+
+const REMOVED_FIELD_NAMES = new Set([
+  'economia.responsable_economica',
+  'cuidado.reconocimiento',
+  'cuidado.cansancio_fisico',
+  'cuidado.agotamiento_emocional',
+  'bienestar.seguridad_hogar',
+  'bienestar.tiempo_cuidado_mayor_parte',
+  'bienestar.enfermedad_diagnosticada',
+  'bienestar.enfermedades_cuales',
+  'proyecciones.bienestar_deseado',
+  'proyecciones.bienestar_deseado_otro',
+  'proyecciones.dificultades_actividades_cotidianas',
+  'proyecciones.desea_mas_apoyo',
+  'proyecciones.apoyo_cuales',
+  'dinamica_familiar.compartir_habilidades',
+  'dinamica_familiar.compartir_habilidades_cuales',
+  'dinamica_familiar.participacion_social'
+]);
+
+export const SURVEY_QUESTIONS: SurveyQuestion[] = ALL_SURVEY_QUESTIONS.filter(
+  question => !REMOVED_FIELD_NAMES.has(question.fieldName)
+);
 
 export const exportSurveyToExcel = () => {
   const XLSX = require('xlsx');
