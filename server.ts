@@ -1422,6 +1422,18 @@ app.post('/api/admin/surveys/reset', authenticateToken, requireAdminOnly, async 
   }
 });
 
+// Borrado exclusivo de la Encuesta 2 (encuesta_dos.responses). NO toca la
+// Encuesta 1 (surveys/survey_history) ni los usuarios. Solo administrador.
+app.post('/api/admin/surveys/reset-dos', authenticateToken, requireAdminOnly, async (_req: any, res: any) => {
+  try {
+    await ensureEncuestaDosSchema();
+    const dos = await pool.query('DELETE FROM encuesta_dos.responses RETURNING id');
+    res.json({ success: true, deletedEncuestaDos: dos.rowCount || 0 });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Settings & Public
 app.post('/api/admin/settings/upload', authenticateToken, isAdmin, upload.single('file'), async (req: any, res: any) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
