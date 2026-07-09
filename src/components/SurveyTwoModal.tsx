@@ -52,7 +52,7 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   useEffect(() => {
-    fetch('/api/settings/habeas_data')
+    fetch('/api/settings/habeas_data_dos')
       .then(r => r.json())
       .then(d => setHabeasDataUrl(d?.value || null))
       .catch(() => {});

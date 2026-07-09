@@ -1472,6 +1472,19 @@ app.get('/api/settings/habeas_data', async (req, res) => {
   }
 });
 
+// Habeas Data independiente de la Encuesta 2 (política distinta a la Encuesta 1).
+// Si aún no se ha cargado, cae al documento de la Encuesta 1 como respaldo.
+app.get('/api/settings/habeas_data_dos', async (_req, res) => {
+  try {
+    const r = await pool.query("SELECT value FROM settings WHERE key = 'habeas_data_dos'");
+    if (r.rows[0]?.value) return res.json({ value: r.rows[0].value });
+    const fallback = await pool.query("SELECT value FROM settings WHERE key = 'habeas_data'");
+    res.json(fallback.rows[0] || { value: '/tratamiento_datos_hd.pdf' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ---- Encuesta activa (flag controlado por el administrador) ----
 // Lectura pública: define qué encuesta ven los usuarios ('uno' por defecto).
 app.get('/api/settings/active_survey', async (_req, res) => {

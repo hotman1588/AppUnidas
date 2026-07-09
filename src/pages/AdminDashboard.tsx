@@ -143,6 +143,9 @@ export default function AdminDashboard() {
   const [userDocuments, setUserDocuments] = useState<any[]>([]);
   const [habeasDataPath, setHabeasDataPath] = useState<string | null>(null);
   const [uploadingHabeas, setUploadingHabeas] = useState(false);
+  // Habeas Data independiente para la Encuesta 2 (política distinta a la Encuesta 1).
+  const [habeasDataDosPath, setHabeasDataDosPath] = useState<string | null>(null);
+  const [uploadingHabeasDos, setUploadingHabeasDos] = useState(false);
   const [activeSurvey, setActiveSurvey] = useState<'uno' | 'dos'>('uno');
   const [switchingSurvey, setSwitchingSurvey] = useState(false);
   const [viewerConfig, setViewerConfig] = useState<{ url: string; title: string } | null>(null);
@@ -308,6 +311,12 @@ export default function AdminDashboard() {
       if (settingsRes.ok) {
         const settingsData = await settingsRes.json();
         setHabeasDataPath(settingsData.value);
+      }
+
+      const settingsDosRes = await fetch('/api/settings/habeas_data_dos');
+      if (settingsDosRes.ok) {
+        const settingsDosData = await settingsDosRes.json();
+        setHabeasDataDosPath(settingsDosData.value);
       }
     } catch (err) {
       console.error('Fetch error:', err);
@@ -747,6 +756,37 @@ export default function AdminDashboard() {
       alert('Error en la comunicación con el servidor');
     } finally {
       setUploadingHabeas(false);
+    }
+  };
+
+  // Carga del Habeas Data específico de la Encuesta 2 (clave 'habeas_data_dos').
+  const handleHabeasDosUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingHabeasDos(true);
+    const formDataUpload = new FormData();
+    formDataUpload.append('file', file);
+    formDataUpload.append('key', 'habeas_data_dos');
+
+    try {
+      const res = await fetch('/api/admin/settings/upload', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formDataUpload
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setHabeasDataDosPath(data.path);
+        alert('Documento de Habeas Data (Encuesta 2) actualizado con éxito');
+      } else {
+        alert(data.error || 'Error al subir documento');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error en la comunicación con el servidor');
+    } finally {
+      setUploadingHabeasDos(false);
     }
   };
 
@@ -1669,8 +1709,8 @@ export default function AdminDashboard() {
                       <Shield className="w-8 h-8" />
                     </div>
                     <div>
-                      <h4 className="text-2xl font-black text-white mb-1">Habeas Data</h4>
-                      <p className="text-white/30 text-xs font-medium italic">Documento de política de tratamiento de datos</p>
+                      <h4 className="text-2xl font-black text-white mb-1">Habeas Data · Encuesta 1</h4>
+                      <p className="text-white/30 text-xs font-medium italic">Política de tratamiento de datos de la Encuesta 1</p>
                     </div>
                   </div>
 
@@ -1720,6 +1760,68 @@ export default function AdminDashboard() {
                     </div>
                     <p className="text-[10px] text-white/20 text-center font-medium italic">
                       Este documento será accesible para todas las usuarias al momento de aceptar el tratamiento de datos.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Habeas Data · Encuesta 2 (política independiente) */}
+                <div className="bg-white/5 p-12 rounded-[4rem] border border-white/10 backdrop-blur-xl group">
+                  <div className="flex items-center space-x-6 mb-10">
+                    <div className="w-16 h-16 bg-orange-500/10 rounded-3xl flex items-center justify-center text-orange-400 border border-orange-500/20">
+                      <Shield className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <h4 className="text-2xl font-black text-white mb-1">Habeas Data · Encuesta 2</h4>
+                      <p className="text-white/30 text-xs font-medium italic">Política de tratamiento de datos de la Encuesta 2</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-8">
+                    {habeasDataDosPath ? (
+                      <div className="p-6 bg-white/5 rounded-3xl border border-orange-500/10 flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                          <FileText className="w-8 h-8 text-orange-400" />
+                          <div>
+                            <p className="text-white font-bold text-sm">Política Actual Cargada</p>
+                            <button
+                              onClick={() => setViewerConfig({ url: habeasDataDosPath || '', title: 'Habeas Data · Encuesta 2' })}
+                              className="text-[10px] font-black text-unidas-secondary uppercase tracking-widest hover:underline"
+                            >
+                              Visualizar Documento
+                            </button>
+                          </div>
+                        </div>
+                        <CheckCircle2 className="w-6 h-6 text-green-500" />
+                      </div>
+                    ) : (
+                      <div className="p-8 border-2 border-dashed border-white/5 rounded-3xl flex flex-col items-center justify-center text-center">
+                        <AlertCircle className="w-10 h-10 text-amber-500/40 mb-4" />
+                        <p className="text-white/20 text-xs font-bold uppercase tracking-widest">No se ha cargado la política aún</p>
+                      </div>
+                    )}
+
+                    <div className="relative">
+                      <input
+                        type="file"
+                        id="habeas-dos-upload"
+                        className="hidden"
+                        accept=".pdf,.doc,.docx"
+                        onChange={handleHabeasDosUpload}
+                        disabled={uploadingHabeasDos}
+                      />
+                      <label
+                        htmlFor="habeas-dos-upload"
+                        className={cn(
+                          "w-full py-5 bg-white/5 border border-white/5 text-white font-black rounded-2xl flex items-center justify-center space-x-4 hover:bg-white/10 transition-all cursor-pointer",
+                          uploadingHabeasDos && "opacity-50 cursor-wait"
+                        )}
+                      >
+                        <Upload className="w-6 h-6 text-orange-400" />
+                        <span>{uploadingHabeasDos ? 'Subiendo...' : (habeasDataDosPath ? 'Actualizar Documento' : 'Cargar Documento PDF')}</span>
+                      </label>
+                    </div>
+                    <p className="text-[10px] text-white/20 text-center font-medium italic">
+                      Este documento se mostrará en la Encuesta 2 al momento de aceptar el tratamiento de datos (perfil Adulto).
                     </p>
                   </div>
                 </div>
