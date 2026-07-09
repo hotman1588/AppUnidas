@@ -101,6 +101,15 @@ const ensureEncuestaDosSchema = async () => {
   await pool.query(`ALTER TABLE encuesta_dos.responses ADD COLUMN IF NOT EXISTS habeas_accepted_at TIMESTAMP;`);
   // Tiempo total de diligenciamiento de la encuesta, en segundos.
   await pool.query(`ALTER TABLE encuesta_dos.responses ADD COLUMN IF NOT EXISTS tiempo_ejecucion_segundos INTEGER;`);
+  // Reestructuración: registro anónimo (código único generado) y perfil ('adulto'|'menor').
+  // Ya no se capturan datos personales, por lo que las columnas de identidad dejan de ser obligatorias.
+  await pool.query(`
+    ALTER TABLE encuesta_dos.responses ADD COLUMN IF NOT EXISTS registro_codigo TEXT;
+    ALTER TABLE encuesta_dos.responses ADD COLUMN IF NOT EXISTS perfil TEXT;
+    ALTER TABLE encuesta_dos.responses ALTER COLUMN full_name DROP NOT NULL;
+    ALTER TABLE encuesta_dos.responses ALTER COLUMN document_type DROP NOT NULL;
+    ALTER TABLE encuesta_dos.responses ALTER COLUMN document_number DROP NOT NULL;
+  `).catch((e: any) => console.error('Migration Error (encuesta_dos anon):', e.message));
   encuestaDosReady = true;
 };
 
@@ -1238,16 +1247,20 @@ app.post('/api/analyst/register-complete-characterization', authenticateToken, i
 // ============================================================================
 // ENCUESTA DOS — Endpoints aislados (schema encuesta_dos). No tocan 'surveys'
 // ni 'users' de producción (Encuesta Uno). Cero impacto.
+//
+// REESTRUCTURACIÓN: registro ANÓNIMO. Ya no se capturan datos personales; el
+// front genera un 'registro_codigo' único y un 'perfil' ('adulto'|'menor').
+// No se crea usuario en 'users'.
 // ============================================================================
-app.post('/api/analyst/encuesta-dos', authenticateToken, isAdmin, async (req: any, res: any) => {
-  const { user, answers, habeas_data_accepted } = req.body;
+const saveEncuestaDosResponse = async (req: any, res: any, analystName: string | null, analystId: number | null) => {
+  const { registro, answers, habeas_data_accepted } = req.body || {};
   const tiempoExec = Number.isFinite(Number(req.body?.tiempo_ejecucion_segundos)) ? Math.max(0, Math.round(Number(req.body.tiempo_ejecucion_segundos))) : null;
 
-  if (!user || !user.document_number || !user.full_name || !user.document_type) {
-    return res.status(400).json({
-      error: `Faltan datos requeridos. 'full_name', 'document_number' y 'document_type' son obligatorios. Recibido: ${JSON.stringify(user || {})}`
-    });
-  }
+  const perfil = registro?.perfil === 'menor' ? 'menor' : 'adulto';
+  const isMinor = registro?.is_minor ?? (perfil === 'menor');
+  // Código de registro único; si no llega desde el front, se genera uno robusto en el servidor.
+  const registroCodigo = (registro?.registro_codigo && String(registro.registro_codigo).trim())
+    || `E2-${perfil === 'menor' ? 'MEN' : 'ADU'}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
   if (!habeas_data_accepted) {
     return res.status(400).json({ error: 'Debe aceptarse el tratamiento de datos (Habeas Data) para guardar la encuesta.' });
@@ -1256,44 +1269,38 @@ app.post('/api/analyst/encuesta-dos', authenticateToken, isAdmin, async (req: an
   try {
     await ensureEncuestaDosSchema();
     const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
-    const isMinor = user.document_type === 'TI';
-    const hashedPin = user.password ? bcrypt.hashSync(user.password, 10) : null;
-    // Crea/actualiza el usuario en la base 'users' (se registra una persona nueva).
-    const surveyUserId = await upsertSurveyUser(user);
     const result = await pool.query(
       `INSERT INTO encuesta_dos.responses
-        (full_name, document_type, document_number, phone, email, password, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id, user_id, habeas_accepted_at, tiempo_ejecucion_segundos)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP, $15) RETURNING id`,
+        (registro_codigo, perfil, is_minor, birth_date, edad, answers, habeas_data_accepted, analyst_name, analyst_id, habeas_accepted_at, tiempo_ejecucion_segundos)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, $10) RETURNING id`,
       [
-        user.full_name,
-        user.document_type,
-        user.document_number,
-        user.phone || null,
-        user.email || null,
-        hashedPin,
-        user.birth_date || null,
-        user.edad ?? null,
+        registroCodigo,
+        perfil,
         isMinor,
+        registro?.birth_date || null,
+        registro?.edad ?? null,
         answersJson,
         true,
-        req.user.name || null,
-        req.user.id || null,
-        surveyUserId,
-        tiempoExec
+        analystName,
+        analystId,
+        tiempoExec,
       ]
     );
-    res.json({ success: true, id: result.rows[0].id, userId: surveyUserId });
+    res.json({ success: true, id: result.rows[0].id, registro_codigo: registroCodigo });
   } catch (err: any) {
-    if (err.code === '23505') return res.status(400).json({ error: 'El documento o el correo ya están registrados en otro usuario.' });
     res.status(500).json({ error: err.message });
   }
+};
+
+app.post('/api/analyst/encuesta-dos', authenticateToken, isAdmin, async (req: any, res: any) => {
+  return saveEncuestaDosResponse(req, res, req.user?.name || null, req.user?.id || null);
 });
 
 app.get('/api/analyst/encuesta-dos', authenticateToken, isAdmin, async (_req: any, res: any) => {
   try {
     await ensureEncuestaDosSchema();
     const r = await pool.query(
-      'SELECT id, full_name, document_type, document_number, edad, is_minor, answers, analyst_name, habeas_accepted_at, tiempo_ejecucion_segundos, created_at FROM encuesta_dos.responses ORDER BY created_at DESC'
+      'SELECT id, registro_codigo, perfil, edad, is_minor, answers, analyst_name, habeas_accepted_at, tiempo_ejecucion_segundos, created_at FROM encuesta_dos.responses ORDER BY created_at DESC'
     );
     res.json(r.rows);
   } catch (err: any) {
@@ -1493,33 +1500,7 @@ app.post('/api/admin/settings/active-survey', authenticateToken, requireAdminOnl
 // Submisión de Encuesta Dos por un usuario autenticado (cuando es la encuesta activa).
 // Inserta en el mismo esquema aislado encuesta_dos.responses. No toca 'surveys'.
 app.post('/api/user/encuesta-dos', authenticateToken, async (req: any, res) => {
-  const { user, answers, habeas_data_accepted } = req.body;
-  const tiempoExec = Number.isFinite(Number(req.body?.tiempo_ejecucion_segundos)) ? Math.max(0, Math.round(Number(req.body.tiempo_ejecucion_segundos))) : null;
-  if (!user || !user.document_number || !user.full_name || !user.document_type) {
-    return res.status(400).json({ error: "Faltan datos requeridos: 'full_name', 'document_number' y 'document_type'." });
-  }
-  if (!habeas_data_accepted) {
-    return res.status(400).json({ error: 'Debe aceptarse el tratamiento de datos (Habeas Data) para guardar la encuesta.' });
-  }
-  try {
-    await ensureEncuestaDosSchema();
-    const answersJson = typeof answers === 'string' ? answers : JSON.stringify(answers || {});
-    const isMinor = user.document_type === 'TI';
-    const hashedPin = user.password ? bcrypt.hashSync(user.password, 10) : null;
-    // Crea/actualiza el usuario en la base 'users' (se registra una persona nueva).
-    const surveyUserId = await upsertSurveyUser(user);
-    const result = await pool.query(
-      `INSERT INTO encuesta_dos.responses
-        (full_name, document_type, document_number, phone, email, password, birth_date, edad, is_minor, answers, habeas_data_accepted, analyst_name, analyst_id, user_id, habeas_accepted_at, tiempo_ejecucion_segundos)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP, $15) RETURNING id`,
-      [user.full_name, user.document_type, user.document_number, user.phone || null, user.email || null, hashedPin,
-       user.birth_date || null, user.edad ?? null, isMinor, answersJson, true, req.user.name || 'Autodiligenciada', req.user.id || null, surveyUserId, tiempoExec]
-    );
-    res.json({ success: true, id: result.rows[0].id, userId: surveyUserId });
-  } catch (err: any) {
-    if (err.code === '23505') return res.status(400).json({ error: 'El documento o el correo ya están registrados en otro usuario.' });
-    res.status(500).json({ error: err.message });
-  }
+  return saveEncuestaDosResponse(req, res, req.user?.name || 'Autodiligenciada', req.user?.id || null);
 });
 
 app.get(['/api/news', '/api/noticias'], async (req, res) => {

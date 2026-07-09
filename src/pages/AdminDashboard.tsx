@@ -900,14 +900,13 @@ export default function AdminDashboard() {
       const rows: any[] = await res.json();
       if (!Array.isArray(rows) || rows.length === 0) { alert('Aún no hay registros de la Encuesta Dos para exportar.'); return; }
 
-      const baseHeaders = ['ID', 'Nombre Completo', 'Tipo Documento', 'N° Documento', 'Celular', 'Correo', 'Edad', 'Menor (TI)', 'Recolector', 'Habeas Data - Fecha/Hora Lectura', 'Tiempo Diligenciamiento', 'Fecha'];
+      const baseHeaders = ['ID', 'Código Registro', 'Perfil', 'Menor de edad', 'Edad', 'Recolector', 'Habeas Data - Fecha/Hora Lectura', 'Tiempo Diligenciamiento', 'Fecha'];
       const orderedHeaders = [...baseHeaders];
       // Mapa id de pregunta -> 'MÓDULO N. TÍTULO - Etiqueta'
       const fieldMap: Record<string, string> = {};
       ENCUESTA_DOS_MODULES.forEach(m => {
         const prefix = `M${m.id}. ${m.title.toUpperCase()}`;
         m.questions.forEach(q => {
-          if (q.id === 'tipo_documento') return;
           const col = `${prefix} - ${q.label}`;
           fieldMap[q.id] = col;
           if (!orderedHeaders.includes(col)) orderedHeaders.push(col);
@@ -920,13 +919,10 @@ export default function AdminDashboard() {
       const data = rows.map(r => {
         const flat: any = {
           'ID': r.id,
-          'Nombre Completo': r.full_name,
-          'Tipo Documento': r.document_type,
-          'N° Documento': r.document_number,
-          'Celular': r.phone || '',
-          'Correo': r.email || '',
+          'Código Registro': r.registro_codigo || '',
+          'Perfil': r.perfil ? (r.perfil === 'menor' ? 'Menor de edad' : 'Adulto') : (r.is_minor ? 'Menor de edad' : 'Adulto'),
+          'Menor de edad': r.is_minor ? 'Sí' : 'No',
           'Edad': r.edad ?? '',
-          'Menor (TI)': r.is_minor ? 'Sí' : 'No',
           'Recolector': r.analyst_name || '',
           'Habeas Data - Fecha/Hora Lectura': r.habeas_accepted_at ? new Date(r.habeas_accepted_at).toLocaleString() : 'No aceptado',
           'Tiempo Diligenciamiento': formatDuracion(r.tiempo_ejecucion_segundos),
