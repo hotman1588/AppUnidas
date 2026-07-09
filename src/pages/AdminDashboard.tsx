@@ -313,7 +313,7 @@ export default function AdminDashboard() {
         setHabeasDataPath(settingsData.value);
       }
 
-      const settingsDosRes = await fetch('/api/settings/habeas_data_dos');
+      const settingsDosRes = await fetch(`/api/settings/habeas_data_dos?t=${Date.now()}`, { cache: 'no-store' });
       if (settingsDosRes.ok) {
         const settingsDosData = await settingsDosRes.json();
         setHabeasDataDosPath(settingsDosData.value);

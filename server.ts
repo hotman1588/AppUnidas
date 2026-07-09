@@ -1465,6 +1465,7 @@ app.post('/api/admin/settings/upload', authenticateToken, isAdmin, upload.single
 
 app.get('/api/settings/habeas_data', async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     const r = await pool.query("SELECT value FROM settings WHERE key = 'habeas_data'");
     res.json(r.rows[0] || { value: '/tratamiento_datos_hd.pdf' });
   } catch (err: any) {
@@ -1476,6 +1477,7 @@ app.get('/api/settings/habeas_data', async (req, res) => {
 // Si aún no se ha cargado, cae al documento de la Encuesta 1 como respaldo.
 app.get('/api/settings/habeas_data_dos', async (_req, res) => {
   try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     const r = await pool.query("SELECT value FROM settings WHERE key = 'habeas_data_dos'");
     if (r.rows[0]?.value) return res.json({ value: r.rows[0].value });
     const fallback = await pool.query("SELECT value FROM settings WHERE key = 'habeas_data'");
