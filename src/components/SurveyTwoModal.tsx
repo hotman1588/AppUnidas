@@ -8,7 +8,7 @@ import {
 import { cn } from '../lib/utils';
 import {
   MODULES, BARRIO_TO_UPL, ALL_BARRIOS, ALL_UPLS,
-  ENTRY_BUTTONS, CONSENT, CLOSURE_MESSAGE, generateRegistroCodigo,
+  ENTRY_BUTTONS, CONSENT, ASSENT_MENOR, CLOSURE_MESSAGE, generateRegistroCodigo,
   isVisibleForRoute, type Question as QDef, type ModuleDef, type Perfil
 } from '../lib/surveyTwoSchema';
 
@@ -28,9 +28,10 @@ const TIMER_KEY = 'encuesta_dos_started_at';
 // Fases del flujo:
 //   'entry'   -> pantalla de ingreso (2 botones de registro aleatorio)
 //   'consent' -> política de datos diferenciada (compuerta de aceptación)
+//   'assent'  -> SOLO menor: asentimiento del propio menor (Paso 2) tras el consentimiento del adulto
 //   'closed'  -> el usuario NO aceptó: encuesta cerrada
 //   'modules' -> cuerpo de la encuesta (paso a paso por módulo + consentimiento habeas final)
-type Phase = 'entry' | 'consent' | 'closed' | 'modules';
+type Phase = 'entry' | 'consent' | 'assent' | 'closed' | 'modules';
 
 export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoint = '/api/analyst/encuesta-dos' }: SurveyTwoModalProps) {
   const [phase, setPhase] = useState<Phase>('entry');
@@ -46,6 +47,7 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
   const [birthDate, setBirthDate] = useState({ day: '', month: '', year: '' });
   const [answers, setAnswers] = useState<any>({});
   const [habeasAccepted, setHabeasAccepted] = useState(false);
+  const [hasViewedHabeas, setHasViewedHabeas] = useState(false);
   const [habeasDataUrl, setHabeasDataUrl] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
@@ -106,8 +108,12 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
   const visibleModules: ModuleDef[] = perfil
     ? MODULES.filter(m => m.questions.some(q => isVisibleForRoute(q.route, perfil)))
     : [];
-  const totalSteps = visibleModules.length + 1; // módulos + consentimiento habeas final
-  const isConsentStep = phase === 'modules' && currentStep === totalSteps - 1;
+  // El paso de Habeas Data final SOLO aplica al perfil Adulto. El Menor ya cuenta
+  // con la autorización del adulto responsable dada en la Fase 1 (consentimiento).
+  const hasHabeasStep = perfil === 'adulto';
+  const totalSteps = visibleModules.length + (hasHabeasStep ? 1 : 0);
+  const isConsentStep = phase === 'modules' && hasHabeasStep && currentStep === totalSteps - 1;
+  const isLastStep = phase === 'modules' && currentStep === totalSteps - 1;
   const currentModule = phase === 'modules' && currentStep < visibleModules.length ? visibleModules[currentStep] : null;
 
   const visibleQuestions = (m: ModuleDef): QDef[] =>
@@ -122,8 +128,20 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
   };
 
   // ---- FASE 1: compuerta de consentimiento ----
-  const acceptConsent = () => { setPhase('modules'); setCurrentStep(0); };
+  // Adulto: acepta -> módulos. Menor: acepta (adulto responsable) -> asentimiento del menor (Paso 2).
+  const acceptConsent = () => {
+    if (perfil === 'menor') { setPhase('assent'); return; }
+    setPhase('modules'); setCurrentStep(0);
+  };
   const rejectConsent = () => {
+    setPhase('closed');
+    localStorage.removeItem(PERSISTENCE_KEY);
+    localStorage.removeItem(TIMER_KEY);
+  };
+
+  // ---- FASE 1 (Paso 2, solo menor): asentimiento del menor ----
+  const acceptAssent = () => { setPhase('modules'); setCurrentStep(0); };
+  const rejectAssent = () => {
     setPhase('closed');
     localStorage.removeItem(PERSISTENCE_KEY);
     localStorage.removeItem(TIMER_KEY);
@@ -199,6 +217,7 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
     setBirthDate({ day: '', month: '', year: '' });
     setAnswers({});
     setHabeasAccepted(false);
+    setHasViewedHabeas(false);
     setCurrentStep(0);
     setValidationErrors([]);
     localStorage.removeItem(PERSISTENCE_KEY);
@@ -222,7 +241,8 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
             edad: userAge ?? null,
           },
           answers,
-          habeas_data_accepted: habeasAccepted,
+          // Menor: la autorización del adulto responsable (Fase 1) es el consentimiento válido.
+          habeas_data_accepted: hasHabeasStep ? habeasAccepted : true,
           tiempo_ejecucion_segundos: (() => {
             const startedAt = Number(localStorage.getItem(TIMER_KEY));
             return startedAt ? Math.max(0, Math.round((Date.now() - startedAt) / 1000)) : null;
@@ -244,6 +264,7 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
   const StepIcon = currentModule ? (ICONS[currentModule.icon] || User) : (isConsentStep ? FileText : ShieldCheck);
   const headerSubtitle = phase === 'entry' ? 'Ingreso · Registro anónimo'
     : phase === 'consent' ? 'Consentimiento · Política de datos'
+    : phase === 'assent' ? 'Asentimiento del menor'
     : phase === 'closed' ? 'Encuesta finalizada'
     : isConsentStep ? 'Tratamiento de Datos (Habeas Data)'
     : `Módulo ${currentModule?.id} · ${currentModule?.title}`;
@@ -340,6 +361,30 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
             </div>
           )}
 
+          {/* FASE 1 · Paso 2 (solo menor): asentimiento del menor */}
+          {phase === 'assent' && perfil === 'menor' && (
+            <div className="py-2 max-w-2xl mx-auto">
+              <div className="p-6 rounded-3xl border border-white/10 bg-white/5">
+                <div className="flex items-center space-x-2 mb-4">
+                  <Baby className="w-5 h-5 text-orange-400" />
+                  <h3 className="text-lg font-black text-white">{ASSENT_MENOR.title}</h3>
+                </div>
+                <p className="text-white/60 text-sm leading-relaxed mb-4">{ASSENT_MENOR.intro}</p>
+                <p className="text-white font-bold text-sm mb-5">{ASSENT_MENOR.question}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button type="button" onClick={acceptAssent}
+                    className="px-6 py-4 rounded-2xl bg-green-500 text-white font-black uppercase tracking-widest text-xs flex items-center justify-center space-x-2 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-green-500/20">
+                    <CheckCircle2 className="w-5 h-5" /><span>{ASSENT_MENOR.acceptLabel}</span>
+                  </button>
+                  <button type="button" onClick={rejectAssent}
+                    className="px-6 py-4 rounded-2xl bg-red-500/20 border border-red-500/40 text-red-400 font-black uppercase tracking-widest text-xs flex items-center justify-center space-x-2 hover:bg-red-500/30 active:scale-95 transition-all">
+                    <X className="w-5 h-5" /><span>{ASSENT_MENOR.rejectLabel}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Cierre: no aceptó */}
           {phase === 'closed' && (
             <div className="py-12 text-center max-w-lg mx-auto">
@@ -374,23 +419,41 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
             </>
           )}
 
-          {/* Paso consentimiento Habeas final */}
+          {/* Paso consentimiento Habeas final (SOLO Adulto) con control de lectura obligatoria */}
           {isConsentStep && (
             <div className="space-y-4">
-              <div className={cn('p-6 rounded-3xl border', validationErrors.includes('habeas_data') ? 'border-red-500/50 bg-red-500/5' : 'border-white/10 bg-white/5')}>
+              <div className="p-6 rounded-3xl border border-white/10 bg-white/5">
                 <h3 className="text-lg font-black text-white mb-2 flex items-center space-x-2"><FileText className="w-5 h-5 text-unidas-primary" /><span>Tratamiento de Datos (Habeas Data)</span></h3>
-                <p className="text-white/50 text-sm mb-4 leading-relaxed">Consulta el documento completo y acepta para poder guardar la encuesta.</p>
-                {habeasDataUrl && (
-                  <a href={habeasDataUrl} target="_blank" rel="noreferrer"
-                    className="inline-flex items-center space-x-2 px-4 py-2.5 mb-4 rounded-2xl border border-unidas-primary/40 bg-unidas-primary/5 text-unidas-primary font-black uppercase tracking-widest text-[10px] hover:bg-unidas-primary/10 transition-all">
+                <p className="text-white/50 text-sm mb-4 leading-relaxed">Consulta el documento completo de la Política de Tratamiento de Datos Personales antes de aceptar. Es obligatorio abrir y leer el documento.</p>
+                {habeasDataUrl ? (
+                  <a href={habeasDataUrl} target="_blank" rel="noreferrer" onClick={() => setHasViewedHabeas(true)}
+                    className={cn('inline-flex items-center space-x-2 px-5 py-3 mb-4 rounded-2xl font-black uppercase tracking-widest text-[11px] transition-all border',
+                      hasViewedHabeas ? 'text-green-400 border-green-500/30 bg-green-500/5 hover:bg-green-500/10' : 'text-unidas-primary border-unidas-primary/40 bg-unidas-primary/5 animate-pulse hover:bg-unidas-primary/10')}>
                     <FileText className="w-4 h-4" />
-                    <span>Abrir Política de Tratamiento de Datos</span>
+                    <span>{hasViewedHabeas ? '✓ Política Leída – Abrir de nuevo' : '⚠ Abrir Política de Tratamiento de Datos (obligatorio)'}</span>
                   </a>
+                ) : (
+                  <p className="text-amber-400 text-xs font-bold mb-4">El documento de política aún no está disponible. Contacta al administrador.</p>
                 )}
-                <label className="flex items-start space-x-3 cursor-pointer">
-                  <input type="checkbox" checked={habeasAccepted} onChange={(e) => { setHabeasAccepted(e.target.checked); setValidationErrors(v => v.filter(x => x !== 'habeas_data')); }} className="mt-1 w-5 h-5 rounded accent-unidas-primary" />
-                  <span className="text-sm font-medium text-white/70 leading-relaxed">Acepto que los datos sean tratados de acuerdo con la política de tratamiento de datos personales de la Secretaría de Integración Social.</span>
-                </label>
+
+                {/* Aviso de bloqueo cuando el documento no ha sido abierto */}
+                {!hasViewedHabeas && habeasDataUrl && (
+                  <div className="mb-4 flex items-center space-x-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
+                    <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                    <p className="text-xs font-bold text-amber-400 uppercase tracking-wide">Debe abrir y leer el documento de Política de Tratamiento de Datos antes de poder aceptar.</p>
+                  </div>
+                )}
+
+                <div className={cn('p-4 rounded-2xl border transition-all',
+                  validationErrors.includes('habeas_data') ? 'border-red-500/50 bg-red-500/5' : 'border-white/5 bg-white/5',
+                  (!hasViewedHabeas && habeasDataUrl) && 'opacity-50')}>
+                  <label className={cn('flex items-start space-x-3', (!hasViewedHabeas && habeasDataUrl) ? 'cursor-not-allowed' : 'cursor-pointer')}>
+                    <input type="checkbox" checked={habeasAccepted} disabled={!hasViewedHabeas && !!habeasDataUrl}
+                      onChange={(e) => { setHabeasAccepted(e.target.checked); setValidationErrors(v => v.filter(x => x !== 'habeas_data')); }}
+                      className={cn('mt-1 w-5 h-5 rounded accent-unidas-primary', (!hasViewedHabeas && habeasDataUrl) ? 'cursor-not-allowed' : 'cursor-pointer')} />
+                    <span className={cn('text-sm font-medium leading-relaxed select-none', (!hasViewedHabeas && habeasDataUrl) ? 'text-white/30' : 'text-white/70')}>Acepto que los datos sean tratados de acuerdo con la política de tratamiento de datos personales de la Secretaría de Integración Social.</span>
+                  </label>
+                </div>
               </div>
             </div>
           )}
@@ -407,7 +470,7 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
                 <Trash2 className="w-4 h-4" /><span>Limpiar</span>
               </button>
             </div>
-            {!isConsentStep ? (
+            {!isLastStep ? (
               <button onClick={goNext} className="bg-unidas-primary text-white px-8 py-3 rounded-2xl font-black flex items-center space-x-2 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-unidas-primary/20 uppercase tracking-widest text-xs">
                 <span>Siguiente</span><ChevronRight className="w-5 h-5" />
               </button>
