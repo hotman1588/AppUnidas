@@ -1,17 +1,87 @@
 // ============================================================================
-// ENCUESTA DOS — Esquema declarativo de módulos y preguntas.
-// Basado en "Requerimiento 2.docx". Reutiliza catálogos completos de la
-// Encuesta Uno cuando una pregunta coincide (opciones más completas).
+// ENCUESTA DOS — Esquema declarativo (REESTRUCTURADO).
 //
-// audience:
-//   'all'   -> se muestra a todos los tipos de documento
-//   'minor' -> SOLO cuando Tipo de documento = 'TI' (menor de edad)
-//   'major' -> SOLO para CC, CE, PEP, PPT, Pasaporte (mayores). Oculto si TI.
+// Flujo del sistema:
+//   FASE 0 (Ingreso)  -> pantalla con 2 botones de REGISTRO ALEATORIO ANÓNIMO.
+//                        Cada botón genera un código único de registro y fija el
+//                        perfil ('adulto' | 'menor'). No captura datos personales.
+//   FASE 1 (Consentimiento) -> política de datos diferenciada por perfil, con
+//                        compuerta lógica: si NO acepta -> cierre de la encuesta.
+//   FASE 2 (Cuerpo)   -> 5 módulos con preguntas de ruta (adulto/menor/ambos).
+//
+// route:
+//   'ambos'  -> se muestra en las dos rutas
+//   'adulto' -> SOLO perfil Adulto (18+)
+//   'menor'  -> SOLO perfil Menor de Edad (<18)
 // ============================================================================
 
-export const DOCUMENT_TYPES = ['TI', 'CC', 'CE', 'PEP', 'PPT', 'Pasaporte'] as const;
+export type Perfil = 'adulto' | 'menor';
 
-// Mapeo barrio -> UPL reutilizado de la Encuesta Uno (zona autodetectada).
+// ---- FASE 0: Pantalla de ingreso / registro aleatorio ----------------------
+export interface EntryButton {
+  id: Perfil;
+  label: string;
+  description: string;
+  icon: string; // icono lucide
+}
+
+export const ENTRY_BUTTONS: EntryButton[] = [
+  {
+    id: 'adulto',
+    label: 'Aleatorio Mayor de Edad',
+    description: 'Genera un registro único y anónimo con perfil Adulto (18 años o más).',
+    icon: 'UserCheck',
+  },
+  {
+    id: 'menor',
+    label: 'Aleatorio Menor de Edad',
+    description: 'Genera un registro único y anónimo con perfil Menor de Edad (menor de 18 años).',
+    icon: 'Baby',
+  },
+];
+
+// Genera un código de registro único (anónimo, no asociado a datos personales).
+export function generateRegistroCodigo(perfil: Perfil): string {
+  const prefix = perfil === 'menor' ? 'MEN' : 'ADU';
+  const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `E2-${prefix}-${Date.now().toString(36).toUpperCase()}-${rand}`;
+}
+
+// ---- FASE 1: Consentimiento diferenciado -----------------------------------
+export interface ConsentDef {
+  title: string;
+  intro: string;    // párrafo(s) informativos
+  question: string; // pregunta de aceptación
+  acceptLabel: string;
+  rejectLabel: string;
+}
+
+export const CONSENT: Record<Perfil, ConsentDef> = {
+  adulto: {
+    title: 'Opción A · Para Personas Adultas (18 años o más)',
+    intro:
+      'Le damos la bienvenida a este espacio de escucha comunitaria. Antes de empezar, le informamos que esta encuesta es completamente anónima y confidencial. Sus respuestas no serán asociadas a su nombre y se utilizarán exclusivamente con fines científicos, de análisis técnico y para el diseño de recomendaciones de política pública. Todo esto se realiza bajo el estricto marco de la Ley 1581 de 2012 (Protección de Datos Personales). Usted está en total libertad y tiene el derecho de no responder cualquier pregunta que le genere incomodidad o de detener y cancelar la encuesta en el momento en que lo desee, sin que esto le genere ningún tipo de perjuicio.',
+    question: '¿Comprende esta información y acepta participar voluntariamente en este ejercicio?',
+    acceptLabel: 'SÍ ACEPTA',
+    rejectLabel: 'NO ACEPTA',
+  },
+  menor: {
+    title: 'Opción B · Para Niños, Niñas y Adolescentes (Menores de 18 años)',
+    intro:
+      'Paso 1: Consentimiento del Adulto Responsable. Para nosotros es una prioridad absoluta proteger los derechos y el bienestar de las infancias y juventudes de Barrios Unidos. Por esta razón, para que el menor de edad pueda responder esta encuesta anónima sobre convivencia y cuidado, necesitamos su autorización como adulto responsable. Las respuestas serán totalmente confidenciales bajo la Ley 1581 de 2012, se usarán solo para mejorar los servicios comunitarios de la localidad y el menor puede detenerse si se siente incómodo.',
+    question: 'Como adulto a cargo, ¿autoriza usted que el/la menor participe en este estudio?',
+    acceptLabel: 'SÍ ACEPTA',
+    rejectLabel: 'NO ACEPTA',
+  },
+};
+
+// Mensaje de cierre cuando NO se acepta la política de datos.
+export const CLOSURE_MESSAGE = {
+  title: 'Encuesta finalizada',
+  body: 'Ha decidido no participar. Respetamos su decisión: la encuesta se ha cerrado y no se ha registrado ninguna respuesta. Gracias por su tiempo.',
+};
+
+// ---- Catálogo Barrio -> UPL (indexación automática, igual que Encuesta 1) ---
 export const BARRIO_TO_UPL: Record<string, string> = {
   // UPL Los Andes
   'Villa Calasanz': 'Los Andes',
@@ -65,10 +135,10 @@ export const BARRIO_TO_UPL: Record<string, string> = {
 export const ALL_BARRIOS = Object.keys(BARRIO_TO_UPL).sort();
 export const ALL_UPLS = Array.from(new Set(Object.values(BARRIO_TO_UPL))).sort();
 
-export type Audience = 'all' | 'minor' | 'major';
+// ---- FASE 2: Tipos de pregunta y estructura --------------------------------
+export type Route = 'ambos' | 'adulto' | 'menor';
 export type QType =
-  | 'pills' | 'checkbox-group' | 'date-split' | 'select'
-  | 'textarea' | 'text' | 'range' | 'doc-type';
+  | 'pills' | 'checkbox-group' | 'date-split' | 'select' | 'textarea' | 'text';
 
 export interface Question {
   id: string;
@@ -76,137 +146,84 @@ export interface Question {
   subtitle?: string;
   type: QType;
   options?: string[];
-  audience: Audience;
+  route: Route;
   required?: boolean;       // por defecto true
   multi?: boolean;          // checkbox múltiple
-  maxSelect?: number;       // límite de selecciones (ej. máximo 3)
+  maxSelect?: number;       // límite de selecciones
   showOther?: boolean;      // habilita caja "Otro/Otra"
-  full?: boolean;           // ocupa fila completa (md:col-span-2)
-  // Caja de texto condicional ilimitada que se abre cuando el valor del padre === conditionalOn
+  full?: boolean;           // ocupa fila completa
+  // Caja de texto condicional que se abre cuando el valor del padre === on
   conditional?: { on: string; targetId: string; placeholder: string };
-  // Sub-pregunta habilitada solo si otra pregunta tiene cierto valor
-  enabledIf?: { id: string; equals: string };
   min?: number; max?: number; step?: number; suffix?: string;
 }
 
 export interface ModuleDef {
   id: number;
   title: string;
-  icon: string; // nombre de icono lucide
+  icon: string; // icono lucide
   questions: Question[];
 }
 
+// Escalas reutilizadas.
+const LIKERT_ACUERDO = ['Totalmente de acuerdo', 'De acuerdo', 'Ni de acuerdo ni en desacuerdo', 'En desacuerdo', 'Totalmente en desacuerdo'];
+const FRECUENCIA = ['Nunca', 'Rara vez', 'Algunas veces', 'Frecuentemente', 'Siempre'];
+
 export const MODULES: ModuleDef[] = [
   {
-    id: 1, title: 'Perfil Sociodemográfico', icon: 'User',
+    id: 1, title: 'Características Sociodemográficas y Arraigo Territorial', icon: 'User',
     questions: [
-      { id: 'tipo_documento', label: 'Tipo de documento', subtitle: '¿Qué tipo de documento de identidad tiene? (TI activa el modo menor de edad)', type: 'doc-type', options: [...DOCUMENT_TYPES], audience: 'all', full: true },
-      { id: 'fecha_nacimiento', label: 'Fecha de Nacimiento', subtitle: '¿Cuál es su fecha de nacimiento?', type: 'date-split', audience: 'all' },
-      { id: 'genero', label: 'Género / ¿Cómo se identifica?', subtitle: '¿Con cuál género se identifica actualmente?', type: 'pills', options: ['Femenino', 'Masculino', 'No binario', 'Transgénero', 'Otro'], audience: 'all', showOther: true },
-      { id: 'barrio', label: 'Barrio de residencia', subtitle: '¿En qué barrio vive actualmente?', type: 'select', options: ALL_BARRIOS, audience: 'all' },
-      { id: 'zona', label: 'Zona (UPL)', subtitle: '¿A qué zona (UPL) corresponde su barrio? (se detecta automáticamente)', type: 'select', options: ALL_UPLS, audience: 'all', required: false },
-      { id: 'nivel_educativo', label: 'Nivel Educativo', subtitle: '¿Cuál es el nivel educativo más alto que ha alcanzado?', type: 'pills', options: ['Primaria', 'Secundaria', 'Técnico', 'Tecnólogo', 'Universitario', 'Posgrado', 'Ninguno', 'Otro'], audience: 'major', showOther: true },
-      { id: 'pertenencia', label: 'Pertenencia Étnica y Poblacional', subtitle: '¿Con cuál grupo étnico o poblacional se identifica?', type: 'checkbox-group', options: ['Mujer Indígena', 'Afrodescendiente', 'Migrante', 'Persona con discapacidad', 'Víctima del conflicto', 'Ninguna', 'Otro'], audience: 'all', multi: true, showOther: true, full: true },
+      { id: 'barrio', label: '¿En qué barrio reside de manera permanente?', subtitle: 'Se asigna automáticamente la UPL correspondiente.', type: 'select', options: ALL_BARRIOS, route: 'ambos', full: true },
+      { id: 'zona', label: 'Zona (UPL)', subtitle: 'Detectada automáticamente a partir del barrio.', type: 'select', options: ALL_UPLS, route: 'ambos', required: false },
+      { id: 'genero', label: 'Género / Identidad de género', subtitle: '¿Con cuál género se identifica?', type: 'pills', options: ['Femenino', 'Masculino', 'No binario', 'Otro', 'Prefiere no responder'], route: 'ambos', showOther: true },
+      { id: 'fecha_nacimiento', label: 'Fecha de nacimiento', subtitle: 'Día, mes y año.', type: 'date-split', route: 'ambos', full: true },
+      { id: 'nivel_educativo', label: 'Nivel educativo más alto alcanzado', subtitle: '¿Cuál es el nivel educativo más alto que ha alcanzado?', type: 'pills', options: ['Ninguno', 'Primaria', 'Secundaria', 'Técnico / Tecnológico', 'Universitario', 'Posgrado'], route: 'adulto' },
+      { id: 'anio_escolar', label: '¿Qué año escolar cursas actualmente?', subtitle: 'Selecciona el grado que estás cursando.', type: 'pills', options: ['Preescolar', 'Primaria (1° a 5°)', 'Secundaria (6° a 9°)', 'Media (10° a 11°)', 'No estudio actualmente'], route: 'menor' },
+      { id: 'composicion_hogar', label: '¿Cómo está compuesto su hogar principalmente?', subtitle: 'Seleccione la opción que mejor describe su hogar.', type: 'pills', options: ['Unipersonal (vive sola/o)', 'Nuclear (padres e hijos)', 'Monoparental (un solo padre/madre con hijos)', 'Extensa (con abuelos, tíos u otros familiares)', 'Recompuesta (pareja con hijos de relaciones anteriores)', 'Otro'], route: 'adulto', showOther: true, full: true },
     ],
   },
   {
-    id: 2, title: 'Economía y Autonomía', icon: 'Wallet',
+    id: 2, title: 'Dinámicas de Convivencia y Distribución del Cuidado', icon: 'Users',
     questions: [
-      { id: 'ingresos_mensuales', label: 'Ingresos Mensuales', subtitle: '¿Cuánto suman aproximadamente sus ingresos mensuales? (COP)', type: 'range', min: 0, max: 5000000, step: 50000, audience: 'major' },
-      { id: 'fuente_ingresos', label: 'Fuente de Ingresos', subtitle: '¿De dónde provienen principalmente sus ingresos? Puede elegir varias.', type: 'checkbox-group', options: ['Trabajo formal', 'Trabajo informal', 'Apoyo familiar', 'Subsidios', 'Pensión', 'Otro'], audience: 'major', multi: true, showOther: true },
-      { id: 'situacion_laboral', label: 'Situación Laboral', subtitle: '¿Cuál es su situación laboral actual? Puede elegir varias.', type: 'checkbox-group', options: ['Empleado', 'Independiente', 'Buscando empleo', 'Hogar', 'Estudiante', 'Jubilado', 'Otro'], audience: 'all', multi: true, showOther: true },
-      { id: 'tipo_vivienda', label: 'Tipo de Vivienda', subtitle: '¿En qué tipo de vivienda habita?', type: 'pills', options: ['Propia', 'Arriendo', 'Compartida', 'Familiar', 'Otro'], audience: 'all', showOther: true },
+      { id: 'horas_cuidado', label: 'Horas diarias de trabajo de cuidado no remunerado', subtitle: 'En promedio, ¿cuántas horas al día dedica al cuidado no remunerado?', type: 'pills', options: ['Ninguna', 'Menos de 2 horas', 'De 2 a 4 horas', 'De 5 a 8 horas', 'Más de 8 horas'], route: 'adulto' },
+      { id: 'distribucion_tareas', label: 'Distribución de tareas del hogar y de cuidado', subtitle: '¿Cómo siente que se distribuyen las tareas del hogar y de cuidado?', type: 'pills', options: ['Se distribuyen equitativamente entre todos', 'Principalmente las asumen las mujeres', 'Principalmente las asumo yo', 'Se comparten parcialmente', 'Otro'], route: 'adulto', showOther: true, full: true },
+      { id: 'tiempo_cuida_hermanos', label: 'Después de estudiar, ¿cuidas a tus hermanos menores u otras personas?', subtitle: '¿Con qué frecuencia dedicas tiempo del día a estas tareas de cuidado?', type: 'pills', options: ['Nunca', 'Algunas veces', 'Casi siempre', 'Siempre', 'No tengo hermanos menores ni personas a cargo'], route: 'menor', full: true },
+      { id: 'metodo_correccion', label: 'Método más común para corregir o guiar a NNA', subtitle: 'En su hogar, ¿cuál es el método más común para corregir o guiar a niños, niñas y adolescentes?', type: 'pills', options: ['Diálogo y acuerdos', 'Retiro de privilegios', 'Regaños o gritos', 'Castigo físico', 'No aplica / no hay NNA en el hogar'], route: 'adulto', full: true },
     ],
   },
   {
-    id: 3, title: 'Dinámicas Familiares', icon: 'Users',
+    id: 3, title: 'Percepciones Socioculturales y Representaciones', icon: 'HeartPulse',
     questions: [
-      { id: 'rol_hogar', label: '¿Cuál es su rol dentro del hogar?', subtitle: '¿Qué rol cumple usted dentro de su hogar?', type: 'pills', options: ['Niño, niña o adolescente', 'Madre', 'Padre', 'Cuidador/a', 'Abuelo/a', 'Otro'], audience: 'all', showOther: true, full: true },
-      { id: 'con_quien_vive', label: '¿Con quién vive actualmente?', subtitle: '¿Con quién vive usted actualmente?', type: 'checkbox-group', options: ['Madre', 'Padre', 'Hermanos', 'Abuelos', 'Pareja', 'Hijos', 'Otros', 'Solo'], audience: 'all', multi: true, full: true },
-      { id: 'convivencia', label: '¿Cómo considera la convivencia?', subtitle: '¿Cómo considera la convivencia en su hogar?', type: 'pills', options: ['Muy buena', 'Buena', 'Regular', 'Difícil', 'Muy difícil'], audience: 'all' },
-      { id: 'manejo_conflictos', label: 'Cuando existen conflictos...', subtitle: 'Cuando hay conflictos en casa, ¿cómo se resuelven?', type: 'pills', options: ['Diálogo', 'Gritos', 'Evita el tema', 'Agresiones', 'No responde'], audience: 'all' },
-      { id: 'apoyo_emocional', label: '¿Considera que existe apoyo emocional?', subtitle: '¿Considera que existe apoyo emocional en su hogar?', type: 'pills', options: ['Siempre', 'Casi siempre', 'Algunas veces', 'Casi nunca', 'Nunca'], audience: 'all', full: true },
+      { id: 'acuerdo_celos', label: 'Los celos y revisar el celular son una muestra de amor', subtitle: '¿Qué tan de acuerdo está con esta afirmación?', type: 'pills', options: LIKERT_ACUERDO, route: 'adulto', full: true },
+      { id: 'metodo_llamar_atencion', label: 'Cuando los adultos de tu casa se disgustan contigo, ¿qué hacen con más frecuencia?', subtitle: 'Selecciona el método que más usan para llamarte la atención.', type: 'pills', options: ['Hablan conmigo con calma', 'Me gritan o me regañan', 'Me castigan sin golpes (quitan permisos)', 'Me pegan', 'Otro'], route: 'menor', showOther: true, full: true },
+      { id: 'puerta_cerrada', label: 'Los problemas familiares deben resolverse "a puerta cerrada"', subtitle: '¿Qué tan de acuerdo está con esta afirmación?', type: 'pills', options: LIKERT_ACUERDO, route: 'adulto', full: true },
+      { id: 'consumo_causa_violencia', label: 'El consumo de alcohol o SPA es la causa principal de la violencia', subtitle: '¿Qué tan de acuerdo está con esta afirmación?', type: 'pills', options: LIKERT_ACUERDO, route: 'adulto', full: true },
+      { id: 'acuerdo_celos_menor', label: '"Si mi novio o novia me cela y me revisa el celular, es porque me quiere"', subtitle: '¿Qué tan de acuerdo estás con esta frase?', type: 'pills', options: LIKERT_ACUERDO, route: 'menor', full: true },
     ],
   },
   {
-    id: 4, title: 'Violencia Familiar', icon: 'Shield',
+    id: 4, title: 'Identificación de Alertas de Riesgo', icon: 'Shield',
     questions: [
-      { id: 'situaciones_entorno', label: 'Situaciones en el entorno', subtitle: '¿Qué situaciones de violencia ha visto en su entorno?', type: 'checkbox-group', options: ['Gritos', 'Amenazas', 'Golpes', 'Control', 'Violencia económica', 'Negligencia', 'Ninguna', 'No responde'], audience: 'all', multi: true, full: true },
-      { id: 'violencia_normalizada', label: '¿Formas de violencia normalizadas?', subtitle: '¿Identifica formas de violencia que se ven como normales?', type: 'pills', options: ['Sí', 'No', 'Tal vez', 'No sabe'], audience: 'all', conditional: { on: 'Sí', targetId: 'violencia_normalizada_cuales', placeholder: '¿Cuáles?' }, full: true },
-      { id: 'conflictos_bienestar', label: '¿Conflictos afectan bienestar emocional?', subtitle: '¿Los conflictos afectan su bienestar emocional?', type: 'pills', options: ['Siempre', 'Casi siempre', 'Algunas veces', 'Casi nunca', 'Nunca'], audience: 'all' },
-      { id: 'tipos_violencia', label: '¿Qué tipos de violencia identifica más?', subtitle: '¿Qué tipos de violencia identifica con más frecuencia?', type: 'checkbox-group', options: ['Psicológica', 'Física', 'Sexual', 'Económica', 'Digital', 'Negligencia', 'Acoso'], audience: 'all', multi: true, full: true },
-      { id: 'participado_prevencion', label: '¿Ha participado en prevención?', subtitle: '¿Ha participado en actividades de prevención?', type: 'pills', options: ['Sí', 'No'], audience: 'all', conditional: { on: 'Sí', targetId: 'participado_prevencion_cuales', placeholder: '¿Cuáles?' } },
-      { id: 'comportamientos_afectan', label: '¿Comportamientos "normales" que afectan?', subtitle: '¿Hay comportamientos vistos como "normales" que le afectan?', type: 'pills', options: ['Siempre', 'Frecuentemente', 'Algunas veces', 'Nunca'], audience: 'all' },
+      { id: 'frecuencia_discusiones', label: 'Discusiones que terminan en insultos (últimos 12 meses)', subtitle: '¿Con qué frecuencia se han presentado discusiones en su entorno familiar que terminan en insultos o agresiones?', type: 'pills', options: FRECUENCIA, route: 'adulto', full: true },
+      { id: 'frecuencia_miedo', label: 'Miedo en casa por gritos o peleas fuertes (último año)', subtitle: '¿Con qué frecuencia has sentido miedo en tu casa por culpa de gritos o peleas muy fuertes?', type: 'pills', options: FRECUENCIA, route: 'menor', full: true },
+      { id: 'control_economico', label: '¿Ha identificado control del dinero u ocultamiento de documentos?', subtitle: 'En la cotidianidad de su hogar, ¿ha identificado situaciones donde se controle el dinero o se oculten documentos?', type: 'pills', options: ['Sí', 'No', 'Prefiere no responder'], route: 'adulto', conditional: { on: 'Sí', targetId: 'control_economico_detalle', placeholder: 'Si desea, describa brevemente la situación.' }, full: true },
+      { id: 'esconder_cosas_menor', label: '¿Has visto que a alguien le escondan sus cosas o no le den dinero para comida o colegio?', subtitle: 'En tu casa o con familias que conoces.', type: 'pills', options: ['Sí', 'No', 'No sé'], route: 'menor', full: true },
+      { id: 'conducta_sexual_forzada', label: '¿Ha percibido situaciones de conductas sexuales no deseadas en el entorno familiar?', subtitle: '¿Ha percibido o experimentado situaciones donde se obligue a alguien a tener relaciones o conductas sexuales no deseadas?', type: 'pills', options: ['Sí', 'No', 'Prefiere no responder'], route: 'adulto', full: true },
+      { id: 'incomodidad_tocamientos', label: '¿Te has sentido incómodo/a o presionado/a por tocamientos de un familiar o adulto?', subtitle: '¿Alguna vez te has sentido incómodo/a, asustado/a o presionado/a por caricias, tocamientos o comportamientos de un familiar o adulto?', type: 'pills', options: ['Sí', 'No', 'Prefiero no responder'], route: 'menor', full: true },
     ],
   },
   {
-    id: 5, title: 'Delito Sexual y Entornos Protectores', icon: 'Shield',
+    id: 5, title: 'Acceso Institucional y Rutas de Protección', icon: 'FileText',
     questions: [
-      { id: 'ninos_protegerse', label: '¿Niños/as conocen cómo protegerse?', subtitle: '¿Los niños y niñas saben cómo protegerse?', type: 'pills', options: ['Sí', 'Parcialmente', 'No', 'No sabe'], audience: 'minor' },
-      { id: 'adultos_confianza', label: '¿Existen adultos de confianza?', subtitle: '¿Cuenta con adultos de confianza a quién acudir?', type: 'pills', options: ['Sí', 'No', 'Algunas veces'], audience: 'minor' },
-      { id: 'lugares_riesgo', label: '¿Qué lugares considera de riesgo?', subtitle: '¿Qué lugares considera de riesgo?', type: 'checkbox-group', options: ['Vivienda', 'Calle', 'Parques', 'Transporte público', 'Entornos digitales', 'Colegios', 'Otro'], audience: 'minor', multi: true, showOther: true, full: true },
-      { id: 'conoce_casos_vs', label: '¿Conoce casos de violencia sexual?', subtitle: '¿Conoce casos de violencia sexual en su entorno?', type: 'pills', options: ['Sí', 'No', 'Prefiere no responder'], audience: 'minor' },
-    ],
-  },
-  {
-    id: 6, title: 'Género y Cuidado', icon: 'HeartPulse',
-    questions: [
-      { id: 'quien_asume_cuidado', label: '¿Quién asume labores de cuidado?', subtitle: '¿Quién asume las labores de cuidado en su hogar?', type: 'pills', options: ['Mamá', 'Papá', 'Abuelos', 'Familia', 'Vecinos', 'Otro'], audience: 'all', showOther: true },
-      { id: 'distribucion_justa', label: '¿Distribución justa de responsabilidades?', subtitle: '¿Las responsabilidades se distribuyen de forma justa?', type: 'pills', options: ['Sí', 'Parcialmente', 'No'], audience: 'all' },
-      { id: 'mujeres_tiempo_libre', label: '¿Mujeres cuentan con tiempo libre?', subtitle: '¿Las mujeres del hogar cuentan con tiempo libre?', type: 'pills', options: ['Siempre', 'Casi siempre', 'Algunas veces', 'Casi nunca', 'Nunca'], audience: 'all' },
-      { id: 'poblaciones_vulnerables', label: '¿Poblaciones más vulnerables?', subtitle: '¿Cuáles considera las poblaciones más vulnerables?', type: 'checkbox-group', options: ['Mujeres', 'Hombres', 'Niños', 'Mayores', 'Discapacidad', 'LGBTIQ+', 'Todas'], audience: 'all', multi: true, full: true },
-    ],
-  },
-  {
-    id: 7, title: 'Adultos Mayores', icon: 'Users',
-    questions: [
-      { id: 'persona_mayor_hogar', label: '¿Vive alguna persona mayor en el hogar?', subtitle: '¿Vive alguna persona mayor en su hogar?', type: 'pills', options: ['Sí', 'No'], audience: 'major' },
-      { id: 'apoyo_suficiente', label: '¿Cuenta con apoyo suficiente?', subtitle: '¿Esa persona mayor cuenta con apoyo suficiente?', type: 'pills', options: ['Nunca', 'Casi nunca', 'Algunas veces', 'Casi siempre', 'Siempre'], audience: 'major' },
-      { id: 'abandono_maltrato', label: '¿Ha identificado abandono o maltrato?', subtitle: '¿Ha identificado abandono o maltrato hacia ella?', type: 'pills', options: ['Sí', 'No'], audience: 'major', conditional: { on: 'Sí', targetId: 'abandono_maltrato_cual', placeholder: '¿Cuál?' } },
-      { id: 'mayor_ingresos', label: '¿Cuenta con ingresos?', subtitle: '¿La persona mayor cuenta con ingresos propios?', type: 'pills', options: ['Sí', 'No'], audience: 'major' },
-      { id: 'mayor_fuente_ingresos', label: '¿De dónde proviene?', subtitle: '¿De dónde provienen esos ingresos?', type: 'pills', options: ['Pensión', 'Subsidio', 'Apoyo familiar', 'Empleo', 'Otros'], audience: 'major', showOther: true, enabledIf: { id: 'mayor_ingresos', equals: 'Sí' } },
-      { id: 'mayor_autonomia', label: '¿Cuenta con autonomía sobre su dinero?', subtitle: '¿Tiene autonomía sobre su propio dinero?', type: 'pills', options: ['Sí', 'No'], audience: 'major', conditional: { on: 'Sí', targetId: 'mayor_autonomia_consensuado', placeholder: '¿Es consensuado?' } },
-    ],
-  },
-  {
-    id: 8, title: 'Bienestar Emocional', icon: 'HeartPulse',
-    questions: [
-      { id: 'situaciones_sentidas', label: 'Situaciones sentidas últimamente', subtitle: '¿Qué situaciones ha sentido últimamente?', type: 'checkbox-group', options: ['Estrés', 'Ansiedad', 'Soledad', 'Temor', 'Tranquilidad', 'Felicidad', 'Angustia', 'Tristeza', 'Agotamiento', 'Otro'], audience: 'all', multi: true, showOther: true, full: true },
-      { id: 'recibir_apoyo_cuidado', label: '¿Le gustaría recibir apoyo en cuidado?', subtitle: '¿Le gustaría recibir apoyo en temas de cuidado?', type: 'pills', options: ['Sí', 'No', 'Tal vez'], audience: 'all', conditional: { on: 'Sí', targetId: 'recibir_apoyo_cuidado_cuales', placeholder: '¿Cuáles?' }, full: true },
-    ],
-  },
-  {
-    id: 9, title: 'Territorio y Seguridad', icon: 'Shield',
-    questions: [
-      { id: 'seguridad_barrio', label: '¿Cómo percibe la seguridad del barrio?', subtitle: '¿Cómo percibe la seguridad de su barrio?', type: 'pills', options: ['Muy segura', 'Segura', 'Regular', 'Insegura', 'Muy insegura'], audience: 'all', full: true },
-      { id: 'situaciones_convivencia', label: '¿Qué situaciones afectan más la convivencia?', subtitle: '¿Qué situaciones afectan más la convivencia en su barrio?', type: 'checkbox-group', options: ['Consumo de SPA', 'Inseguridad', 'Violencia', 'Habitabilidad en calle', 'Basuras', 'Falta institucional', 'Familias', 'Otro'], audience: 'all', multi: true, showOther: true, full: true },
-      { id: 'parques_seguros', label: '¿Parques seguros para niñez y familias?', subtitle: '¿Los parques son seguros para la niñez y las familias?', type: 'pills', options: ['Sí', 'Parcialmente', 'No'], audience: 'all', full: true },
-    ],
-  },
-  {
-    id: 10, title: 'Acceso Institucional', icon: 'FileText',
-    questions: [
-      { id: 'conoce_rutas', label: '¿Conoce rutas de atención?', subtitle: '¿Conoce las rutas de atención disponibles?', type: 'pills', options: ['Sí', 'Parcialmente', 'No'], audience: 'all' },
-      { id: 'sabe_entidad', label: '¿Sabe a qué entidad acudir en riesgo?', subtitle: '¿Sabe a qué entidad acudir ante un riesgo?', type: 'pills', options: ['Sí', 'No', 'No está seguro/a'], audience: 'all' },
-      { id: 'dificultades_denunciar', label: '¿Qué dificultades existen para denunciar?', subtitle: '¿Qué dificultades existen para denunciar?', type: 'checkbox-group', options: ['Miedo', 'Desconfianza', 'Vergüenza', 'Desconocimiento', 'Dependencia', 'Amenazas', 'Falta de apoyo', 'Otra'], audience: 'all', multi: true, showOther: true, full: true },
-      { id: 'instituciones_presencia', label: '¿Instituciones hacen presencia suficiente?', subtitle: '¿Las instituciones hacen presencia suficiente en su barrio?', type: 'pills', options: ['Sí', 'Parcialmente', 'No'], audience: 'all' },
-      { id: 'fortalecer_ninez', label: '¿Importante fortalecer derechos de niñez?', subtitle: '¿Qué tan importante considera fortalecer los derechos de la niñez?', type: 'pills', options: ['Muy importante', 'Importante', 'Poco importante', 'Nada importante'], audience: 'minor' },
-    ],
-  },
-  {
-    id: 11, title: 'Necesidades y Recomendaciones', icon: 'Star',
-    questions: [
-      { id: 'acciones_prioritarias', label: 'Acciones prioritarias para prevenir violencias', subtitle: '¿Qué acciones prioritarias propondría para prevenir violencias? (máximo 3)', type: 'checkbox-group', options: ['Talleres de prevención', 'Rutas de atención claras', 'Más presencia institucional', 'Espacios seguros para la niñez', 'Formación en derechos', 'Apoyo psicosocial', 'Fortalecer redes comunitarias', 'Mejorar entornos públicos', 'Otro'], audience: 'all', multi: true, maxSelect: 3, showOther: true, full: true },
-      { id: 'participar_espacios', label: '¿Le gustaría participar en espacios?', subtitle: '¿Le gustaría participar en espacios comunitarios?', type: 'pills', options: ['Sí', 'No', 'Tal vez'], audience: 'all' },
-      { id: 'interes_formacion_derechos', label: '¿Le interesaría formación en derechos?', subtitle: '¿Le interesaría recibir formación en derechos?', type: 'pills', options: ['Sí', 'No', 'Tal vez'], audience: 'all' },
-      { id: 'recomendacion_instituciones', label: '¿Qué recomendación le haría a las instituciones?', subtitle: '¿Qué recomendación le haría a las instituciones? (texto libre)', type: 'textarea', audience: 'all', full: true },
+      { id: 'primera_accion', label: 'Primera acción ante una emergencia por violencia', subtitle: 'Si ocurriera una emergencia por violencia familiar o sexual, ¿cuál sería la primera acción que tomaría?', type: 'pills', options: ['Llamar a la Línea 123', 'Acudir a la Comisaría de Familia', 'Buscar a la Policía', 'Contárselo a un familiar o vecino', 'No sabría qué hacer', 'Otro'], route: 'adulto', showOther: true, full: true },
+      { id: 'contaria_alguien', label: 'Si te sintieras en peligro o alguien te hiciera daño, ¿le contarías a alguien?', subtitle: 'Selecciona la opción que mejor te representa.', type: 'pills', options: ['Sí, a un familiar', 'Sí, a un profesor/a', 'Sí, a un amigo/a', 'No, a nadie', 'No sé'], route: 'menor', full: true },
+      { id: 'barrera_denuncia', label: 'Mayor barrera para denunciar', subtitle: 'Desde su percepción, ¿cuál es la mayor barrera u obstáculo que frena a los residentes al momento de denunciar?', type: 'pills', options: ['Miedo a represalias', 'Desconfianza en las instituciones', 'Vergüenza', 'Desconocimiento de las rutas', 'Dependencia económica', 'Otro'], route: 'adulto', showOther: true, full: true },
+      { id: 'disposicion_participar', label: 'Disposición del hogar para participar en espacios de orientación', subtitle: 'Si las instituciones del Distrito ofrecieran espacios de orientación, ¿qué tanta disposición tendría su hogar para participar?', type: 'pills', options: ['Mucha disposición', 'Alguna disposición', 'Poca disposición', 'Ninguna disposición'], route: 'adulto', full: true },
     ],
   },
 ];
 
-// Devuelve true si la pregunta debe mostrarse para el tipo de documento dado.
-export function isVisibleForDoc(audience: Audience, isMinor: boolean): boolean {
-  if (audience === 'all') return true;
-  if (audience === 'minor') return isMinor;
-  return !isMinor; // 'major'
+// Devuelve true si la pregunta debe mostrarse para el perfil dado.
+export function isVisibleForRoute(route: Route, perfil: Perfil): boolean {
+  if (route === 'ambos') return true;
+  return route === perfil;
 }

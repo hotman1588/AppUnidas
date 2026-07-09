@@ -2,43 +2,53 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, ChevronRight, ChevronLeft, Save, AlertCircle, CheckCircle2,
-  Trash2, User, Wallet, Users, Shield, HeartPulse, Star, FileText, Info, UserPlus
+  Trash2, User, Users, Shield, HeartPulse, Star, FileText, Info, ShieldCheck,
+  UserCheck, Baby, Dices
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import {
-  MODULES, BARRIO_TO_UPL, ALL_BARRIOS, ALL_UPLS, DOCUMENT_TYPES,
-  isVisibleForDoc, type Question as QDef, type ModuleDef
+  MODULES, BARRIO_TO_UPL, ALL_BARRIOS, ALL_UPLS,
+  ENTRY_BUTTONS, CONSENT, CLOSURE_MESSAGE, generateRegistroCodigo,
+  isVisibleForRoute, type Question as QDef, type ModuleDef, type Perfil
 } from '../lib/surveyTwoSchema';
 
-const ICONS: Record<string, any> = { User, Wallet, Users, Shield, HeartPulse, Star, FileText };
+const ICONS: Record<string, any> = { User, Users, Shield, HeartPulse, Star, FileText, UserCheck, Baby };
 
 interface SurveyTwoModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
   token: string | null;
-  submitEndpoint?: string; // por defecto el endpoint del analista
+  submitEndpoint?: string;
 }
 
 const PERSISTENCE_KEY = 'encuesta_dos_draft';
-// Cronómetro en segundo plano (persistente: sobrevive recargas/desconexión).
 const TIMER_KEY = 'encuesta_dos_started_at';
 
+// Fases del flujo:
+//   'entry'   -> pantalla de ingreso (2 botones de registro aleatorio)
+//   'consent' -> política de datos diferenciada (compuerta de aceptación)
+//   'closed'  -> el usuario NO aceptó: encuesta cerrada
+//   'modules' -> cuerpo de la encuesta (paso a paso por módulo + consentimiento habeas final)
+type Phase = 'entry' | 'consent' | 'closed' | 'modules';
+
 export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoint = '/api/analyst/encuesta-dos' }: SurveyTwoModalProps) {
-  const [currentStep, setCurrentStep] = useState(0); // 0 = identificación
+  const [phase, setPhase] = useState<Phase>('entry');
+  const [perfil, setPerfil] = useState<Perfil | null>(null);
+  const [registroCodigo, setRegistroCodigo] = useState<string>('');
+
+  const [currentStep, setCurrentStep] = useState(0); // índice de módulo visible
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showErrorPopup, setShowErrorPopup] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const [userData, setUserData] = useState({ full_name: '', document_number: '', phone: '', email: '', password: '' });
   const [birthDate, setBirthDate] = useState({ day: '', month: '', year: '' });
   const [answers, setAnswers] = useState<any>({});
   const [habeasAccepted, setHabeasAccepted] = useState(false);
   const [habeasDataUrl, setHabeasDataUrl] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
-  // Link único al documento completo de Política de Tratamiento de Datos.
   useEffect(() => {
     fetch('/api/settings/habeas_data')
       .then(r => r.json())
@@ -46,19 +56,17 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
       .catch(() => {});
   }, []);
 
-  const docType = answers.tipo_documento || '';
-  const isMinor = docType === 'TI';
-
   // ---- Persistencia local ----
   useEffect(() => {
     if (!isOpen) return;
-    // Marca de inicio del cronómetro (solo si aún no existe).
     if (!localStorage.getItem(TIMER_KEY)) localStorage.setItem(TIMER_KEY, String(Date.now()));
     try {
       const cached = localStorage.getItem(PERSISTENCE_KEY);
       if (cached) {
         const d = JSON.parse(cached);
-        setUserData(d.userData || { full_name: '', document_number: '' });
+        setPhase(d.phase || 'entry');
+        setPerfil(d.perfil || null);
+        setRegistroCodigo(d.registroCodigo || '');
         setBirthDate(d.birthDate || { day: '', month: '', year: '' });
         setAnswers(d.answers || {});
         setHabeasAccepted(!!d.habeasAccepted);
@@ -69,10 +77,10 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
 
   useEffect(() => {
     if (!isOpen) return;
-    localStorage.setItem(PERSISTENCE_KEY, JSON.stringify({ userData, birthDate, answers, habeasAccepted, currentStep }));
-  }, [userData, birthDate, answers, habeasAccepted, currentStep, isOpen]);
+    localStorage.setItem(PERSISTENCE_KEY, JSON.stringify({ phase, perfil, registroCodigo, birthDate, answers, habeasAccepted, currentStep }));
+  }, [phase, perfil, registroCodigo, birthDate, answers, habeasAccepted, currentStep, isOpen]);
 
-  // ---- Edad ----
+  // ---- Edad (solo informativa a partir de la fecha de nacimiento) ----
   const calculateAge = (d: string, m: string, y: string) => {
     if (!d || !m || !y) return null;
     const birth = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
@@ -92,30 +100,43 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
     }
   }, [birthDate]);
 
-  // ---- Módulos visibles según tipo de documento ----
-  // 'tipo_documento' se captura en el Registro de Identidad (paso 0). La fecha de
-  // nacimiento SÍ pertenece al Módulo 1 (Perfil Sociodemográfico) y se renderiza ahí.
-  const visibleModules: ModuleDef[] = MODULES.filter(m =>
-    m.questions.some(q => q.id !== 'tipo_documento' && isVisibleForDoc(q.audience, isMinor))
-  );
-  const totalSteps = visibleModules.length + 2; // identificación + módulos + consentimiento
-  const isConsentStep = currentStep === totalSteps - 1;
-  const currentModule = currentStep >= 1 && currentStep <= visibleModules.length ? visibleModules[currentStep - 1] : null;
+  const isMinor = perfil === 'menor';
+
+  // ---- Módulos visibles según perfil ----
+  const visibleModules: ModuleDef[] = perfil
+    ? MODULES.filter(m => m.questions.some(q => isVisibleForRoute(q.route, perfil)))
+    : [];
+  const totalSteps = visibleModules.length + 1; // módulos + consentimiento habeas final
+  const isConsentStep = phase === 'modules' && currentStep === totalSteps - 1;
+  const currentModule = phase === 'modules' && currentStep < visibleModules.length ? visibleModules[currentStep] : null;
 
   const visibleQuestions = (m: ModuleDef): QDef[] =>
-    m.questions.filter(q => q.id !== 'tipo_documento' && isVisibleForDoc(q.audience, isMinor));
+    perfil ? m.questions.filter(q => isVisibleForRoute(q.route, perfil)) : [];
 
-  // ---- Handlers ----
+  // ---- FASE 0: seleccionar perfil aleatorio ----
+  const choosePerfil = (p: Perfil) => {
+    setPerfil(p);
+    setRegistroCodigo(generateRegistroCodigo(p));
+    setPhase('consent');
+    localStorage.setItem(TIMER_KEY, String(Date.now()));
+  };
+
+  // ---- FASE 1: compuerta de consentimiento ----
+  const acceptConsent = () => { setPhase('modules'); setCurrentStep(0); };
+  const rejectConsent = () => {
+    setPhase('closed');
+    localStorage.removeItem(PERSISTENCE_KEY);
+    localStorage.removeItem(TIMER_KEY);
+  };
+
+  // ---- Handlers de respuestas ----
   const setAnswer = (id: string, value: any) => {
     setAnswers((prev: any) => {
       const next = { ...prev, [id]: value };
-      // auto UPL al elegir barrio
       if (id === 'barrio') next.zona = BARRIO_TO_UPL[value] || '';
-      // limpiar caja condicional si el valor del padre deja de coincidir
       MODULES.forEach(m => m.questions.forEach(q => {
         if (q.conditional && q.id === id && value !== q.conditional.on) delete next[q.conditional.targetId];
         if (q.showOther && q.id === id && !q.multi && value !== 'Otro' && value !== 'Otra') delete next[`${q.id}_otro`];
-        // Multi: limpia la caja "Otro" si ya no está marcada en el arreglo.
         if (q.showOther && q.id === id && q.multi && Array.isArray(value) && !value.includes('Otro') && !value.includes('Otra')) delete next[`${q.id}_otro`];
       }));
       return next;
@@ -129,7 +150,7 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
       let updated: string[];
       if (cur.includes(opt)) updated = cur.filter(v => v !== opt);
       else {
-        if (q.maxSelect && cur.length >= q.maxSelect) return prev; // bloquea más de N
+        if (q.maxSelect && cur.length >= q.maxSelect) return prev;
         updated = [...cur, opt];
       }
       return { ...prev, [q.id]: updated };
@@ -140,32 +161,21 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
   // ---- Validación de un paso ----
   const getMissing = (step: number): string[] => {
     const missing: string[] = [];
-    if (step === 0) {
-      if (!userData.full_name.trim()) missing.push('full_name');
-      if (!docType) missing.push('tipo_documento');
-      if (!userData.document_number.trim()) missing.push('document_number');
-      if (!userData.password.trim()) missing.push('password');
-      return missing;
-    }
     if (isConsentStep) {
       if (!habeasAccepted) missing.push('habeas_data');
       return missing;
     }
-    const mod = visibleModules[step - 1];
+    const mod = visibleModules[step];
     if (!mod) return missing;
     visibleQuestions(mod).forEach(q => {
-      const disabled = q.enabledIf && answers[q.enabledIf.id] !== q.enabledIf.equals;
-      if (disabled) return;
       const val = answers[q.id];
       const empty = q.multi ? (!Array.isArray(val) || val.length === 0) : (!val || (typeof val === 'string' && !val.trim()));
       if (q.required !== false && empty) missing.push(q.id);
-      // caja "Otro"
       if (q.showOther) {
         const sel = q.multi ? Array.isArray(val) && (val.includes('Otro') || val.includes('Otra')) : (val === 'Otro' || val === 'Otra');
         const other = answers[`${q.id}_otro`];
         if (sel && (!other || !other.trim()) && !missing.includes(q.id)) missing.push(q.id);
       }
-      // caja condicional ilimitada
       if (q.conditional && val === q.conditional.on) {
         const t = answers[q.conditional.targetId];
         if ((!t || !t.trim()) && !missing.includes(q.id)) missing.push(q.id);
@@ -183,7 +193,9 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
   const goPrev = () => { setValidationErrors([]); setCurrentStep(s => Math.max(0, s - 1)); };
 
   const clearData = () => {
-    setUserData({ full_name: '', document_number: '', phone: '', email: '', password: '' });
+    setPhase('entry');
+    setPerfil(null);
+    setRegistroCodigo('');
     setBirthDate({ day: '', month: '', year: '' });
     setAnswers({});
     setHabeasAccepted(false);
@@ -202,13 +214,10 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
-          user: {
-            full_name: userData.full_name,
-            document_number: userData.document_number,
-            document_type: docType,
-            phone: userData.phone,
-            email: userData.email,
-            password: userData.password,
+          registro: {
+            registro_codigo: registroCodigo,
+            perfil,
+            is_minor: isMinor,
             birth_date: answers.fecha_nacimiento || null,
             edad: userAge ?? null,
           },
@@ -232,7 +241,12 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
 
   if (!isOpen) return null;
 
-  const StepIcon = currentModule ? (ICONS[currentModule.icon] || User) : (currentStep === 0 ? User : FileText);
+  const StepIcon = currentModule ? (ICONS[currentModule.icon] || User) : (isConsentStep ? FileText : ShieldCheck);
+  const headerSubtitle = phase === 'entry' ? 'Ingreso · Registro anónimo'
+    : phase === 'consent' ? 'Consentimiento · Política de datos'
+    : phase === 'closed' ? 'Encuesta finalizada'
+    : isConsentStep ? 'Tratamiento de Datos (Habeas Data)'
+    : `Módulo ${currentModule?.id} · ${currentModule?.title}`;
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
@@ -250,18 +264,20 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
             <div>
               <h2 className="text-xl font-black text-white">Encuesta Dos</h2>
               <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">
-                {currentStep === 0 ? 'Identificación' : isConsentStep ? 'Consentimiento' : `Módulo ${currentModule?.id} · ${currentModule?.title}`}
-                {isMinor && currentStep > 0 && <span className="ml-2 text-orange-400">· Modo Menor (TI)</span>}
+                {headerSubtitle}
+                {perfil && phase === 'modules' && <span className={cn('ml-2', isMinor ? 'text-orange-400' : 'text-emerald-400')}>· Perfil {isMinor ? 'Menor' : 'Adulto'}</span>}
               </p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-xl transition-all"><X className="w-6 h-6 text-white/40" /></button>
         </div>
 
-        {/* Progress */}
-        <div className="h-1 bg-white/5 shrink-0">
-          <div className="h-full bg-gradient-to-r from-unidas-primary to-unidas-secondary transition-all" style={{ width: `${((currentStep + 1) / totalSteps) * 100}%` }} />
-        </div>
+        {/* Progress (solo en módulos) */}
+        {phase === 'modules' && (
+          <div className="h-1 bg-white/5 shrink-0">
+            <div className="h-full bg-gradient-to-r from-unidas-primary to-unidas-secondary transition-all" style={{ width: `${((currentStep + 1) / totalSteps) * 100}%` }} />
+          </div>
+        )}
 
         {/* Body */}
         <div className="flex-grow overflow-y-auto p-6">
@@ -271,46 +287,75 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
             </div>
           )}
 
-          {/* Paso 0: Registro de Identidad (mismo módulo que la Encuesta Uno) */}
-          {currentStep === 0 && (
-            <>
-            <ModuleBanner icon={UserPlus} index="Registro de Identidad" title="Datos de la persona encuestada" />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <FieldText label="NOMBRE COMPLETO" value={userData.full_name} onChange={(v) => { setUserData(d => ({ ...d, full_name: v })); setValidationErrors(e => e.filter(x => x !== 'full_name')); }} error={validationErrors.includes('full_name')} className="md:col-span-2" />
-
-              {/* Tipo + N° Documento en una fila */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">TIPO</label>
-                  <select
-                    value={docType}
-                    onChange={(e) => setAnswer('tipo_documento', e.target.value)}
-                    className={cn('w-full bg-white/5 border p-4 rounded-2xl text-white outline-none focus:border-unidas-primary transition-all font-bold appearance-none', validationErrors.includes('tipo_documento') ? 'border-red-500' : 'border-white/10')}
-                  >
-                    <option value="" className="bg-unidas-dark">--</option>
-                    {DOCUMENT_TYPES.map(dt => <option key={dt} value={dt} className="bg-unidas-dark">{dt}</option>)}
-                  </select>
-                </div>
-                <FieldText label="N° DOCUMENTO" value={userData.document_number} onChange={(v) => { setUserData(d => ({ ...d, document_number: v })); setValidationErrors(e => e.filter(x => x !== 'document_number')); }} error={validationErrors.includes('document_number')} className="col-span-2" />
+          {/* FASE 0: Pantalla de ingreso */}
+          {phase === 'entry' && (
+            <div className="py-6">
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 rounded-3xl bg-unidas-primary/15 border border-unidas-primary/30 flex items-center justify-center text-unidas-primary mx-auto mb-4"><Dices className="w-8 h-8" /></div>
+                <h3 className="text-2xl font-black text-white mb-2">Registro anónimo</h3>
+                <p className="text-white/50 text-sm max-w-lg mx-auto leading-relaxed">Seleccione el tipo de participante. El sistema generará automáticamente un registro único y anónimo, sin capturar datos personales.</p>
               </div>
-              {isMinor && <p className="md:col-span-2 -mt-1 text-[10px] font-bold text-orange-400 uppercase tracking-widest">TI seleccionado · modo menor de edad activo</p>}
-
-              <FieldText label="CELULAR" value={userData.phone} onChange={(v) => setUserData(d => ({ ...d, phone: v }))} />
-              <FieldText label="CORREO ELECTRÓNICO" value={userData.email} onChange={(v) => setUserData(d => ({ ...d, email: v }))} />
-
-              <div className="md:col-span-2 space-y-2">
-                <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">DEFINIR CONTRASEÑA (PIN)</label>
-                <input type="password" value={userData.password} onChange={(e) => { setUserData(d => ({ ...d, password: e.target.value })); setValidationErrors(er => er.filter(x => x !== 'password')); }}
-                  className={cn('w-full bg-white/5 border p-4 rounded-2xl text-white outline-none focus:border-unidas-primary transition-all font-bold', validationErrors.includes('password') ? 'border-red-500' : 'border-white/10')} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
+                {ENTRY_BUTTONS.map(b => {
+                  const Icon = ICONS[b.icon] || User;
+                  const isMenor = b.id === 'menor';
+                  return (
+                    <button key={b.id} type="button" onClick={() => choosePerfil(b.id)}
+                      className={cn('group text-left p-6 rounded-3xl border transition-all hover:scale-[1.02] active:scale-95',
+                        isMenor ? 'bg-orange-500/10 border-orange-500/30 hover:bg-orange-500/20' : 'bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20')}>
+                      <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center mb-4', isMenor ? 'bg-orange-500/20 text-orange-400' : 'bg-emerald-500/20 text-emerald-400')}>
+                        <Icon className="w-7 h-7" />
+                      </div>
+                      <h4 className="text-lg font-black text-white mb-1">{b.label}</h4>
+                      <p className="text-white/50 text-xs leading-relaxed">{b.description}</p>
+                    </button>
+                  );
+                })}
               </div>
             </div>
-            </>
           )}
 
-          {/* Pasos de módulos */}
+          {/* FASE 1: Consentimiento diferenciado (compuerta) */}
+          {phase === 'consent' && perfil && (
+            <div className="py-2 max-w-2xl mx-auto">
+              <div className="p-6 rounded-3xl border border-white/10 bg-white/5">
+                <div className="flex items-center space-x-2 mb-4">
+                  <ShieldCheck className="w-5 h-5 text-unidas-primary" />
+                  <h3 className="text-lg font-black text-white">{CONSENT[perfil].title}</h3>
+                </div>
+                <p className="text-white/60 text-sm leading-relaxed mb-4">{CONSENT[perfil].intro}</p>
+                <p className="text-white font-bold text-sm mb-5">{CONSENT[perfil].question}</p>
+                {registroCodigo && <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-4">Registro: {registroCodigo}</p>}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button type="button" onClick={acceptConsent}
+                    className="px-6 py-4 rounded-2xl bg-green-500 text-white font-black uppercase tracking-widest text-xs flex items-center justify-center space-x-2 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-green-500/20">
+                    <CheckCircle2 className="w-5 h-5" /><span>{CONSENT[perfil].acceptLabel}</span>
+                  </button>
+                  <button type="button" onClick={rejectConsent}
+                    className="px-6 py-4 rounded-2xl bg-red-500/20 border border-red-500/40 text-red-400 font-black uppercase tracking-widest text-xs flex items-center justify-center space-x-2 hover:bg-red-500/30 active:scale-95 transition-all">
+                    <X className="w-5 h-5" /><span>{CONSENT[perfil].rejectLabel}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Cierre: no aceptó */}
+          {phase === 'closed' && (
+            <div className="py-12 text-center max-w-lg mx-auto">
+              <div className="w-20 h-20 bg-white/5 border border-white/10 text-white/40 rounded-3xl flex items-center justify-center mx-auto mb-6"><X className="w-10 h-10" /></div>
+              <h3 className="text-2xl font-black text-white mb-3">{CLOSURE_MESSAGE.title}</h3>
+              <p className="text-white/50 text-sm leading-relaxed mb-8">{CLOSURE_MESSAGE.body}</p>
+              <div className="flex items-center justify-center gap-3">
+                <button type="button" onClick={clearData} className="px-6 py-3 rounded-2xl bg-white/5 border border-white/10 text-white/70 font-black uppercase tracking-widest text-xs hover:bg-white/10 transition-all">Volver al inicio</button>
+                <button type="button" onClick={onClose} className="px-6 py-3 rounded-2xl bg-unidas-primary text-white font-black uppercase tracking-widest text-xs hover:scale-[1.02] transition-all">Salir</button>
+              </div>
+            </div>
+          )}
+
+          {/* FASE 2: Módulos */}
           {currentModule && (
             <>
-              {/* Encabezado con el nombre del módulo para diferenciarlos */}
               <ModuleBanner icon={ICONS[currentModule.icon] || User} index={currentModule.id} title={currentModule.title} />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {visibleQuestions(currentModule).map(q => (
@@ -329,53 +374,51 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
             </>
           )}
 
-          {/* Paso consentimiento */}
+          {/* Paso consentimiento Habeas final */}
           {isConsentStep && (
             <div className="space-y-4">
               <div className={cn('p-6 rounded-3xl border', validationErrors.includes('habeas_data') ? 'border-red-500/50 bg-red-500/5' : 'border-white/10 bg-white/5')}>
                 <h3 className="text-lg font-black text-white mb-2 flex items-center space-x-2"><FileText className="w-5 h-5 text-unidas-primary" /><span>Tratamiento de Datos (Habeas Data)</span></h3>
                 <p className="text-white/50 text-sm mb-4 leading-relaxed">Consulta el documento completo y acepta para poder guardar la encuesta.</p>
                 {habeasDataUrl && (
-                  <a
-                    href={habeasDataUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center space-x-2 px-4 py-2.5 mb-4 rounded-2xl border border-unidas-primary/40 bg-unidas-primary/5 text-unidas-primary font-black uppercase tracking-widest text-[10px] hover:bg-unidas-primary/10 transition-all"
-                  >
+                  <a href={habeasDataUrl} target="_blank" rel="noreferrer"
+                    className="inline-flex items-center space-x-2 px-4 py-2.5 mb-4 rounded-2xl border border-unidas-primary/40 bg-unidas-primary/5 text-unidas-primary font-black uppercase tracking-widest text-[10px] hover:bg-unidas-primary/10 transition-all">
                     <FileText className="w-4 h-4" />
                     <span>Abrir Política de Tratamiento de Datos</span>
                   </a>
                 )}
                 <label className="flex items-start space-x-3 cursor-pointer">
                   <input type="checkbox" checked={habeasAccepted} onChange={(e) => { setHabeasAccepted(e.target.checked); setValidationErrors(v => v.filter(x => x !== 'habeas_data')); }} className="mt-1 w-5 h-5 rounded accent-unidas-primary" />
-                  <span className="text-sm font-medium text-white/70 leading-relaxed">Acepto que los datos personales sean tratados de acuerdo con la política de tratamiento de datos personales de la Secretaría de Integración Social.</span>
+                  <span className="text-sm font-medium text-white/70 leading-relaxed">Acepto que los datos sean tratados de acuerdo con la política de tratamiento de datos personales de la Secretaría de Integración Social.</span>
                 </label>
               </div>
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-6 border-t border-white/5 bg-black/20 flex items-center justify-between shrink-0">
-          <div className="flex items-center space-x-3">
-            <button onClick={goPrev} disabled={currentStep === 0 || loading} className="flex items-center space-x-2 text-white/40 hover:text-white transition-colors disabled:opacity-0">
-              <ChevronLeft className="w-5 h-5" /><span className="font-bold uppercase tracking-widest text-[10px]">Atrás</span>
-            </button>
-            <button onClick={clearData} className="flex items-center space-x-2 px-3 py-2 bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30 rounded-xl transition-all text-[10px] font-black uppercase tracking-widest">
-              <Trash2 className="w-4 h-4" /><span>Limpiar</span>
-            </button>
+        {/* Footer (solo en módulos) */}
+        {phase === 'modules' && (
+          <div className="p-6 border-t border-white/5 bg-black/20 flex items-center justify-between shrink-0">
+            <div className="flex items-center space-x-3">
+              <button onClick={goPrev} disabled={currentStep === 0 || loading} className="flex items-center space-x-2 text-white/40 hover:text-white transition-colors disabled:opacity-0">
+                <ChevronLeft className="w-5 h-5" /><span className="font-bold uppercase tracking-widest text-[10px]">Atrás</span>
+              </button>
+              <button onClick={clearData} className="flex items-center space-x-2 px-3 py-2 bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30 rounded-xl transition-all text-[10px] font-black uppercase tracking-widest">
+                <Trash2 className="w-4 h-4" /><span>Limpiar</span>
+              </button>
+            </div>
+            {!isConsentStep ? (
+              <button onClick={goNext} className="bg-unidas-primary text-white px-8 py-3 rounded-2xl font-black flex items-center space-x-2 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-unidas-primary/20 uppercase tracking-widest text-xs">
+                <span>Siguiente</span><ChevronRight className="w-5 h-5" />
+              </button>
+            ) : (
+              <button onClick={handleSubmit} disabled={loading} className="bg-green-500 text-white px-10 py-4 rounded-2xl font-black flex items-center space-x-3 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-green-500/20 disabled:opacity-50 uppercase tracking-widest text-xs">
+                {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save className="w-6 h-6" />}
+                <span>Guardar Encuesta</span>
+              </button>
+            )}
           </div>
-          {!isConsentStep ? (
-            <button onClick={goNext} className="bg-unidas-primary text-white px-8 py-3 rounded-2xl font-black flex items-center space-x-2 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-unidas-primary/20 uppercase tracking-widest text-xs">
-              <span>Siguiente</span><ChevronRight className="w-5 h-5" />
-            </button>
-          ) : (
-            <button onClick={handleSubmit} disabled={loading} className="bg-green-500 text-white px-10 py-4 rounded-2xl font-black flex items-center space-x-3 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-green-500/20 disabled:opacity-50 uppercase tracking-widest text-xs">
-              {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save className="w-6 h-6" />}
-              <span>Guardar Encuesta</span>
-            </button>
-          )}
-        </div>
+        )}
       </motion.div>
 
       {/* Popup de error */}
@@ -444,15 +487,6 @@ function Card({ label, subtitle, children, error, className, ageDisplay }: any) 
   );
 }
 
-function FieldText({ label, value, onChange, error, className }: any) {
-  return (
-    <div className={cn('space-y-2', className)}>
-      <label className="text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">{label}</label>
-      <input value={value} onChange={(e) => onChange(e.target.value)} className={cn('w-full bg-white/5 border p-4 rounded-2xl text-white outline-none focus:border-unidas-primary transition-all font-bold', error ? 'border-red-500' : 'border-white/10')} />
-    </div>
-  );
-}
-
 function DateSplit({ value, onChange }: any) {
   const sel = 'w-full py-2 px-1 bg-white/5 border border-white/5 rounded-lg text-center text-white focus:border-unidas-primary outline-none font-bold appearance-none text-xs';
   return (
@@ -475,15 +509,14 @@ function DateSplit({ value, onChange }: any) {
 
 function QuestionField({ q, answers, error, onValue, onToggle }: any) {
   const val = answers[q.id];
-  const disabled = q.enabledIf ? answers[q.enabledIf.id] !== q.enabledIf.equals : false;
   const selectedOther = q.multi ? (Array.isArray(val) && (val.includes('Otro') || val.includes('Otra'))) : (val === 'Otro' || val === 'Otra');
   const showConditional = q.conditional && val === q.conditional.on;
 
   return (
-    <Card label={q.label} subtitle={q.subtitle} error={error} className={cn(q.full && 'md:col-span-2', disabled && 'opacity-40 pointer-events-none')}>
+    <Card label={q.label} subtitle={q.subtitle} error={error} className={cn(q.full && 'md:col-span-2')}>
       {q.type === 'pills' && (
         <div className={cn('grid gap-1', (q.options?.length || 0) > 4 ? 'grid-cols-1' : 'grid-cols-2')}>
-          {q.options!.map(opt => (
+          {q.options!.map((opt: string) => (
             <button key={opt} type="button" onClick={() => onValue(q.id, opt)}
               className={cn('py-1.5 px-2 rounded-lg text-[11px] font-bold border text-left flex items-center space-x-1.5 transition-all', val === opt ? 'bg-unidas-primary/20 border-unidas-primary text-unidas-primary' : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10')}>
               <span className={cn('w-2.5 h-2.5 rounded-full border shrink-0', val === opt ? 'border-unidas-primary bg-unidas-primary' : 'border-white/10')} />
@@ -495,7 +528,7 @@ function QuestionField({ q, answers, error, onValue, onToggle }: any) {
 
       {q.type === 'checkbox-group' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
-          {q.options!.map(opt => {
+          {q.options!.map((opt: string) => {
             const checked = Array.isArray(val) && val.includes(opt);
             const blocked = !checked && q.maxSelect && Array.isArray(val) && val.length >= q.maxSelect;
             return (
@@ -513,20 +546,9 @@ function QuestionField({ q, answers, error, onValue, onToggle }: any) {
           <select value={val || ''} disabled={q.id === 'zona'} onChange={(e) => onValue(q.id, e.target.value)}
             className="w-full px-2 py-2 bg-white/5 border border-white/5 focus:border-unidas-primary rounded-lg outline-none font-bold text-white appearance-none text-xs disabled:opacity-60">
             <option value="" className="bg-unidas-dark">{q.id === 'zona' ? 'Automático' : 'Seleccionar...'}</option>
-            {(q.id === 'zona' ? ALL_UPLS : q.id === 'barrio' ? ALL_BARRIOS : q.options || []).map(opt => <option key={opt} value={opt} className="bg-unidas-dark">{opt}</option>)}
+            {(q.id === 'zona' ? ALL_UPLS : q.id === 'barrio' ? ALL_BARRIOS : q.options || []).map((opt: string) => <option key={opt} value={opt} className="bg-unidas-dark">{opt}</option>)}
           </select>
           <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-white/20"><Info className="w-3 h-3" /></div>
-        </div>
-      )}
-
-      {q.type === 'range' && (
-        <div className="space-y-2 py-1">
-          <input type="range" min={q.min || 0} max={q.max || 5000000} step={q.step || 50000} value={val || 0} onChange={(e) => onValue(q.id, e.target.value)} className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-orange-500" />
-          <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-1.5 text-center">
-            <span className="text-[11px] font-black text-orange-500 uppercase">
-              {q.suffix ? `${Number(val) || 0} ${q.suffix}` : new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(val) || 0)}
-            </span>
-          </div>
         </div>
       )}
 
@@ -539,14 +561,12 @@ function QuestionField({ q, answers, error, onValue, onToggle }: any) {
         <input value={val || ''} onChange={(e) => onValue(q.id, e.target.value)} className="w-full px-2 py-2 bg-white/5 border border-white/5 focus:border-unidas-primary rounded-lg outline-none font-bold text-white text-xs" />
       )}
 
-      {/* Caja "Otro" */}
       {q.showOther && selectedOther && (
         <motion.input initial={{ opacity: 0 }} animate={{ opacity: 1 }} type="text" placeholder="Especifique..."
           value={answers[`${q.id}_otro`] || ''} onChange={(e) => onValue(`${q.id}_otro`, e.target.value)}
           className="mt-2 w-full px-2 py-1.5 bg-white/5 border border-unidas-primary/30 focus:border-unidas-primary rounded-lg outline-none font-bold text-white text-[11px]" />
       )}
 
-      {/* Caja de texto condicional ilimitada */}
       {showConditional && (
         <motion.textarea initial={{ opacity: 0 }} animate={{ opacity: 1 }} rows={3} placeholder={q.conditional!.placeholder}
           value={answers[q.conditional!.targetId] || ''} onChange={(e) => onValue(q.conditional!.targetId, e.target.value)}
