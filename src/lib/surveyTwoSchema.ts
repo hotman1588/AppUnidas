@@ -75,6 +75,17 @@ export const CONSENT: Record<Perfil, ConsentDef> = {
   },
 };
 
+// Paso 2 (solo Menor): asentimiento del propio menor, tras el consentimiento del
+// adulto responsable. Compuerta: si NO quiere participar -> cierre respetuoso.
+export const ASSENT_MENOR: ConsentDef = {
+  title: 'Paso 2 · Asentimiento del Menor de Edad',
+  intro:
+    '¡Hola! Queremos invitarte a participar en una actividad muy corta donde nos vas a contar cómo te sientes en tu hogar y en tu barrio. No es una evaluación, no hay respuestas buenas ni malas, y nadie va a saber qué respondiste tú porque guardaremos el secreto de tus respuestas. Si alguna pregunta no te gusta, me puedes decir "no quiero responder esa" o si te cansas, podemos parar cuando tú quieras.',
+  question: '¿Te gustaría ayudarnos respondiendo estas preguntas de forma libre?',
+  acceptLabel: 'SÍ QUIERE participar',
+  rejectLabel: 'NO QUIERE participar',
+};
+
 // Mensaje de cierre cuando NO se acepta la política de datos.
 export const CLOSURE_MESSAGE = {
   title: 'Encuesta finalizada',
