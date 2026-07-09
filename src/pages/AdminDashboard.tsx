@@ -158,7 +158,7 @@ export default function AdminDashboard() {
 
   // Acciones destructivas (Supabase): limpieza de usuarios y reset de encuestas.
   // Requieren confirmación estricta escribiendo la palabra clave antes de ejecutar.
-  const [dangerAction, setDangerAction] = useState<null | 'cleanup' | 'reset'>(null);
+  const [dangerAction, setDangerAction] = useState<null | 'cleanup' | 'reset' | 'resetDos'>(null);
   const [dangerConfirmText, setDangerConfirmText] = useState('');
   const [dangerLoading, setDangerLoading] = useState(false);
 
@@ -174,6 +174,12 @@ export default function AdminDashboard() {
       keyword: 'RESET ENCUESTAS',
       endpoint: '/api/admin/surveys/reset',
       warning: 'Esto eliminará de forma DEFINITIVA en Supabase todas las respuestas de la Encuesta 1 y la Encuesta 2. Los usuarios NO se eliminan. Esta acción no se puede deshacer.'
+    },
+    resetDos: {
+      title: 'Borrar Encuesta 2',
+      keyword: 'BORRAR ENCUESTA 2',
+      endpoint: '/api/admin/surveys/reset-dos',
+      warning: 'Esto eliminará de forma DEFINITIVA en Supabase TODAS las respuestas de la Encuesta 2. La Encuesta 1 y los usuarios NO se tocan. Esta acción no se puede deshacer.'
     }
   } as const;
 
@@ -191,6 +197,8 @@ export default function AdminDashboard() {
       if (!res.ok) throw new Error(data.error || 'No se pudo completar la acción');
       if (dangerAction === 'cleanup') {
         alert(`Limpieza completada. Usuarios eliminados: ${data.deletedCount ?? 0}.`);
+      } else if (dangerAction === 'resetDos') {
+        alert(`Encuesta 2 borrada. Registros eliminados: ${data.deletedEncuestaDos ?? 0}.`);
       } else {
         alert(`Reset completado. Encuesta 1: ${data.deletedEncuestaUno ?? 0} · Encuesta 2: ${data.deletedEncuestaDos ?? 0}.`);
       }
@@ -1697,6 +1705,18 @@ export default function AdminDashboard() {
                     >
                       <Trash2 className="w-5 h-5" />
                       <span className="text-sm">Resetear Encuestas</span>
+                    </button>
+                  </div>
+
+                  <div className="p-6 bg-white/5 rounded-3xl border border-orange-500/10 flex flex-col">
+                    <p className="text-white font-black mb-1">Borrar Encuesta 2</p>
+                    <p className="text-white/40 text-xs font-medium mb-5 flex-grow">Elimina únicamente las respuestas de la Encuesta 2. La Encuesta 1 no se toca.</p>
+                    <button
+                      onClick={() => { setDangerAction('resetDos'); setDangerConfirmText(''); }}
+                      className="w-full py-4 bg-orange-500/20 border border-orange-500/40 text-orange-300 font-black rounded-2xl flex items-center justify-center space-x-2 hover:bg-orange-500/30 transition-all"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                      <span className="text-sm">Borrar Encuesta 2</span>
                     </button>
                   </div>
                 </div>
