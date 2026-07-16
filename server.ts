@@ -1062,8 +1062,19 @@ app.get('/api/admin/users/:userId/documents', authenticateToken, isAdmin, async 
   }
 });
 
+// Llaves equivalentes con las que un mismo soporte puede estar guardado en
+// answers.documentos según el flujo que lo creó (presencial vs. autodiligenciado).
+const DOC_TYPE_ALIASES: string[][] = [
+  ['id_frontal', 'cedula_frontal'],
+  ['id_reverso', 'cedula_reverso'],
+  ['utility_bill', 'recibo_publico', 'recibo'],
+];
+const resolveDocAliases = (type: string): string[] =>
+  DOC_TYPE_ALIASES.find(keys => keys.includes(type)) || [type];
+
 // Carga de documentos faltantes desde la bandeja (recolector/admin) para un
-// usuario específico. Permite completar los soportes de encuestas en 'pending'.
+// usuario específico. Permite completar los soportes de encuestas en 'pending'
+// y reemplazar los de encuestas devueltas/rechazadas para su corrección.
 app.post('/api/admin/users/:userId/documents/upload', authenticateToken, isAdmin, upload.single('file'), async (req: any, res: any) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
   const { type } = req.body;
@@ -1081,7 +1092,30 @@ app.post('/api/admin/users/:userId/documents/upload', authenticateToken, isAdmin
         await supabase.storage.from('documents').upload(req.file.filename, fileBuffer, { contentType: req.file.mimetype, upsert: true });
       } catch (e: any) { console.error('Supabase mirror (admin doc) failed:', e.message); }
     }
-    res.json({ ...result.rows[0], url: `/api/documents/view/${req.file.filename}` });
+
+    const newUrl = `/api/documents/view/${req.file.filename}`;
+
+    // El expediente resuelve la miniatura desde answers.documentos ANTES que desde
+    // la tabla 'documents' (los soportes presenciales guardan allí su URL pública
+    // de Supabase). Si el reemplazo solo tocara 'documents', la miniatura seguiría
+    // sirviendo el archivo anterior y el caso no podría aprobarse tras corregirlo.
+    const sres = await pool.query('SELECT answers FROM surveys WHERE user_id = $1', [userId]);
+    if (sres.rows.length > 0) {
+      const raw = sres.rows[0].answers;
+      const answers = (typeof raw === 'string' ? JSON.parse(raw || '{}') : raw) || {};
+      const documentos = { ...(answers.documentos || {}) };
+      // Reescribe la llave enviada y cualquier alias ya presente, para no dejar
+      // ninguna URL vieja que pueda volver a tener precedencia.
+      documentos[type] = newUrl;
+      resolveDocAliases(type).forEach(k => { if (k in documentos) documentos[k] = newUrl; });
+      answers.documentos = documentos;
+      await pool.query(
+        'UPDATE surveys SET answers = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2',
+        [JSON.stringify(answers), userId]
+      );
+    }
+
+    res.json({ ...result.rows[0], url: newUrl });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
