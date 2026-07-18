@@ -1075,11 +1075,26 @@ const resolveDocAliases = (type: string): string[] =>
 // Carga de documentos faltantes desde la bandeja (recolector/admin) para un
 // usuario específico. Permite completar los soportes de encuestas en 'pending'
 // y reemplazar los de encuestas devueltas/rechazadas para su corrección.
+const DOC_LABELS: Record<string, string> = {
+  id_frontal: 'Cédula (frontal)', cedula_frontal: 'Cédula (frontal)',
+  id_reverso: 'Cédula (reverso)', cedula_reverso: 'Cédula (reverso)',
+  utility_bill: 'Recibo de servicio público', recibo_publico: 'Recibo de servicio público', recibo: 'Recibo de servicio público',
+};
+
 app.post('/api/admin/users/:userId/documents/upload', authenticateToken, isAdmin, upload.single('file'), async (req: any, res: any) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
   const { type } = req.body;
   const userId = req.params.userId;
   try {
+    // ¿Ya existía un soporte de este tipo? (para distinguir "cambio" de "carga nueva"
+    // en la notificación). Se mira tanto la tabla 'documents' como answers.documentos.
+    const aliasKeys = resolveDocAliases(type);
+    const priorDoc = await pool.query('SELECT 1 FROM documents WHERE user_id = $1 AND type = ANY($2::text[]) LIMIT 1', [userId, aliasKeys]);
+    const priorSurvey = await pool.query('SELECT answers FROM surveys WHERE user_id = $1', [userId]);
+    const priorAnswersRaw = priorSurvey.rows[0]?.answers;
+    const priorDocumentos = ((typeof priorAnswersRaw === 'string' ? JSON.parse(priorAnswersRaw || '{}') : priorAnswersRaw) || {}).documentos || {};
+    const hadPrior = priorDoc.rows.length > 0 || aliasKeys.some(k => !!priorDocumentos[k]);
+
     // Reemplaza el documento previo del mismo tipo (si existía) para no duplicar.
     await pool.query('DELETE FROM documents WHERE user_id = $1 AND type = $2', [userId, type]);
     const result = await pool.query(
@@ -1114,6 +1129,21 @@ app.post('/api/admin/users/:userId/documents/upload', authenticateToken, isAdmin
         [JSON.stringify(answers), userId]
       );
     }
+
+    // Notificación de cambio: queda en el historial del expediente, visible tanto
+    // para el administrador como para el recolector. Distingue reemplazo de carga
+    // nueva y deja constancia de quién y con qué rol lo realizó.
+    const actorName = req.user?.name || 'Sistema';
+    const actorRole = req.user?.role === 'admin' ? 'Administrador' : 'Recolector';
+    const docLabel = DOC_LABELS[type] || type;
+    const action = hadPrior ? 'Cambio de Soporte' : 'Carga de Soporte';
+    const details = hadPrior
+      ? `Se reemplazó la imagen del soporte "${docLabel}". [Por: ${actorName} (${actorRole})]`
+      : `Se cargó el soporte "${docLabel}". [Por: ${actorName} (${actorRole})]`;
+    await pool.query(
+      'INSERT INTO survey_history (user_id, action, details) VALUES ($1, $2, $3)',
+      [userId, action, details]
+    ).catch((e: any) => console.error('survey_history (doc change) failed:', e.message));
 
     res.json({ ...result.rows[0], url: newUrl });
   } catch (err: any) {

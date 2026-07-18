@@ -530,6 +530,42 @@ export default function AdminDashboard() {
     }
   };
 
+  // Refresca el expediente abierto tras cargar/reemplazar un soporte: documentos,
+  // respuestas (de donde la miniatura resuelve la imagen) e historial (donde queda
+  // la notificación de cambio). Mismo comportamiento que el rol Recolector.
+  const refreshOpenSurvey = async (userId: number, surveyId: number) => {
+    try {
+      const [docRes, surveyRes, histRes] = await Promise.all([
+        fetch(`/api/admin/users/${userId}/documents`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`/api/admin/users/${userId}/survey`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`/api/admin/surveys/${surveyId}/history`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      ]);
+      setUserDocuments(await docRes.json() || []);
+      const surveyData = await surveyRes.json();
+      setSurveyAnswers(surveyData?.answers || {});
+      setSurveyHistory(await histRes.json() || []);
+    } catch (err) { console.error(err); }
+  };
+
+  // Carga o reemplaza un soporte desde el expediente (mismo endpoint que el Recolector).
+  const handleUploadDoc = async (docType: string, file: File) => {
+    if (!editingSurvey?.user_id) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('type', docType);
+    try {
+      const res = await fetch(`/api/admin/users/${editingSurvey.user_id}/documents/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: fd,
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Error al subir'); }
+      await refreshOpenSurvey(editingSurvey.user_id, editingSurvey.id);
+    } catch (err: any) {
+      alert(`No se pudo cargar el documento: ${err.message}`);
+    }
+  };
+
   const handleReviewSurvey = async () => {
     setFormLoading(true);
     try {
@@ -2221,6 +2257,7 @@ export default function AdminDashboard() {
                     <FileText className="w-5 h-5" />
                     <span>Documentos de Soporte</span>
                   </h4>
+                  {(() => { const _editable = ['pending','rejected','rejected_final'].includes(editingSurvey.status); return (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {[
                       { label: 'Cédula Frontal', keys: ['id_frontal', 'cedula_frontal'] },
@@ -2237,11 +2274,15 @@ export default function AdminDashboard() {
                           label={label}
                           doc={doc}
                           imageUrl={imageUrl}
+                          uploadType={keys[0]}
+                          editable={_editable}
+                          onUpload={handleUploadDoc}
                           onView={() => imageUrl && setViewerConfig({ url: imageUrl, title: label })}
                         />
                       );
                     })}
                   </div>
+                  ); })()}
                 </div>
 
                 {/* Survey Answers Section */}
@@ -2703,19 +2744,36 @@ function AuthImage({ src, alt }: { src: string; alt: string }) {
   return <img src={objUrl} alt={alt} className="absolute inset-0 w-full h-full object-cover" />;
 }
 
-function DocThumbnail({ label, doc, imageUrl, onView }: any) {
+function DocThumbnail({ label, doc, imageUrl, onView, uploadType, onUpload, editable }: any) {
   const hasImage = !!imageUrl;
   if (!doc && !hasImage) {
+    // Soporte faltante: en estados editables permite cargarlo desde el expediente.
+    const inputId = `admin-upload-doc-${uploadType || label}`;
     return (
-      <div className="aspect-square bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center p-4 opacity-30">
-        <XCircle className="w-8 h-8 text-white/20 mb-2" />
-        <span className="text-[9px] font-black text-white/20 text-center uppercase tracking-tighter">{label}</span>
-        <span className="text-[7px] text-white/10 mt-1 uppercase">No cargado</span>
+      <div className="aspect-square bg-white/5 rounded-2xl border border-dashed border-amber-500/30 flex flex-col items-center justify-center p-4 text-center">
+        <XCircle className="w-8 h-8 text-amber-500/40 mb-2" />
+        <span className="text-[9px] font-black text-white/40 text-center uppercase tracking-tighter">{label}</span>
+        <span className="text-[7px] text-amber-400/70 mt-1 uppercase mb-2">No cargado</span>
+        {editable && onUpload && uploadType && (
+          <>
+            <input
+              id={inputId}
+              type="file"
+              accept="image/*,.pdf"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(uploadType, f); e.currentTarget.value = ''; }}
+            />
+            <label htmlFor={inputId} className="cursor-pointer text-[8px] font-black uppercase tracking-widest text-unidas-primary border border-unidas-primary/40 rounded-lg px-2 py-1 hover:bg-unidas-primary/10 transition-all">
+              Cargar
+            </label>
+          </>
+        )}
       </div>
     );
   }
 
   const isPdf = typeof imageUrl === 'string' && imageUrl.toLowerCase().includes('.pdf');
+  const changeId = `admin-change-doc-${uploadType || label}`;
 
   return (
     <div
@@ -2726,6 +2784,25 @@ function DocThumbnail({ label, doc, imageUrl, onView }: any) {
         <AuthImage src={imageUrl} alt={label} />
       ) : (
         <FileText className="w-8 h-8 text-unidas-primary mb-2 transition-transform group-hover:scale-110" />
+      )}
+      {/* Reemplazo de soporte (encuestas pendientes/devueltas/rechazadas). */}
+      {editable && onUpload && uploadType && (
+        <>
+          <input
+            id={changeId}
+            type="file"
+            accept="image/*,.pdf"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(uploadType, f); e.currentTarget.value = ''; }}
+          />
+          <label
+            htmlFor={changeId}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute top-2 right-2 z-10 cursor-pointer text-[8px] font-black uppercase tracking-widest text-white bg-unidas-primary/80 hover:bg-unidas-primary rounded-lg px-2 py-1 transition-all"
+          >
+            Cambiar
+          </label>
+        </>
       )}
       {/* Capa con etiqueta y estado, legible sobre la imagen */}
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 flex flex-col items-center">
