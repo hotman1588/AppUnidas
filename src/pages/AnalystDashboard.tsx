@@ -111,18 +111,23 @@ export default function AnalystDashboard() {
   };
 
   // Refresca los soportes del usuario abierto tras cargar o reemplazar uno.
-  // También recarga las respuestas: la miniatura resuelve la imagen desde
-  // answers.documentos antes que desde la tabla 'documents', así que sin esto
-  // seguiría mostrándose el archivo anterior tras una corrección.
+  // Recarga documentos, respuestas (la miniatura resuelve la imagen desde
+  // answers.documentos, no solo desde la tabla 'documents') e historial (donde
+  // queda la notificación de cambio del soporte).
   const refreshUserDocuments = async (userId: number) => {
     try {
-      const [docRes, surveyRes] = await Promise.all([
+      const reqs: Promise<Response>[] = [
         fetch(`/api/admin/users/${userId}/documents`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`/api/admin/users/${userId}/survey`, { headers: { 'Authorization': `Bearer ${token}` } }),
-      ]);
+      ];
+      if (selectedSurvey?.id) {
+        reqs.push(fetch(`/api/admin/surveys/${selectedSurvey.id}/history`, { headers: { 'Authorization': `Bearer ${token}` } }));
+      }
+      const [docRes, surveyRes, histRes] = await Promise.all(reqs);
       setUserDocuments(await docRes.json() || []);
       const surveyData = await surveyRes.json();
       setSurveyAnswers(surveyData?.answers || {});
+      if (histRes) setSurveyHistory(await histRes.json() || []);
     } catch (err) { console.error(err); }
   };
 
