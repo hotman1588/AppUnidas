@@ -28,13 +28,13 @@ export interface EntryButton {
 export const ENTRY_BUTTONS: EntryButton[] = [
   {
     id: 'adulto',
-    label: 'Aleatorio Mayor de Edad',
+    label: 'Mayor de Edad',
     description: 'Genera un registro único con perfil Adulto (18 años o más).',
     icon: 'UserCheck',
   },
   {
     id: 'menor',
-    label: 'Aleatorio Menor de Edad',
+    label: 'Menor de Edad',
     description: 'Genera un registro único con perfil Menor de Edad (menor de 18 años).',
     icon: 'Baby',
   },
