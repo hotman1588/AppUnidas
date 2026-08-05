@@ -594,7 +594,7 @@ function QuestionField({ q, answers, error, onValue, onToggle }: any) {
           (q.options?.length || 0) > 4 || q.options?.some((o: string) => o.length > 24) ? 'grid-cols-1' : 'grid-cols-2')}>
           {q.options!.map((opt: string) => (
             <button key={opt} type="button" onClick={() => onValue(q.id, opt)}
-              className={cn('py-1.5 px-2 rounded-lg text-[11px] font-bold border text-left flex items-center space-x-1.5 transition-all', val === opt ? 'bg-unidas-primary/20 border-unidas-primary text-unidas-primary' : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10')}>
+              className={cn('py-1.5 px-2 rounded-lg text-[11px] font-bold border text-left flex items-center space-x-1.5 transition-all', val === opt ? 'bg-unidas-primary/20 border-unidas-primary text-unidas-primary' : 'bg-white/5 border-white/5 text-white hover:bg-white/10')}>
               <span className={cn('w-2.5 h-2.5 rounded-full border shrink-0', val === opt ? 'border-unidas-primary bg-unidas-primary' : 'border-white/10')} />
               <span className="leading-snug">{opt}</span>
             </button>
@@ -609,7 +609,7 @@ function QuestionField({ q, answers, error, onValue, onToggle }: any) {
             const checked = Array.isArray(val) && val.includes(opt);
             const blocked = !checked && q.maxSelect && Array.isArray(val) && val.length >= q.maxSelect;
             return (
-              <label key={opt} className={cn('flex items-center space-x-2 p-2 rounded-lg border text-[11px] font-bold transition-all cursor-pointer', checked ? 'bg-unidas-primary/10 border-unidas-primary text-unidas-primary' : blocked ? 'bg-white/5 border-white/5 text-white/20 cursor-not-allowed' : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10')}>
+              <label key={opt} className={cn('flex items-center space-x-2 p-2 rounded-lg border text-[11px] font-bold transition-all cursor-pointer', checked ? 'bg-unidas-primary/10 border-unidas-primary text-unidas-primary' : blocked ? 'bg-white/5 border-white/5 text-white opacity-50 cursor-not-allowed' : 'bg-white/5 border-white/5 text-white hover:bg-white/10')}>
                 <input type="checkbox" checked={checked} disabled={!!blocked} onChange={() => onToggle(q, opt)} className="w-3.5 h-3.5 rounded accent-unidas-primary shrink-0" />
                 <span className="leading-snug">{opt}</span>
               </label>

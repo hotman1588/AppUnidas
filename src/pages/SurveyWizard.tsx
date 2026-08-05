@@ -1126,7 +1126,7 @@ export default function SurveyWizard() {
                           "px-6 py-2 rounded-md text-xs font-black transition-all",
                           answers.cuidado?.es_cuidadora === 'Sí'
                             ? "bg-unidas-primary text-white shadow-md shadow-unidas-primary/20"
-                            : "text-white/20 hover:text-white/40"
+                            : "text-white hover:text-white"
                         )}
                       >
                         Sí
@@ -1144,7 +1144,7 @@ export default function SurveyWizard() {
                           "px-6 py-2 rounded-md text-xs font-black transition-all",
                           answers.cuidado?.es_cuidadora === 'No'
                             ? "bg-orange-500 text-white shadow-md shadow-orange-500/20"
-                            : "text-white/20 hover:text-white/40"
+                            : "text-white hover:text-white"
                         )}
                       >
                         No
@@ -1891,7 +1891,7 @@ function Question({
                     "py-1 px-1.5 rounded-lg text-[10px] font-bold transition-all border text-left flex items-center space-x-1.5",
                     value === opt
                       ? "bg-unidas-primary/20 border-unidas-primary text-unidas-primary"
-                      : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10",
+                      : "bg-white/5 border-white/5 text-white hover:bg-white/10",
                     disabled && "cursor-not-allowed"
                   )}
                 >
@@ -1926,7 +1926,7 @@ function Question({
                     "flex items-center space-x-2 p-2 rounded-lg border transition-all cursor-pointer",
                     value.includes(opt)
                       ? "bg-unidas-primary/10 border-unidas-primary text-unidas-primary"
-                      : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
+                      : "bg-white/5 border-white/5 text-white hover:bg-white/10"
                   )}
                 >
                   <input
@@ -2063,7 +2063,7 @@ function Question({
                     "flex-1 py-1.5 rounded-lg text-sm font-black transition-all border",
                     value === String(num)
                       ? "bg-orange-500 border-orange-500 text-white shadow-sm"
-                      : "bg-white/5 border-white/5 text-white/20 hover:bg-white/10"
+                      : "bg-white/5 border-white/5 text-white hover:bg-white/10"
                   )}
                 >
                   {num}

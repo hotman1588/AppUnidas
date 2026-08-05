@@ -895,7 +895,7 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                       {['Sí', 'No'].map(opt => (
                         <button 
                           key={opt} onClick={() => handleInputChange('cuidado', 'es_cuidadora', opt)}
-                          className={cn("px-6 py-2 rounded-xl font-bold transition-all", answers.cuidado.es_cuidadora === opt ? "bg-unidas-primary text-white" : "bg-white/5 text-white/20")}
+                          className={cn("px-6 py-2 rounded-xl font-bold transition-all", answers.cuidado.es_cuidadora === opt ? "bg-unidas-primary text-white" : "bg-white/5 text-white")}
                         >
                           {opt}
                         </button>
@@ -1626,7 +1626,7 @@ function Question({
                     "py-1 px-1.5 rounded-lg text-[10px] font-bold transition-all border text-left flex items-center space-x-1.5",
                     value === opt
                       ? "bg-unidas-primary/20 border-unidas-primary text-unidas-primary"
-                      : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10",
+                      : "bg-white/5 border-white/5 text-white hover:bg-white/10",
                     disabled && "cursor-not-allowed"
                   )}
                 >
@@ -1661,7 +1661,7 @@ function Question({
                     "flex items-center space-x-2 p-2 rounded-lg border transition-all cursor-pointer",
                     value?.includes(opt)
                       ? "bg-unidas-primary/10 border-unidas-primary text-unidas-primary"
-                      : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
+                      : "bg-white/5 border-white/5 text-white hover:bg-white/10"
                   )}
                 >
                   <input
@@ -1798,7 +1798,7 @@ function Question({
                     "flex-1 py-1.5 rounded-lg text-sm font-black transition-all border",
                     value === String(num)
                       ? "bg-orange-500 border-orange-500 text-white shadow-sm"
-                      : "bg-white/5 border-white/5 text-white/20 hover:bg-white/10"
+                      : "bg-white/5 border-white/5 text-white hover:bg-white/10"
                   )}
                 >
                   {num}
