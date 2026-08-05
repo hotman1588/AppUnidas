@@ -183,6 +183,8 @@ export interface ModuleDef {
 
 // Escalas reutilizadas.
 const LIKERT_ACUERDO = ['Totalmente de acuerdo', 'De acuerdo', 'Ni de acuerdo ni en desacuerdo', 'En desacuerdo', 'Totalmente en desacuerdo'];
+// Escala de acuerdo sin punto neutro, con opción de no responder.
+const LIKERT_SIN_NEUTRO = ['Totalmente de acuerdo', 'De acuerdo', 'En desacuerdo', 'Totalmente en desacuerdo', 'Prefiere no responder'];
 const FRECUENCIA = ['Nunca', 'Rara vez', 'Algunas veces', 'Frecuentemente', 'Siempre'];
 
 export const MODULES: ModuleDef[] = [
@@ -223,11 +225,16 @@ export const MODULES: ModuleDef[] = [
   {
     id: 3, title: 'Percepciones Socioculturales y Representaciones', icon: 'HeartPulse',
     questions: [
-      { id: 'acuerdo_celos', label: 'Los celos y revisar el celular son una muestra de amor', subtitle: '¿Qué tan de acuerdo está con esta afirmación?', type: 'pills', options: LIKERT_ACUERDO, route: 'adulto', full: true },
+      // Celos y control en la pareja — condicionada por edad.
+      { id: 'acuerdo_celos', label: '¿Qué tan de acuerdo está con la siguiente afirmación: "En una pareja, los celos y revisar el celular son una muestra de amor y protección"?', subtitle: 'Seleccione una opción.', type: 'pills', options: LIKERT_SIN_NEUTRO, route: 'adulto', full: true },
+      { id: 'acuerdo_celos_menor', label: '¿Qué tan de acuerdo estás con esta frase: "Si mi novio o novia me cela, me revisa el celular o me dice cómo vestirme, es porque me ama y me cuida"?', subtitle: 'Selecciona una opción.', type: 'pills', options: LIKERT_SIN_NEUTRO, route: 'menor', full: true },
+      // Privacidad de los conflictos familiares — condicionada por edad.
+      { id: 'puerta_cerrada', label: 'Frente a las discusiones de pareja en el barrio, ¿cree usted que los problemas familiares deben resolverse estrictamente "a puerta cerrada" sin intervención de vecinos ni autoridades?', subtitle: 'Seleccione una opción.', type: 'pills', options: ['Sí, lo que pasa en casa es privado.', 'Solo si hay golpes se debe buscar ayuda de afuera.', 'No, cualquier muestra de agresión debe ser apoyada o denunciada externamente.', 'Prefiere no responder'], route: 'adulto', full: true },
+      { id: 'puerta_cerrada_menor', label: 'Si ves o escuchas que unos vecinos están peleando muy fuerte en su casa, ¿crees que eso es algo privado de ellos o que se debería buscar ayuda de afuera?', subtitle: 'Selecciona una opción.', type: 'pills', options: ['Es algo privado de ellos y nadie se debe meter.', 'Solo si se están pegando se debería buscar ayuda.', 'Siempre se debería buscar ayuda o llamar a las autoridades.', 'Prefiere no responder'], route: 'menor', full: true },
+      // Consumo de alcohol o SPA como causa de la violencia — condicionada por edad.
+      { id: 'consumo_causa_violencia', label: '¿Considera usted que el consumo de alcohol o sustancias psicoactivas es la causa principal de la violencia en el hogar, o es un factor que la empeora?', subtitle: 'Seleccione una opción.', type: 'pills', options: ['Es la causa principal (Si no hay consumo, no habría agresión).', 'Es un factor que empeora una situación de control que ya existía antes.', 'No tiene ninguna relación.', 'Prefiere no responder'], route: 'adulto', full: true },
+      { id: 'consumo_causa_violencia_menor', label: '¿Crees que cuando los adultos toman alcohol o consumen drogas es la única razón por la que se vuelven groseros o agresivos en casa, o crees que las peleas ya venían desde antes?', subtitle: 'Selecciona una opción.', type: 'pills', options: ['Es la única razón (si no tomaran, todo sería paz).', 'Es algo que empeora las discusiones que ya existían desde antes.', 'No tiene nada que ver.', 'Prefiere no responder'], route: 'menor', full: true },
       { id: 'metodo_llamar_atencion', label: 'Cuando los adultos de tu casa se disgustan contigo, ¿qué hacen con más frecuencia?', subtitle: 'Selecciona el método que más usan para llamarte la atención.', type: 'pills', options: ['Hablan conmigo con calma', 'Me gritan o me regañan', 'Me castigan sin golpes (quitan permisos)', 'Me pegan', 'Otro'], route: 'menor', showOther: true, full: true },
-      { id: 'puerta_cerrada', label: 'Los problemas familiares deben resolverse "a puerta cerrada"', subtitle: '¿Qué tan de acuerdo está con esta afirmación?', type: 'pills', options: LIKERT_ACUERDO, route: 'adulto', full: true },
-      { id: 'consumo_causa_violencia', label: 'El consumo de alcohol o SPA es la causa principal de la violencia', subtitle: '¿Qué tan de acuerdo está con esta afirmación?', type: 'pills', options: LIKERT_ACUERDO, route: 'adulto', full: true },
-      { id: 'acuerdo_celos_menor', label: '"Si mi novio o novia me cela y me revisa el celular, es porque me quiere"', subtitle: '¿Qué tan de acuerdo estás con esta frase?', type: 'pills', options: LIKERT_ACUERDO, route: 'menor', full: true },
     ],
   },
   {
