@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Heart, Users, Star, ArrowRight, Newspaper, Calendar, TrendingUp, X, ClipboardList } from 'lucide-react';
+import { ChevronRight, Heart, Users, Star, ArrowRight, Newspaper, Calendar, TrendingUp, X, ClipboardList, Sparkles, ShieldCheck, Lock, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { cn } from '../lib/utils';
@@ -146,31 +146,119 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Encuesta Anónima — abierta a cualquier persona, sin registro */}
-      <section className="py-24 bg-unidas-dark relative">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Encuesta Anónima — apartado premium, abierto a cualquier persona */}
+      <section className="py-28 bg-unidas-dark relative overflow-hidden">
+        {/* Halos decorativos */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute -top-20 -left-32 w-[30rem] h-[30rem] bg-unidas-primary/20 rounded-full blur-[120px]" />
+          <div className="absolute -bottom-32 -right-20 w-[26rem] h-[26rem] bg-unidas-secondary/20 rounded-full blur-[120px]" />
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="rounded-[2.5rem] border border-unidas-primary/30 bg-gradient-to-br from-unidas-primary/15 to-unidas-secondary/5 p-10 lg:p-14 text-center"
+            transition={{ duration: 0.6 }}
+            className="relative rounded-[3rem] p-[1px] bg-gradient-to-br from-unidas-primary/60 via-unidas-secondary/30 to-transparent shadow-2xl shadow-unidas-primary/10"
           >
-            <div className="w-16 h-16 mx-auto mb-6 rounded-3xl bg-unidas-primary/20 border border-unidas-primary/30 flex items-center justify-center text-unidas-primary">
-              <ClipboardList className="w-8 h-8" />
+            <div className="rounded-[3rem] bg-unidas-dark/80 backdrop-blur-2xl overflow-hidden">
+              <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr]">
+                {/* Columna de contenido */}
+                <div className="p-10 lg:p-16">
+                  <div className="inline-flex items-center space-x-2 px-4 py-2 mb-8 rounded-full border border-unidas-primary/40 bg-unidas-primary/10">
+                    <Sparkles className="w-3.5 h-3.5 text-unidas-primary" />
+                    <span className="text-[10px] font-black text-unidas-primary uppercase tracking-[0.2em]">
+                      Participación abierta
+                    </span>
+                  </div>
+
+                  <h2 className="text-4xl lg:text-6xl font-black text-white leading-[1.05] mb-6">
+                    Encuesta{' '}
+                    <span className="bg-gradient-to-r from-unidas-primary to-unidas-secondary bg-clip-text text-transparent">
+                      Anónima
+                    </span>
+                  </h2>
+
+                  <p className="text-white/60 text-lg leading-relaxed mb-10 max-w-xl">
+                    Tu voz construye la localidad. Participa sin registro ni inicio de sesión:
+                    no capturamos datos personales, el sistema genera un código único que
+                    mantiene tus respuestas totalmente anónimas.
+                  </p>
+
+                  {/* Sellos de confianza */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-10">
+                    {[
+                      { icon: Lock, title: 'Sin registro', text: 'No pedimos nombre ni documento' },
+                      { icon: ShieldCheck, title: '100% anónima', text: 'Protegida por la Ley 1581' },
+                      { icon: Clock, title: '10 minutos', text: 'Puedes retomarla después' },
+                    ].map((b) => (
+                      <div
+                        key={b.title}
+                        className="p-4 rounded-2xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] transition-colors"
+                      >
+                        <b.icon className="w-5 h-5 text-unidas-primary mb-3" />
+                        <p className="text-white font-black text-xs uppercase tracking-wider mb-1">{b.title}</p>
+                        <p className="text-white/40 text-[11px] leading-snug">{b.text}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+                    <Link
+                      to="/encuesta-anonima"
+                      className="group inline-flex items-center justify-center space-x-3 bg-gradient-to-r from-unidas-primary to-unidas-secondary text-white px-10 py-5 rounded-2xl font-black uppercase tracking-widest text-sm hover:scale-[1.03] active:scale-95 transition-all shadow-2xl shadow-unidas-primary/30"
+                    >
+                      <span>Realizar Encuesta</span>
+                      <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    </Link>
+                    <p className="text-white/30 text-xs font-medium">
+                      No necesitas cuenta. <br className="hidden sm:block" />
+                      Empiezas en un clic.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Columna visual: tarjeta de registro anónimo */}
+                <div className="relative p-10 lg:p-16 border-t lg:border-t-0 lg:border-l border-white/10 bg-gradient-to-br from-unidas-primary/10 to-transparent flex items-center">
+                  <div className="w-full">
+                    <div className="rounded-[2rem] border border-white/10 bg-unidas-dark/70 p-7 backdrop-blur-xl shadow-2xl">
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="w-12 h-12 rounded-2xl bg-unidas-primary/20 border border-unidas-primary/30 flex items-center justify-center text-unidas-primary">
+                          <ClipboardList className="w-6 h-6" />
+                        </div>
+                        <span className="px-3 py-1 rounded-full bg-green-500/15 border border-green-500/30 text-green-400 text-[9px] font-black uppercase tracking-widest">
+                          Activa
+                        </span>
+                      </div>
+
+                      <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-1">
+                        Tu registro
+                      </p>
+                      <p className="text-2xl font-black text-white mb-6 tracking-tight">E2-••••-••••</p>
+
+                      <div className="space-y-3 border-t border-white/5 pt-5">
+                        {[
+                          ['Datos personales', 'No se capturan'],
+                          ['Perfil', 'Adulto / Menor'],
+                          ['Habeas Data', 'Con consentimiento'],
+                        ].map(([k, v]) => (
+                          <div key={k} className="flex items-center justify-between text-xs">
+                            <span className="text-white/40 font-medium">{k}</span>
+                            <span className="text-white font-bold">{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <p className="mt-6 text-center text-[11px] text-white/30 leading-relaxed">
+                      Los resultados se usan únicamente con fines de análisis comunitario y
+                      diseño de política pública.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
-            <h2 className="text-4xl lg:text-5xl font-black text-white mb-4">Encuesta Anónima</h2>
-            <p className="text-white/60 max-w-2xl mx-auto leading-relaxed mb-10">
-              Cualquier persona puede participar, sin registro ni inicio de sesión. No se
-              capturan datos personales: el sistema genera un código único que mantiene tus
-              respuestas totalmente anónimas.
-            </p>
-            <Link
-              to="/encuesta-anonima"
-              className="inline-flex items-center space-x-3 bg-unidas-primary text-white px-10 py-5 rounded-2xl font-black uppercase tracking-widest text-sm hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-unidas-primary/20"
-            >
-              <span>Realizar Encuesta</span>
-              <ArrowRight className="w-5 h-5" />
-            </Link>
           </motion.div>
         </div>
       </section>

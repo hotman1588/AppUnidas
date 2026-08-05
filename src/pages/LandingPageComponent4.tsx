@@ -1,7 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight, ArrowRight, Newspaper, Calendar,
-  X, Shield, Users, Search, Heart, BookOpen, ClipboardList
+  X, Shield, Users, Search, Heart, BookOpen, ClipboardList,
+  Sparkles, ShieldCheck, Lock, Clock
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
@@ -242,35 +243,137 @@ export default function LandingPageComponent4() {
       </section>
 
       {/* ─── ENCUESTA ANÓNIMA — abierta a cualquier persona, sin registro ──── */}
-      <section className="py-24 relative" style={{ zIndex: 1 }}>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-28 relative overflow-hidden" style={{ zIndex: 1 }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="rounded-[2.5rem] p-10 lg:p-14 text-center text-white"
-            style={{ background: C.navy, border: `1px solid ${C.U}55` }}
+            transition={{ duration: 0.6 }}
+            className="relative rounded-[3rem] overflow-hidden shadow-2xl"
+            style={{ background: C.navy }}
           >
-            <div
-              className="w-16 h-16 mx-auto mb-6 rounded-3xl flex items-center justify-center"
-              style={{ background: `${C.U}25`, color: C.U }}
-            >
-              <ClipboardList className="w-8 h-8" />
+            {/* Halos decorativos */}
+            <div className="absolute inset-0 pointer-events-none opacity-40">
+              <div
+                className="absolute -top-24 -left-24 w-[28rem] h-[28rem] rounded-full blur-[110px]"
+                style={{ background: C.U }}
+              />
+              <div
+                className="absolute -bottom-28 -right-16 w-[24rem] h-[24rem] rounded-full blur-[110px]"
+                style={{ background: C.purple }}
+              />
             </div>
-            <h2 className="text-4xl lg:text-5xl font-black mb-4">Encuesta Anónima</h2>
-            <p className="text-white/60 max-w-2xl mx-auto leading-relaxed mb-10">
-              Cualquier persona puede participar, sin registro ni inicio de sesión. No se
-              capturan datos personales: el sistema genera un código único que mantiene tus
-              respuestas totalmente anónimas.
-            </p>
-            <Link
-              to="/encuesta-anonima"
-              className="inline-flex items-center space-x-3 px-10 py-5 rounded-2xl font-black uppercase tracking-widest text-sm hover:scale-[1.02] active:scale-95 transition-all"
-              style={{ background: C.U, color: '#fff' }}
-            >
-              <span>Realizar Encuesta</span>
-              <ArrowRight className="w-5 h-5" />
-            </Link>
+
+            <div className="relative grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] text-white">
+              {/* Columna de contenido */}
+              <div className="p-10 lg:p-16">
+                <div
+                  className="inline-flex items-center space-x-2 px-4 py-2 mb-8 rounded-full"
+                  style={{ background: `${C.U}20`, border: `1px solid ${C.U}55` }}
+                >
+                  <Sparkles className="w-3.5 h-3.5" style={{ color: C.U }} />
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: C.U }}>
+                    Participación abierta
+                  </span>
+                </div>
+
+                <h2 className="text-4xl lg:text-6xl font-black leading-[1.05] mb-6">
+                  Encuesta <span style={{ color: C.U }}>Anónima</span>
+                </h2>
+
+                <p className="text-white/60 text-lg leading-relaxed mb-10 max-w-xl">
+                  Tu voz construye la localidad. Participa sin registro ni inicio de sesión:
+                  no capturamos datos personales, el sistema genera un código único que
+                  mantiene tus respuestas totalmente anónimas.
+                </p>
+
+                {/* Sellos de confianza */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-10">
+                  {[
+                    { icon: Lock, title: 'Sin registro', text: 'No pedimos nombre ni documento', color: C.blue },
+                    { icon: ShieldCheck, title: '100% anónima', text: 'Protegida por la Ley 1581', color: C.teal },
+                    { icon: Clock, title: '10 minutos', text: 'Puedes retomarla después', color: C.yellow },
+                  ].map((b) => (
+                    <div
+                      key={b.title}
+                      className="p-4 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
+                      style={{ border: '1px solid rgba(255,255,255,0.10)' }}
+                    >
+                      <b.icon className="w-5 h-5 mb-3" style={{ color: b.color }} />
+                      <p className="font-black text-xs uppercase tracking-wider mb-1">{b.title}</p>
+                      <p className="text-white/40 text-[11px] leading-snug">{b.text}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+                  <Link
+                    to="/encuesta-anonima"
+                    className="group inline-flex items-center justify-center space-x-3 px-10 py-5 rounded-2xl font-black uppercase tracking-widest text-sm hover:scale-[1.03] active:scale-95 transition-all shadow-2xl"
+                    style={{ background: C.U, color: '#fff', boxShadow: `0 20px 45px -15px ${C.U}` }}
+                  >
+                    <span>Realizar Encuesta</span>
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                  <p className="text-white/30 text-xs font-medium">
+                    No necesitas cuenta. <br className="hidden sm:block" />
+                    Empiezas en un clic.
+                  </p>
+                </div>
+              </div>
+
+              {/* Columna visual: tarjeta de registro anónimo */}
+              <div
+                className="relative p-10 lg:p-16 flex items-center"
+                style={{ borderLeft: '1px solid rgba(255,255,255,0.10)' }}
+              >
+                <div className="w-full">
+                  <div
+                    className="rounded-[2rem] p-7 backdrop-blur-xl shadow-2xl bg-white/[0.05]"
+                    style={{ border: '1px solid rgba(255,255,255,0.12)' }}
+                  >
+                    <div className="flex items-center justify-between mb-6">
+                      <div
+                        className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                        style={{ background: `${C.U}25`, color: C.U }}
+                      >
+                        <ClipboardList className="w-6 h-6" />
+                      </div>
+                      <span
+                        className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest"
+                        style={{ background: `${C.teal}22`, border: `1px solid ${C.teal}55`, color: C.teal }}
+                      >
+                        Activa
+                      </span>
+                    </div>
+
+                    <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-1">
+                      Tu registro
+                    </p>
+                    <p className="text-2xl font-black mb-6 tracking-tight">E2-••••-••••</p>
+
+                    <div className="space-y-3 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                      {[
+                        ['Datos personales', 'No se capturan'],
+                        ['Perfil', 'Adulto / Menor'],
+                        ['Habeas Data', 'Con consentimiento'],
+                      ].map(([k, v]) => (
+                        <div key={k} className="flex items-center justify-between text-xs">
+                          <span className="text-white/40 font-medium">{k}</span>
+                          <span className="font-bold">{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <p className="mt-6 text-center text-[11px] text-white/30 leading-relaxed">
+                    Los resultados se usan únicamente con fines de análisis comunitario y
+                    diseño de política pública.
+                  </p>
+                </div>
+              </div>
+            </div>
           </motion.div>
         </div>
       </section>
