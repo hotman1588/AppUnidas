@@ -19,7 +19,6 @@ import AnalystDashboard from './pages/AnalystDashboard';
 import NewsPage from './pages/NewsPage';
 import PublicSurveyTwoPage from './pages/PublicSurveyTwoPage';
 import Footer from './components/Footer';
-import SessionExpiredNotice from './components/SessionExpiredNotice';
 
 function PrivateRoute({ children, role }: { children: React.ReactNode, role?: string }) {
   const { user, loading } = useAuthStore();
@@ -56,7 +55,6 @@ export default function App() {
   return (
     <Router>
       <div className="flex flex-col min-h-screen">
-        <SessionExpiredNotice />
         <Navbar />
         <main className="flex-grow">
           <Routes>
