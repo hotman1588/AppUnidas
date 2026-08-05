@@ -9,7 +9,7 @@ import { cn } from '../lib/utils';
 import {
   MODULES, BARRIO_TO_UPL, ALL_BARRIOS, ALL_UPLS,
   ENTRY_BUTTONS, CONSENT, ASSENT_MENOR, CLOSURE_MESSAGE, generateRegistroCodigo,
-  isVisibleForRoute, type Question as QDef, type ModuleDef, type Perfil
+  isVisibleForRoute, opensOther, type Question as QDef, type ModuleDef, type Perfil
 } from '../lib/surveyTwoSchema';
 
 const ICONS: Record<string, any> = { User, Users, Shield, HeartPulse, Star, FileText, UserCheck, Baby };
@@ -22,7 +22,9 @@ interface SurveyTwoModalProps {
   submitEndpoint?: string;
 }
 
-const PERSISTENCE_KEY = 'encuesta_dos_draft';
+// v2: cambió el set de opciones de las preguntas 2, 4, 5 y 6; los borradores
+// guardados con el esquema anterior ya no son válidos y se descartan.
+const PERSISTENCE_KEY = 'encuesta_dos_draft_v2';
 const TIMER_KEY = 'encuesta_dos_started_at';
 
 // Fases del flujo:
@@ -154,8 +156,7 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
       if (id === 'barrio') next.zona = BARRIO_TO_UPL[value] || '';
       MODULES.forEach(m => m.questions.forEach(q => {
         if (q.conditional && q.id === id && value !== q.conditional.on) delete next[q.conditional.targetId];
-        if (q.showOther && q.id === id && !q.multi && value !== 'Otro' && value !== 'Otra') delete next[`${q.id}_otro`];
-        if (q.showOther && q.id === id && q.multi && Array.isArray(value) && !value.includes('Otro') && !value.includes('Otra')) delete next[`${q.id}_otro`];
+        if (q.showOther && q.id === id && !opensOther(q, value)) delete next[`${q.id}_otro`];
       }));
       return next;
     });
@@ -165,11 +166,17 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
   const toggleCheckbox = (q: QDef, opt: string) => {
     setAnswers((prev: any) => {
       const cur: string[] = prev[q.id] || [];
+      const exclusives = q.exclusiveOptions || [];
       let updated: string[];
       if (cur.includes(opt)) updated = cur.filter(v => v !== opt);
-      else {
-        if (q.maxSelect && cur.length >= q.maxSelect) return prev;
-        updated = [...cur, opt];
+      else if (exclusives.includes(opt)) {
+        // Opción excluyente (ej. "Prefiero no responder"): descarta el resto.
+        updated = [opt];
+      } else {
+        // Cualquier otra opción desmarca las excluyentes.
+        const base = cur.filter(v => !exclusives.includes(v));
+        if (q.maxSelect && base.length >= q.maxSelect) return prev;
+        updated = [...base, opt];
       }
       return { ...prev, [q.id]: updated };
     });
@@ -190,7 +197,7 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
       const empty = q.multi ? (!Array.isArray(val) || val.length === 0) : (!val || (typeof val === 'string' && !val.trim()));
       if (q.required !== false && empty) missing.push(q.id);
       if (q.showOther) {
-        const sel = q.multi ? Array.isArray(val) && (val.includes('Otro') || val.includes('Otra')) : (val === 'Otro' || val === 'Otra');
+        const sel = opensOther(q, val);
         const other = answers[`${q.id}_otro`];
         if (sel && (!other || !other.trim()) && !missing.includes(q.id)) missing.push(q.id);
       }
@@ -575,32 +582,36 @@ function DateSplit({ value, onChange }: any) {
 
 function QuestionField({ q, answers, error, onValue, onToggle }: any) {
   const val = answers[q.id];
-  const selectedOther = q.multi ? (Array.isArray(val) && (val.includes('Otro') || val.includes('Otra'))) : (val === 'Otro' || val === 'Otra');
+  const selectedOther = opensOther(q, val);
   const showConditional = q.conditional && val === q.conditional.on;
 
   return (
     <Card label={q.label} subtitle={q.subtitle} error={error} className={cn(q.full && 'md:col-span-2')}>
+      {/* Pills: una sola columna cuando hay muchas opciones o etiquetas largas,
+          para que el texto no quede truncado. */}
       {q.type === 'pills' && (
-        <div className={cn('grid gap-1', (q.options?.length || 0) > 4 ? 'grid-cols-1' : 'grid-cols-2')}>
+        <div className={cn('grid gap-1',
+          (q.options?.length || 0) > 4 || q.options?.some((o: string) => o.length > 24) ? 'grid-cols-1' : 'grid-cols-2')}>
           {q.options!.map((opt: string) => (
             <button key={opt} type="button" onClick={() => onValue(q.id, opt)}
               className={cn('py-1.5 px-2 rounded-lg text-[11px] font-bold border text-left flex items-center space-x-1.5 transition-all', val === opt ? 'bg-unidas-primary/20 border-unidas-primary text-unidas-primary' : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10')}>
               <span className={cn('w-2.5 h-2.5 rounded-full border shrink-0', val === opt ? 'border-unidas-primary bg-unidas-primary' : 'border-white/10')} />
-              <span className="truncate">{opt}</span>
+              <span className="leading-snug">{opt}</span>
             </button>
           ))}
         </div>
       )}
 
       {q.type === 'checkbox-group' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+        <div className={cn('grid gap-1.5',
+          q.options?.some((o: string) => o.length > 40) ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2')}>
           {q.options!.map((opt: string) => {
             const checked = Array.isArray(val) && val.includes(opt);
             const blocked = !checked && q.maxSelect && Array.isArray(val) && val.length >= q.maxSelect;
             return (
               <label key={opt} className={cn('flex items-center space-x-2 p-2 rounded-lg border text-[11px] font-bold transition-all cursor-pointer', checked ? 'bg-unidas-primary/10 border-unidas-primary text-unidas-primary' : blocked ? 'bg-white/5 border-white/5 text-white/20 cursor-not-allowed' : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10')}>
-                <input type="checkbox" checked={checked} disabled={!!blocked} onChange={() => onToggle(q, opt)} className="w-3.5 h-3.5 rounded accent-unidas-primary" />
-                <span className="truncate">{opt}</span>
+                <input type="checkbox" checked={checked} disabled={!!blocked} onChange={() => onToggle(q, opt)} className="w-3.5 h-3.5 rounded accent-unidas-primary shrink-0" />
+                <span className="leading-snug">{opt}</span>
               </label>
             );
           })}
@@ -627,10 +638,11 @@ function QuestionField({ q, answers, error, onValue, onToggle }: any) {
         <input value={val || ''} onChange={(e) => onValue(q.id, e.target.value)} className="w-full px-2 py-2 bg-white/5 border border-white/5 focus:border-unidas-primary rounded-lg outline-none font-bold text-white text-xs" />
       )}
 
+      {/* Caja de texto abierta, sin límite de caracteres. */}
       {q.showOther && selectedOther && (
-        <motion.input initial={{ opacity: 0 }} animate={{ opacity: 1 }} type="text" placeholder="Especifique..."
+        <motion.textarea initial={{ opacity: 0 }} animate={{ opacity: 1 }} rows={2} placeholder="Especifique..."
           value={answers[`${q.id}_otro`] || ''} onChange={(e) => onValue(`${q.id}_otro`, e.target.value)}
-          className="mt-2 w-full px-2 py-1.5 bg-white/5 border border-unidas-primary/30 focus:border-unidas-primary rounded-lg outline-none font-bold text-white text-[11px]" />
+          className="mt-2 w-full px-2 py-1.5 bg-white/5 border border-unidas-primary/30 focus:border-unidas-primary rounded-lg outline-none font-bold text-white text-[11px] resize-y" />
       )}
 
       {showConditional && (

@@ -162,6 +162,12 @@ export interface Question {
   multi?: boolean;          // checkbox múltiple
   maxSelect?: number;       // límite de selecciones
   showOther?: boolean;      // habilita caja "Otro/Otra"
+  // Opciones que disparan la caja abierta cuando su etiqueta no es 'Otro'/'Otra'
+  // (ej. 'No binario / Otro'). Si se omite, se usan 'Otro' y 'Otra'.
+  otherOn?: string[];
+  // Opciones excluyentes en preguntas múltiples: al marcarlas se desmarcan las
+  // demás, y al marcar cualquier otra se desmarcan estas.
+  exclusiveOptions?: string[];
   full?: boolean;           // ocupa fila completa
   // Caja de texto condicional que se abre cuando el valor del padre === on
   conditional?: { on: string; targetId: string; placeholder: string };
@@ -185,11 +191,17 @@ export const MODULES: ModuleDef[] = [
     questions: [
       { id: 'barrio', label: '¿En qué barrio reside de manera permanente?', subtitle: 'Se asigna automáticamente la UPL correspondiente.', type: 'select', options: ALL_BARRIOS, route: 'ambos', full: true },
       { id: 'zona', label: 'Zona (UPL)', subtitle: 'Detectada automáticamente a partir del barrio.', type: 'select', options: ALL_UPLS, route: 'ambos', required: false },
-      { id: 'genero', label: 'Género / Identidad de género', subtitle: '¿Con cuál género se identifica?', type: 'pills', options: ['Femenino', 'Masculino', 'No binario', 'Otro', 'Prefiere no responder'], route: 'ambos', showOther: true },
+      { id: 'genero', label: '2. Sexo con el que se identifica', subtitle: 'Seleccione una opción.', type: 'pills', options: ['Masculino', 'Femenino', 'No binario / Otro', 'Prefiero no responder'], route: 'ambos', showOther: true, otherOn: ['No binario / Otro'] },
       { id: 'fecha_nacimiento', label: 'Fecha de nacimiento', subtitle: 'Día, mes y año.', type: 'date-split', route: 'ambos', full: true },
-      { id: 'nivel_educativo', label: 'Nivel educativo más alto alcanzado', subtitle: '¿Cuál es el nivel educativo más alto que ha alcanzado?', type: 'pills', options: ['Ninguno', 'Primaria', 'Secundaria', 'Técnico / Tecnológico', 'Universitario', 'Posgrado'], route: 'adulto' },
-      { id: 'anio_escolar', label: '¿Qué año escolar cursas actualmente?', subtitle: 'Selecciona el grado que estás cursando.', type: 'pills', options: ['Preescolar', 'Primaria (1° a 5°)', 'Secundaria (6° a 9°)', 'Media (10° a 11°)', 'No estudio actualmente'], route: 'menor' },
-      { id: 'composicion_hogar', label: '¿Cómo está compuesto su hogar principalmente?', subtitle: 'Seleccione la opción que mejor describe su hogar.', type: 'pills', options: ['Unipersonal (vive sola/o)', 'Nuclear (padres e hijos)', 'Monoparental (un solo padre/madre con hijos)', 'Extensa (con abuelos, tíos u otros familiares)', 'Recompuesta (pareja con hijos de relaciones anteriores)', 'Otro'], route: 'adulto', showOther: true, full: true },
+      // P4 — condicionada por edad: nivel alcanzado (adulto) / año en curso (menor).
+      { id: 'nivel_educativo', label: '4. ¿Cuál es el nivel educativo más alto que ha alcanzado?', subtitle: 'Seleccione una opción.', type: 'pills', options: ['Primaria completa / incompleta', 'Bachillerato completo / incompleto', 'Técnico o Tecnológico', 'Universitario o Posgrado', 'Ninguno'], route: 'adulto' },
+      { id: 'anio_escolar', label: '4. ¿Qué año escolar estás cursando actualmente?', subtitle: 'Selecciona una opción.', type: 'pills', options: ['No estoy estudiando', 'Primaria', 'Secundaria', 'Bachillerato', 'Ya me gradué del colegio'], route: 'menor' },
+      // P5 — selección múltiple con opción excluyente.
+      { id: 'composicion_hogar', label: '5. ¿Cómo está compuesto su hogar principalmente?', subtitle: 'Puede seleccionar varias opciones.', type: 'checkbox-group', multi: true, options: ['Vivo solo o sola.', 'Vivo únicamente con mi pareja.', 'Vivo con mis padres y hermanos.', 'Vivo con mis padres.', 'Soy mamá o papá soltero/a y vivo solo con mis hijos.', 'Vivo con mi pareja y con nuestros hijos.', 'Vivimos en familia grande (con abuelos, tíos, primos u otros familiares bajo el mismo techo).', 'Vivo con amigos, conocidos o compañeros de arriendo/vivienda.', 'Prefiero no responder'], exclusiveOptions: ['Prefiero no responder'], route: 'ambos', full: true },
+      // P6 — condicionada por edad: habitaciones del hogar (adulto) / con cuántas
+      // personas comparte el cuarto donde duerme (menor).
+      { id: 'habitaciones_dormir', label: '6. Sin contar la sala, la cocina o el baño, ¿en cuántas habitaciones o cuartos de la vivienda duermen las personas que componen su hogar?', subtitle: 'Seleccione una opción.', type: 'pills', options: ['En 1 habitación.', 'En 2 habitaciones.', 'En 3 habitaciones o más.', 'Prefiere no responder.'], route: 'adulto', full: true },
+      { id: 'comparte_habitacion', label: '6. ¿Con cuántas personas compartes la habitación o el cuarto donde duermes por las noches?', subtitle: 'Selecciona una opción.', type: 'pills', options: ['No la comparto, duermo solo/a.', 'La comparto con 1 o 2 personas.', 'La comparto con 3 o más personas.', 'Prefiero no responder.'], route: 'menor', full: true },
     ],
   },
   {
@@ -234,6 +246,19 @@ export const MODULES: ModuleDef[] = [
 ];
 
 // Devuelve true si la pregunta debe mostrarse para el perfil dado.
+// Opciones que abren la caja de texto abierta de una pregunta. Por defecto
+// 'Otro'/'Otra'; 'otherOn' permite etiquetas propias (ej. 'No binario / Otro').
+export function otherTriggers(q: Question): string[] {
+  return q.otherOn && q.otherOn.length ? q.otherOn : ['Otro', 'Otra'];
+}
+
+// ¿El valor seleccionado (único o múltiple) abre la caja "Otro"?
+export function opensOther(q: Question, value: any): boolean {
+  if (!q.showOther) return false;
+  const triggers = otherTriggers(q);
+  return Array.isArray(value) ? value.some(v => triggers.includes(v)) : triggers.includes(value);
+}
+
 export function isVisibleForRoute(route: Route, perfil: Perfil): boolean {
   if (route === 'ambos') return true;
   return route === perfil;
