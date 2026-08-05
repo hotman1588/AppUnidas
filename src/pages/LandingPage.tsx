@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Heart, Users, Star, ArrowRight, Newspaper, Calendar, TrendingUp, X } from 'lucide-react';
+import { ChevronRight, Heart, Users, Star, ArrowRight, Newspaper, Calendar, TrendingUp, X, ClipboardList } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { cn } from '../lib/utils';
@@ -143,6 +143,35 @@ export default function LandingPage() {
               </motion.div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Encuesta Anónima — abierta a cualquier persona, sin registro */}
+      <section className="py-24 bg-unidas-dark relative">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="rounded-[2.5rem] border border-unidas-primary/30 bg-gradient-to-br from-unidas-primary/15 to-unidas-secondary/5 p-10 lg:p-14 text-center"
+          >
+            <div className="w-16 h-16 mx-auto mb-6 rounded-3xl bg-unidas-primary/20 border border-unidas-primary/30 flex items-center justify-center text-unidas-primary">
+              <ClipboardList className="w-8 h-8" />
+            </div>
+            <h2 className="text-4xl lg:text-5xl font-black text-white mb-4">Encuesta Anónima</h2>
+            <p className="text-white/60 max-w-2xl mx-auto leading-relaxed mb-10">
+              Cualquier persona puede participar, sin registro ni inicio de sesión. No se
+              capturan datos personales: el sistema genera un código único que mantiene tus
+              respuestas totalmente anónimas.
+            </p>
+            <Link
+              to="/encuesta-anonima"
+              className="inline-flex items-center space-x-3 bg-unidas-primary text-white px-10 py-5 rounded-2xl font-black uppercase tracking-widest text-sm hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-unidas-primary/20"
+            >
+              <span>Realizar Encuesta</span>
+              <ArrowRight className="w-5 h-5" />
+            </Link>
+          </motion.div>
         </div>
       </section>
 

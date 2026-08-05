@@ -8,6 +8,9 @@ import { installSessionGuard, SESSION_EXPIRED_EVENT } from '../lib/sessionGuard'
  * Aviso bloqueante cuando el token expiró: el recolector debe desconectarse y
  * volver a entrar. Los borradores de encuesta viven en localStorage y NO se
  * borran aquí, así que al reingresar el formulario sigue con sus respuestas.
+ *
+ * Solo aplica a sesiones reales: un visitante sin sesión (landing, encuesta
+ * anónima pública) nunca ve este aviso, aunque alguna llamada responda 401/403.
  */
 export default function SessionExpiredNotice() {
   const [visible, setVisible] = useState(false);
@@ -15,7 +18,11 @@ export default function SessionExpiredNotice() {
 
   useEffect(() => {
     installSessionGuard();
-    const onExpired = () => setVisible(true);
+    const onExpired = () => {
+      const { user, token } = useAuthStore.getState();
+      const hasSession = !!user && !!token;
+      if (hasSession) setVisible(true);
+    };
     window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
   }, []);

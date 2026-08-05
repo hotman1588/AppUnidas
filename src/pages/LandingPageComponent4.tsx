@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight, ArrowRight, Newspaper, Calendar,
-  X, Shield, Users, Search, Heart, BookOpen
+  X, Shield, Users, Search, Heart, BookOpen, ClipboardList
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
@@ -238,6 +238,40 @@ export default function LandingPageComponent4() {
               </motion.div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ─── ENCUESTA ANÓNIMA — abierta a cualquier persona, sin registro ──── */}
+      <section className="py-24 relative" style={{ zIndex: 1 }}>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="rounded-[2.5rem] p-10 lg:p-14 text-center text-white"
+            style={{ background: C.navy, border: `1px solid ${C.U}55` }}
+          >
+            <div
+              className="w-16 h-16 mx-auto mb-6 rounded-3xl flex items-center justify-center"
+              style={{ background: `${C.U}25`, color: C.U }}
+            >
+              <ClipboardList className="w-8 h-8" />
+            </div>
+            <h2 className="text-4xl lg:text-5xl font-black mb-4">Encuesta Anónima</h2>
+            <p className="text-white/60 max-w-2xl mx-auto leading-relaxed mb-10">
+              Cualquier persona puede participar, sin registro ni inicio de sesión. No se
+              capturan datos personales: el sistema genera un código único que mantiene tus
+              respuestas totalmente anónimas.
+            </p>
+            <Link
+              to="/encuesta-anonima"
+              className="inline-flex items-center space-x-3 px-10 py-5 rounded-2xl font-black uppercase tracking-widest text-sm hover:scale-[1.02] active:scale-95 transition-all"
+              style={{ background: C.U, color: '#fff' }}
+            >
+              <span>Realizar Encuesta</span>
+              <ArrowRight className="w-5 h-5" />
+            </Link>
+          </motion.div>
         </div>
       </section>
 

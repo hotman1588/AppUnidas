@@ -17,6 +17,7 @@ import SurveyWizard from './pages/SurveyWizard';
 import AdminDashboard from './pages/AdminDashboard';
 import AnalystDashboard from './pages/AnalystDashboard';
 import NewsPage from './pages/NewsPage';
+import PublicSurveyTwoPage from './pages/PublicSurveyTwoPage';
 import Footer from './components/Footer';
 import SessionExpiredNotice from './components/SessionExpiredNotice';
 
@@ -67,6 +68,9 @@ export default function App() {
             <Route path="/news" element={<NewsPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+
+            {/* Encuesta Dos abierta al público: sin sesión ni restricción. */}
+            <Route path="/encuesta-anonima" element={<PublicSurveyTwoPage />} />
             
             <Route path="/dashboard" element={
               <PrivateRoute role="user">

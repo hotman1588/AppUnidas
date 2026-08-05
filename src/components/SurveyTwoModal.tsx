@@ -231,7 +231,10 @@ export function SurveyTwoModal({ isOpen, onClose, onSuccess, token, submitEndpoi
     try {
       const res = await fetch(submitEndpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        // Sin token (diligenciamiento público) no se envía cabecera de autorización.
+        headers: token
+          ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+          : { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           registro: {
             registro_codigo: registroCodigo,

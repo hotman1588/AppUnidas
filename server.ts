@@ -1360,6 +1360,13 @@ app.post('/api/analyst/encuesta-dos', authenticateToken, isAdmin, async (req: an
   return saveEncuestaDosResponse(req, res, req.user?.name || null, req.user?.id || null);
 });
 
+// Diligenciamiento PÚBLICO de la Encuesta Dos (apartado "Encuesta Anónima" de la
+// landing). Sin autenticación: cualquier persona puede responder. Escribe en el
+// mismo esquema aislado encuesta_dos.responses.
+app.post('/api/public/encuesta-dos', async (req: any, res: any) => {
+  return saveEncuestaDosResponse(req, res, 'Autodiligenciada (pública)', null);
+});
+
 app.get('/api/analyst/encuesta-dos', authenticateToken, isAdmin, async (_req: any, res: any) => {
   try {
     await ensureEncuestaDosSchema();
