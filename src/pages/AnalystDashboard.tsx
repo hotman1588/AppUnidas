@@ -9,6 +9,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { cn } from '../lib/utils';
 
 import { DocumentViewer } from '../components/DocumentViewer';
+import { DocumentValidator } from '../components/DocumentValidator';
 import { PresentialSurveyModal } from '../components/PresentialSurveyModal';
 import { SurveyTwoModal } from '../components/SurveyTwoModal';
 
@@ -318,6 +319,21 @@ export default function AnalystDashboard() {
             </div>
           )}
         </div>
+
+        {/* Validación de cédula sobre la encuesta activa. Permite consultar si
+            un documento ya fue registrado sin tener que abrir la encuesta. */}
+        {activeTab === 'surveys' && (
+          <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/40">
+            <div className="max-w-2xl">
+              <DocumentValidator
+                surveyId={activeSurvey}
+                token={token}
+                theme="light"
+                label={`Validación de Cédula — Encuesta ${activeSurvey === 'dos' ? 'Dos' : 'Uno'}`}
+              />
+            </div>
+          </div>
+        )}
 
         {activeTab === 'surveys' ? (
           <div className="overflow-x-auto">
