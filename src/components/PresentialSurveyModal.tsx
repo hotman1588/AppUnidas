@@ -9,6 +9,7 @@ import {
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { DocumentViewer } from './DocumentViewer';
+import { DocumentValidator, type ValidationResult } from './DocumentValidator';
 
 interface PresentialSurveyModalProps {
   isOpen: boolean;
@@ -142,6 +143,11 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
 
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
+  // Resultado de la validación de cédula contra la Encuesta Uno. Si la cédula ya
+  // fue registrada, se bloquea el avance y el envío del formulario.
+  const [docValidation, setDocValidation] = useState<ValidationResult | null>(null);
+  const isDocumentDuplicated = !!(docValidation?.applicable && docValidation.exists);
+
   // Auto-mapping UPL
   useEffect(() => {
     if (answers.socio?.barrio) {
@@ -254,6 +260,7 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       documentos: {}
     });
     setBirthDate({ day: '', month: '', year: '' });
+    setDocValidation(null);
     setCurrentStep(0);
     setHabeasAccepted(false);
     setHasViewedHabeas(false);
@@ -541,6 +548,13 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
   };
 
   const nextStep = () => {
+    // Bloqueo por cédula duplicada: se detiene en el paso de identidad para no
+    // dejar avanzar con un documento que ya completó la encuesta.
+    if (currentStep === 0 && isDocumentDuplicated) {
+      setError('Esta cédula ya completó esta encuesta. No es posible continuar.');
+      setShowErrorPopup(true);
+      return;
+    }
     if (validateStep()) {
       setCurrentStep(prev => prev + 1);
     } else {
@@ -567,6 +581,16 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       setShowErrorPopup(true);
       return;
     }
+
+    // Segunda barrera en cliente: si la validación ya marcó duplicado, no se
+    // envía. La barrera definitiva es el 409 del servidor, tratado más abajo.
+    if (isDocumentDuplicated) {
+      setError('Esta cédula ya completó esta encuesta. No es posible registrarla de nuevo.');
+      setCurrentStep(0);
+      setShowErrorPopup(true);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -588,6 +612,24 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
       });
       
       const data = await res.json();
+
+      // El servidor rechazó por cédula ya registrada en esta encuesta. Se
+      // devuelve al recolector al paso de identidad con el formulario bloqueado.
+      if (res.status === 409 && data?.code === 'DUPLICATE_DOCUMENT') {
+        setDocValidation({
+          survey: 'uno',
+          applicable: true,
+          exists: true,
+          document_number: userData.document_number.replace(/\D/g, '').replace(/^0+(?=\d)/, ''),
+          message: 'Esta cédula ya completó esta encuesta',
+          record: data.record
+        });
+        setCurrentStep(0);
+        setError('Esta cédula ya completó esta encuesta. El registro no se guardó.');
+        alert('Esta cédula ya completó esta encuesta. El registro no se guardó.');
+        return;
+      }
+
       if (!res.ok) throw new Error(data.error || 'Error al guardar');
 
       // Informar al recolector el estado resultante según los documentos cargados.
@@ -676,6 +718,26 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
                   <QuestionInput label="Celular" name="phone" value={userData.phone} onChange={handleUserChange} />
                   <QuestionInput label="Correo Electrónico" type="email" name="email" value={userData.email} onChange={handleUserChange} />
                   <QuestionInput label="Definir Contraseña (PIN)" type="password" name="password" value={userData.password} onChange={handleUserChange} error={validationErrors.includes('password')} className="md:col-span-2" />
+                </div>
+
+                {/* Validación de cédula: obligatoria antes de continuar. Evita
+                    diligenciar una encuesta completa que el servidor rechazaría
+                    por duplicidad al final. */}
+                <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6">
+                  <DocumentValidator
+                    surveyId="uno"
+                    token={token}
+                    value={userData.document_number}
+                    onValueChange={(v) => setUserData(prev => ({ ...prev, document_number: v }))}
+                    onResult={setDocValidation}
+                    theme="dark"
+                    label="Validación de Cédula — Encuesta Uno"
+                  />
+                  {isDocumentDuplicated && (
+                    <p className="mt-3 text-xs font-bold text-red-400">
+                      El formulario está bloqueado. No es posible registrar una encuesta duplicada para esta cédula.
+                    </p>
+                  )}
                 </div>
               </motion.div>
             )}
@@ -1479,17 +1541,18 @@ export function PresentialSurveyModal({ isOpen, onClose, onSuccess, token }: Pre
           
           <div className="flex space-x-3">
             {currentStep < 7 ? (
-              <button 
+              <button
                 onClick={nextStep}
-                className="bg-unidas-primary text-white px-8 py-3 rounded-2xl font-black flex items-center space-x-2 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-unidas-primary/20 uppercase tracking-widest text-xs"
+                disabled={currentStep === 0 && isDocumentDuplicated}
+                className="bg-unidas-primary text-white px-8 py-3 rounded-2xl font-black flex items-center space-x-2 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-unidas-primary/20 uppercase tracking-widest text-xs disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 <span>Siguiente</span>
                 <ChevronRight className="w-5 h-5" />
               </button>
             ) : (
-              <button 
-                onClick={handleSubmit} disabled={loading}
-                className="bg-green-500 text-white px-10 py-4 rounded-2xl font-black flex items-center space-x-3 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-green-500/20 disabled:opacity-50 uppercase tracking-widest text-xs"
+              <button
+                onClick={handleSubmit} disabled={loading || isDocumentDuplicated}
+                className="bg-green-500 text-white px-10 py-4 rounded-2xl font-black flex items-center space-x-3 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-widest text-xs"
               >
                 {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save className="w-6 h-6" />}
                 <span>Finalizar y Aprobar</span>

@@ -19,6 +19,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { cn } from '../lib/utils';
 import * as XLSX from 'xlsx';
 import { DocumentViewer } from '../components/DocumentViewer';
+import { DocumentValidator } from '../components/DocumentValidator';
 import { SURVEY_QUESTIONS } from '../lib/surveyQuestions';
 import { MODULES as ENCUESTA_DOS_MODULES } from '../lib/surveyTwoSchema';
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
@@ -1385,9 +1386,21 @@ export default function AdminDashboard() {
 
           {activeTab === 'caracterizacion' && (
             <div className="bg-white/5 rounded-[4rem] border border-white/10 backdrop-blur-xl overflow-hidden shadow-2xl">
-              <div className="p-12 border-b border-white/10">
-                <h3 className="text-3xl font-black text-white mb-2">Encuesta Social</h3>
-                <p className="text-white/30 font-medium italic">Consolidado de cuidadoras identificadas</p>
+              <div className="p-12 border-b border-white/10 space-y-8">
+                <div>
+                  <h3 className="text-3xl font-black text-white mb-2">Encuesta Social</h3>
+                  <p className="text-white/30 font-medium italic">Consolidado de cuidadoras identificadas</p>
+                </div>
+                {/* Consulta de cédula sobre la encuesta activa. En el panel de
+                    administración es solo informativa: no bloquea nada. */}
+                <div className="max-w-2xl">
+                  <DocumentValidator
+                    surveyId={activeSurvey}
+                    token={token}
+                    theme="dark"
+                    label={`Validación de Cédula — Encuesta ${activeSurvey === 'dos' ? 'Dos' : 'Uno'}`}
+                  />
+                </div>
               </div>
               <div className="overflow-x-auto px-6 pb-6">
                 <table className="w-full text-left">

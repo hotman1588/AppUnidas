@@ -748,6 +748,110 @@ app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
   res.json(r.rows);
 });
 
+// ============================================================================
+// VALIDACIÓN DE CÉDULA POR ENCUESTA
+// ============================================================================
+// Normaliza la cédula para que la comparación no falle por espacios, puntos o
+// ceros a la izquierda ("1.020.304" y "1020304" son la misma persona).
+const normalizeDocumentNumber = (raw: unknown): string => {
+  const digits = String(raw ?? '').replace(/\D/g, '');
+  return digits.replace(/^0+(?=\d)/, '');
+};
+
+// Comprueba si una cédula ya tiene encuesta registrada en la encuesta indicada.
+// Devuelve el registro previo (sin datos sensibles) para que la interfaz pueda
+// explicar quién y cuándo la diligenció.
+const findExistingSurveyOneByDocument = async (documentNumber: string) => {
+  const normalized = normalizeDocumentNumber(documentNumber);
+  if (!normalized) return null;
+
+  // La normalización se aplica también al dato almacenado, porque hay registros
+  // históricos guardados con puntos o espacios.
+  const r = await pool.query(
+    `SELECT u.id AS user_id, u.full_name, u.document_number,
+            s.id AS survey_id, s.status, s.created_at, s.updated_at, s.analyst_name
+       FROM users u
+       JOIN surveys s ON s.user_id = u.id
+      WHERE regexp_replace(regexp_replace(u.document_number, '\\D', '', 'g'), '^0+(?=[0-9])', '') = $1
+        AND s.status <> 'pending_start'
+      ORDER BY s.updated_at DESC
+      LIMIT 1`,
+    [normalized]
+  );
+  return r.rows[0] || null;
+};
+
+const SURVEY_STATUS_LABELS: Record<string, string> = {
+  pending: 'Pendiente por revisar',
+  approved: 'Aprobada',
+  rejected: 'Devuelta para corrección',
+  rejected_final: 'Rechazada'
+};
+
+// GET /api/surveys/:surveyId/validate-document?document_number=123
+// Accesible para Administrador y Recolector (role 'analyst'), vía isAdmin.
+app.get('/api/surveys/:surveyId/validate-document', authenticateToken, isAdmin, async (req: any, res: any) => {
+  const surveyId = String(req.params.surveyId || '').toLowerCase();
+  const raw = req.query.document_number;
+  const normalized = normalizeDocumentNumber(raw);
+
+  if (!['uno', 'dos'].includes(surveyId)) {
+    return res.status(400).json({ error: "Encuesta no válida. Use 'uno' o 'dos'." });
+  }
+  if (!normalized) {
+    return res.status(400).json({ error: 'Debe ingresar un número de cédula válido.' });
+  }
+
+  try {
+    // La Encuesta Dos es de registro anónimo (registro_codigo + perfil): no
+    // almacena cédulas, por lo que no es posible validar duplicados en ella.
+    // Se responde explícitamente "no aplica" en vez de un falso "disponible".
+    if (surveyId === 'dos') {
+      return res.json({
+        survey: 'dos',
+        applicable: false,
+        exists: false,
+        document_number: normalized,
+        message: 'La Encuesta Dos es de registro anónimo y no almacena cédulas, por lo que no puede validarse duplicidad.'
+      });
+    }
+
+    await ensureHabeasTrace();
+    const existing = await findExistingSurveyOneByDocument(normalized);
+
+    if (existing) {
+      return res.json({
+        survey: 'uno',
+        applicable: true,
+        exists: true,
+        document_number: normalized,
+        message: 'Esta cédula ya completó esta encuesta',
+        record: {
+          survey_id: existing.survey_id,
+          user_id: existing.user_id,
+          full_name: existing.full_name,
+          status: existing.status,
+          status_label: SURVEY_STATUS_LABELS[existing.status] || existing.status,
+          analyst_name: existing.analyst_name,
+          created_at: existing.created_at,
+          updated_at: existing.updated_at
+        }
+      });
+    }
+
+    return res.json({
+      survey: 'uno',
+      applicable: true,
+      exists: false,
+      document_number: normalized,
+      message: 'Cédula disponible / Sin registros previos'
+    });
+  } catch (err: any) {
+    console.error('Error validando cédula:', err.message);
+    res.status(500).json({ error: 'No se pudo validar la cédula. Intente nuevamente.' });
+  }
+});
+
 app.get('/api/admin/surveys', authenticateToken, isAdmin, async (req, res) => {
   try {
     await ensureHabeasTrace();
@@ -1229,6 +1333,31 @@ app.post('/api/analyst/register-complete-characterization', authenticateToken, i
   }
 
   await ensureHabeasTrace();
+
+  // Guardia anti-duplicados del lado del servidor. La validación del frontend es
+  // una ayuda de usabilidad, no una garantía: sin esta comprobación el UPSERT de
+  // más abajo sobrescribiría en silencio una encuesta ya diligenciada.
+  // El Administrador puede forzar la sobrescritura (corrección de un registro);
+  // el Recolector no.
+  const forceOverwrite = req.body?.force_overwrite === true && req.user?.role === 'admin';
+  if (!forceOverwrite) {
+    const duplicate = await findExistingSurveyOneByDocument(user.document_number);
+    if (duplicate) {
+      return res.status(409).json({
+        error: 'Esta cédula ya completó esta encuesta',
+        code: 'DUPLICATE_DOCUMENT',
+        record: {
+          survey_id: duplicate.survey_id,
+          full_name: duplicate.full_name,
+          status: duplicate.status,
+          status_label: SURVEY_STATUS_LABELS[duplicate.status] || duplicate.status,
+          analyst_name: duplicate.analyst_name,
+          updated_at: duplicate.updated_at
+        }
+      });
+    }
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
