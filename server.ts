@@ -16,8 +16,17 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Storage for Vercel
-const uploadsDir = '/tmp/uploads';
+// Carpeta de soportes. En Vercel el unico punto escribible es /tmp; en local se
+// usa ./uploads dentro del proyecto para que los archivos persistan entre
+// reinicios y puedan extraerse con `npm run export:encuesta-uno`.
+const PROJECT_UPLOADS = path.join(process.cwd(), 'uploads');
+const TMP_UPLOADS = '/tmp/uploads';
+const uploadsDir = process.env.UPLOADS_DIR || (process.env.VERCEL ? TMP_UPLOADS : PROJECT_UPLOADS);
+
+// Rutas donde buscar un soporte al leerlo (la activa primero, luego las otras
+// por compatibilidad con archivos guardados antes de este cambio).
+const DOC_SEARCH_DIRS = Array.from(new Set([uploadsDir, PROJECT_UPLOADS, TMP_UPLOADS]));
+
 if (!fs.existsSync(uploadsDir)) {
   try {
     fs.mkdirSync(uploadsDir, { recursive: true });
@@ -351,14 +360,16 @@ const cleanupUserFiles = async (filePaths: string[]) => {
 
   await Promise.all(uniqueFiles.map(async (filePath) => {
     const filename = path.basename(filePath);
-    const localPath = path.join(uploadsDir, filename);
 
-    try {
-      if (fs.existsSync(localPath)) {
-        fs.unlinkSync(localPath);
+    for (const dir of DOC_SEARCH_DIRS) {
+      try {
+        const localPath = path.join(dir, filename);
+        if (fs.existsSync(localPath)) {
+          fs.unlinkSync(localPath);
+        }
+      } catch (err: any) {
+        console.error('Error deleting local user file:', err.message);
       }
-    } catch (err: any) {
-      console.error('Error deleting local user file:', err.message);
     }
 
     if (supabase) {
@@ -632,11 +643,12 @@ app.post('/api/user/documents/upload', authenticateToken, upload.single('file'),
 });
 
 app.get('/api/documents/view/:filename', authenticateToken, async (req, res) => {
-  const filePath = path.join(uploadsDir, req.params.filename);
-  
-  // 1. Try serving local file first
-  if (fs.existsSync(filePath)) {
-    return res.sendFile(filePath);
+  // 1. Try serving local file first (busca en todas las carpetas de soportes)
+  for (const dir of DOC_SEARCH_DIRS) {
+    const filePath = path.join(dir, req.params.filename);
+    if (fs.existsSync(filePath)) {
+      return res.sendFile(filePath);
+    }
   }
   
   // 2. Fallback: retrieve from Supabase Storage if local file is missing (Vercel serverless environment)
@@ -1215,12 +1227,14 @@ const documentFileLabel = (type: string) => DOC_LABELS[type] || sanitizeZipName(
 // de Supabase restringido por cuota) en lugar de un error genérico.
 const readDocumentBuffer = async (filePath: string): Promise<{ buffer: Buffer | null; reason?: string }> => {
   const filename = path.basename(filePath);
-  const localPath = path.join(uploadsDir, filename);
 
-  try {
-    if (fs.existsSync(localPath)) return { buffer: fs.readFileSync(localPath) };
-  } catch (err: any) {
-    console.error('Error leyendo soporte local:', filename, err.message);
+  for (const dir of DOC_SEARCH_DIRS) {
+    try {
+      const localPath = path.join(dir, filename);
+      if (fs.existsSync(localPath)) return { buffer: fs.readFileSync(localPath) };
+    } catch (err: any) {
+      console.error('Error leyendo soporte local:', filename, err.message);
+    }
   }
 
   if (!supabase) {

@@ -11,3 +11,7 @@ unidas.db*
 *.log
 .DS_Store
 uploads/
+
+# Extraccion local de soportes (se versiona solo el README)
+exports/*
+!exports/README.md

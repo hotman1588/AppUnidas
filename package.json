@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "export:encuesta-uno": "tsx scripts/export-encuesta-uno.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",
