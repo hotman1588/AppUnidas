@@ -154,6 +154,9 @@ export default function AdminDashboard() {
   const [surveyHistory, setSurveyHistory] = useState<any[]>([]);
   const [reviewForm, setReviewForm] = useState({ status: 'approved', observations: '' });
   const { activeLanding, setActiveLanding, tableReady } = useLandingStore();
+  // Descarga masiva de soportes de la Encuesta 1 (.zip)
+  const [downloadingDocs, setDownloadingDocs] = useState(false);
+  const [downloadDocsError, setDownloadDocsError] = useState('');
   const [landingError, setLandingError] = useState('');
   const [landingSaving, setLandingSaving] = useState(false);
 
@@ -868,6 +871,53 @@ export default function AdminDashboard() {
       setSwitchingSurvey(false);
     }
   };
+
+  // Descarga masiva: un único .zip con una carpeta por persona (Nombre_Cedula)
+  // que contiene sus soportes de la Encuesta 1. Exclusivo del rol administrador.
+  const downloadSurveyOneDocuments = async () => {
+    if (user?.role !== 'admin') {
+      alert('Solo los administradores pueden descargar los soportes.');
+      return;
+    }
+    setDownloadingDocs(true);
+    setDownloadDocsError('');
+    try {
+      const res = await fetch('/api/admin/documents/encuesta-uno/zip', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!res.ok) {
+        let message = 'No se pudo generar el archivo .zip.';
+        try {
+          const data = await res.json();
+          if (data?.error) message = data.error;
+        } catch (_) { /* la respuesta no era JSON */ }
+        setDownloadDocsError(message);
+        return;
+      }
+
+      const faltantes = Number(res.headers.get('X-Documentos-Faltantes') || 0);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `documentos-encuesta-1-${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      if (faltantes > 0) {
+        setDownloadDocsError(`Descarga completa. ${faltantes} documento(s) registrado(s) no se encontraron en el almacenamiento (ver _ARCHIVOS_NO_ENCONTRADOS.txt dentro del .zip).`);
+      }
+    } catch (err) {
+      console.error(err);
+      setDownloadDocsError('Error en la comunicación con el servidor.');
+    } finally {
+      setDownloadingDocs(false);
+    }
+  };
+
 
   const exportToExcel = () => {
     if (user?.role !== 'admin') {
@@ -1666,6 +1716,43 @@ export default function AdminDashboard() {
                 <h3 className="text-4xl font-black text-white mb-3">Configuraciones Globales</h3>
                 <p className="text-white/30 font-medium italic">Gestión de parámetros y documentos legales del sistema</p>
               </div>
+              {/* Descarga masiva de soportes — Encuesta 1. Solo rol administrador. */}
+              {user?.role === 'admin' && (
+                <div className="bg-white/5 p-10 rounded-[4rem] border border-white/10 backdrop-blur-xl">
+                  <div className="flex items-center space-x-6 mb-8">
+                    <div className="w-16 h-16 bg-unidas-primary/10 rounded-3xl flex items-center justify-center text-unidas-primary border border-unidas-primary/20">
+                      <Download className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <h4 className="text-2xl font-black text-white mb-1">Descargar Soportes · Encuesta 1</h4>
+                      <p className="text-white/30 text-xs font-medium italic">
+                        Genera un único archivo .zip con una carpeta por persona (Nombre_Cédula) que contiene los documentos que aportó en la Encuesta 1.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={downloadSurveyOneDocuments}
+                    disabled={downloadingDocs}
+                    className="w-full md:w-auto px-10 py-5 rounded-2xl bg-unidas-primary text-white text-sm font-black shadow-lg shadow-unidas-primary/20 transition-all hover:brightness-110 disabled:opacity-60 disabled:cursor-wait flex items-center justify-center space-x-3"
+                  >
+                    <Download className="w-5 h-5" />
+                    <span>{downloadingDocs ? 'Generando .zip…' : 'Descargar todos los documentos (.zip)'}</span>
+                  </button>
+
+                  {downloadDocsError && (
+                    <div className="mt-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start space-x-3">
+                      <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                      <p className="text-xs text-amber-200/80 font-medium">{downloadDocsError}</p>
+                    </div>
+                  )}
+
+                  <p className="mt-6 text-[10px] font-black uppercase tracking-widest text-white/30">
+                    La compresión puede tardar según la cantidad de archivos. No cierres la pestaña.
+                  </p>
+                </div>
+              )}
+
 
               {/* Encuesta Activa — interruptor controlado solo por administrador */}
               <div className="bg-white/5 p-10 rounded-[4rem] border border-white/10 backdrop-blur-xl">

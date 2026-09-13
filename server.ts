@@ -9,6 +9,7 @@ import fs from 'fs';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
+import JSZip from 'jszip';
 
 dotenv.config();
 
@@ -1184,6 +1185,141 @@ const DOC_LABELS: Record<string, string> = {
   id_reverso: 'Cédula (reverso)', cedula_reverso: 'Cédula (reverso)',
   utility_bill: 'Recibo de servicio público', recibo_publico: 'Recibo de servicio público', recibo: 'Recibo de servicio público',
 };
+
+// ---------------------------------------------------------------------------
+// DESCARGA MASIVA — Soportes de la ENCUESTA UNO en un único .zip
+// Solo administradores. Genera un .zip con una carpeta por persona
+// (Nombre_Cedula) que contiene los documentos que cargó para la Encuesta 1.
+// Los archivos se leen del disco local y, si no están, de Supabase Storage.
+// ---------------------------------------------------------------------------
+
+// Normaliza texto para usarlo como nombre de carpeta/archivo dentro del zip:
+// sin tildes, sin caracteres inválidos en Windows/macOS y sin espacios dobles.
+const sanitizeZipName = (value: string, fallback: string) => {
+  const clean = (value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\/:*?"<>|]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\.+$/, '');
+  return clean || fallback;
+};
+
+// Etiqueta legible del soporte, reutilizando DOC_LABELS del módulo de bandeja.
+const documentFileLabel = (type: string) => DOC_LABELS[type] || sanitizeZipName(type, 'documento');
+
+// Obtiene el contenido binario de un soporte: primero /tmp/uploads (entorno
+// local) y luego Supabase Storage (entorno serverless, donde /tmp está vacío).
+const readDocumentBuffer = async (filePath: string): Promise<Buffer | null> => {
+  const filename = path.basename(filePath);
+  const localPath = path.join(uploadsDir, filename);
+
+  try {
+    if (fs.existsSync(localPath)) return fs.readFileSync(localPath);
+  } catch (err: any) {
+    console.error('Error leyendo soporte local:', filename, err.message);
+  }
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.storage.from('documents').download(filename);
+      if (error || !data) {
+        console.error('Soporte no disponible en Supabase Storage:', filename, error?.message);
+        return null;
+      }
+      return Buffer.from(await data.arrayBuffer());
+    } catch (err: any) {
+      console.error('Error descargando soporte de Supabase Storage:', filename, err.message);
+    }
+  }
+
+  return null;
+};
+
+app.get('/api/admin/documents/encuesta-uno/zip', authenticateToken, requireAdminOnly, async (_req: any, res: any) => {
+  try {
+    // Solo personas con registro en 'surveys' (Encuesta Uno). La Encuesta Dos
+    // vive en el schema 'encuesta_dos' y no aporta soportes, por lo que el JOIN
+    // garantiza el filtro estricto solicitado.
+    const { rows } = await pool.query(`
+      SELECT u.id AS user_id,
+             u.full_name,
+             u.document_number,
+             d.type,
+             d.file_path,
+             d.created_at
+      FROM documents d
+      JOIN users u ON u.id = d.user_id
+      JOIN surveys s ON s.user_id = u.id
+      ORDER BY u.full_name ASC, d.created_at ASC, d.id ASC
+    `);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'No hay documentos de la Encuesta 1 para descargar.' });
+    }
+
+    const zip = new JSZip();
+    const usedNames = new Map<string, number>();
+    let included = 0;
+    const missing: string[] = [];
+
+    for (const row of rows) {
+      const buffer = await readDocumentBuffer(row.file_path);
+      if (!buffer) {
+        missing.push(`${row.full_name} (${row.document_number}) — ${row.file_path}`);
+        continue;
+      }
+
+      const folder = `${sanitizeZipName(row.full_name, 'Sin_nombre')}_${sanitizeZipName(row.document_number, String(row.user_id))}`
+        .replace(/\s+/g, '_');
+
+      const ext = path.extname(row.file_path) || '';
+      let entryName = `${folder}/${sanitizeZipName(documentFileLabel(row.type), 'documento')}${ext}`;
+
+      // Evita colisiones cuando una persona subió varias veces el mismo tipo.
+      const count = (usedNames.get(entryName) || 0) + 1;
+      usedNames.set(entryName, count);
+      if (count > 1) {
+        entryName = `${folder}/${sanitizeZipName(documentFileLabel(row.type), 'documento')} (${count})${ext}`;
+      }
+
+      zip.file(entryName, buffer);
+      included++;
+    }
+
+    if (included === 0) {
+      return res.status(404).json({ error: 'Los documentos registrados no se encontraron en el almacenamiento.' });
+    }
+
+    // Reporte de faltantes dentro del propio zip, para trazabilidad del admin.
+    if (missing.length > 0) {
+      zip.file('_ARCHIVOS_NO_ENCONTRADOS.txt', [
+        'Documentos registrados en la base de datos que no se encontraron en el almacenamiento:',
+        '',
+        ...missing
+      ].join('\n'));
+    }
+
+    const content: Buffer = await zip.generateAsync({
+      type: 'nodebuffer',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 }
+    });
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="documentos-encuesta-1-${stamp}.zip"`);
+    res.setHeader('Content-Length', String(content.length));
+    res.setHeader('X-Documentos-Incluidos', String(included));
+    res.setHeader('X-Documentos-Faltantes', String(missing.length));
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, X-Documentos-Incluidos, X-Documentos-Faltantes');
+    return res.send(content);
+  } catch (err: any) {
+    console.error('Error generando el zip de documentos:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 app.post('/api/admin/users/:userId/documents/upload', authenticateToken, isAdmin, upload.single('file'), async (req: any, res: any) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
