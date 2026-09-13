@@ -898,10 +898,38 @@ export default function AdminDashboard() {
 
       const faltantes = Number(res.headers.get('X-Documentos-Faltantes') || 0);
       const blob = await res.blob();
+      const fileName = `documentos-encuesta-1-${new Date().toISOString().slice(0, 10)}.zip`;
+
+      // Guarda el .zip en el disco. Si el navegador soporta la File System
+      // Access API (Chrome/Edge) se abre el dialogo nativo para elegir la
+      // carpeta, con Descargas por defecto; si no, cae al enlace clasico que
+      // guarda directamente en la carpeta de Descargas del equipo.
+      const picker = (window as any).showSaveFilePicker;
+      if (typeof picker === 'function') {
+        try {
+          const handle = await picker.call(window, {
+            suggestedName: fileName,
+            startIn: 'downloads',
+            types: [{ description: 'Archivo comprimido', accept: { 'application/zip': ['.zip'] } }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          if (faltantes > 0) {
+            setDownloadDocsError(`Descarga completa. ${faltantes} documento(s) registrado(s) no se encontraron en el almacenamiento (ver _ARCHIVOS_NO_ENCONTRADOS.txt dentro del .zip).`);
+          }
+          return;
+        } catch (err: any) {
+          // El usuario cancelo el dialogo: no es un error que reportar.
+          if (err?.name === 'AbortError') return;
+          console.error('No se pudo usar el selector de carpeta, se usa la descarga clasica.', err);
+        }
+      }
+
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `documentos-encuesta-1-${new Date().toISOString().slice(0, 10)}.zip`;
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       link.remove();

@@ -1211,30 +1211,34 @@ const documentFileLabel = (type: string) => DOC_LABELS[type] || sanitizeZipName(
 
 // Obtiene el contenido binario de un soporte: primero /tmp/uploads (entorno
 // local) y luego Supabase Storage (entorno serverless, donde /tmp está vacío).
-const readDocumentBuffer = async (filePath: string): Promise<Buffer | null> => {
+// Devuelve también el motivo del fallo para poder diagnosticar (p. ej. proyecto
+// de Supabase restringido por cuota) en lugar de un error genérico.
+const readDocumentBuffer = async (filePath: string): Promise<{ buffer: Buffer | null; reason?: string }> => {
   const filename = path.basename(filePath);
   const localPath = path.join(uploadsDir, filename);
 
   try {
-    if (fs.existsSync(localPath)) return fs.readFileSync(localPath);
+    if (fs.existsSync(localPath)) return { buffer: fs.readFileSync(localPath) };
   } catch (err: any) {
     console.error('Error leyendo soporte local:', filename, err.message);
   }
 
-  if (supabase) {
-    try {
-      const { data, error } = await supabase.storage.from('documents').download(filename);
-      if (error || !data) {
-        console.error('Soporte no disponible en Supabase Storage:', filename, error?.message);
-        return null;
-      }
-      return Buffer.from(await data.arrayBuffer());
-    } catch (err: any) {
-      console.error('Error descargando soporte de Supabase Storage:', filename, err.message);
-    }
+  if (!supabase) {
+    return { buffer: null, reason: 'El cliente de Supabase no está inicializado en el servidor (falta SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).' };
   }
 
-  return null;
+  try {
+    const { data, error } = await supabase.storage.from('documents').download(filename);
+    if (error || !data) {
+      const reason = error?.message || 'Archivo no encontrado en el bucket "documents".';
+      console.error('Soporte no disponible en Supabase Storage:', filename, reason);
+      return { buffer: null, reason };
+    }
+    return { buffer: Buffer.from(await data.arrayBuffer()) };
+  } catch (err: any) {
+    console.error('Error descargando soporte de Supabase Storage:', filename, err.message);
+    return { buffer: null, reason: err.message };
+  }
 };
 
 app.get('/api/admin/documents/encuesta-uno/zip', authenticateToken, requireAdminOnly, async (_req: any, res: any) => {
@@ -1263,11 +1267,13 @@ app.get('/api/admin/documents/encuesta-uno/zip', authenticateToken, requireAdmin
     const usedNames = new Map<string, number>();
     let included = 0;
     const missing: string[] = [];
+    let firstReason = '';
 
     for (const row of rows) {
-      const buffer = await readDocumentBuffer(row.file_path);
+      const { buffer, reason } = await readDocumentBuffer(row.file_path);
       if (!buffer) {
-        missing.push(`${row.full_name} (${row.document_number}) — ${row.file_path}`);
+        if (!firstReason && reason) firstReason = reason;
+        missing.push(`${row.full_name} (${row.document_number}) — ${row.file_path}${reason ? ` — ${reason}` : ''}`);
         continue;
       }
 
@@ -1289,7 +1295,16 @@ app.get('/api/admin/documents/encuesta-uno/zip', authenticateToken, requireAdmin
     }
 
     if (included === 0) {
-      return res.status(404).json({ error: 'Los documentos registrados no se encontraron en el almacenamiento.' });
+      // Causa habitual: el proyecto de Supabase esta restringido por cuota
+      // (exceed_storage_size_quota) y el bucket devuelve error en cada descarga.
+      const quotaBlocked = /quota|restricted|exceed/i.test(firstReason);
+      return res.status(quotaBlocked ? 503 : 404).json({
+        error: quotaBlocked
+          ? `El almacenamiento de Supabase no esta disponible: ${firstReason} Debes liberar espacio o actualizar el plan en el panel de Supabase para poder descargar los soportes.`
+          : `Los documentos registrados no se encontraron en el almacenamiento.${firstReason ? ` Detalle: ${firstReason}` : ''}`,
+        registrados: rows.length,
+        recuperados: 0
+      });
     }
 
     // Reporte de faltantes dentro del propio zip, para trazabilidad del admin.
