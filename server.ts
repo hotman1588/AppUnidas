@@ -1347,6 +1347,137 @@ app.get('/api/admin/documents/encuesta-uno/zip/resumen', authenticateToken, requ
   }
 });
 
+// ---------------------------------------------------------------------------
+// MANIFIESTO para armar el .zip EN EL NAVEGADOR.
+// El paquete completo pesa ~1.4 GB en 568 archivos, por lo que no puede
+// generarse en el servidor: una funcion serverless de Vercel esta limitada a
+// 4.5 MB de respuesta, ademas del timeout y la memoria. Aqui solo se devuelve,
+// por cada soporte, una URL firmada de Supabase Storage (o una ruta local
+// autenticada) y el nombre que debe tener dentro del .zip. El cliente descarga
+// y comprime, con progreso real archivo por archivo.
+// ---------------------------------------------------------------------------
+app.get('/api/admin/documents/encuesta-uno/manifiesto', authenticateToken, requireAdminOnly, async (_req: any, res: any) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT u.id AS user_id,
+             u.full_name,
+             u.document_number,
+             d.type,
+             d.file_path,
+             d.created_at
+      FROM documents d
+      JOIN users u ON u.id = d.user_id
+      JOIN surveys s ON s.user_id = u.id
+      ORDER BY u.full_name ASC, d.created_at ASC, d.id ASC
+    `);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'No hay documentos de la Encuesta 1 para descargar.' });
+    }
+
+    // Se firman en lote todas las claves candidatas y luego se elige, por cada
+    // soporte, la primera que haya resultado valida. Firmar es una operacion de
+    // metadatos: no transfiere los archivos.
+    const SEGUNDOS_VALIDEZ = 60 * 60 * 3;
+    const candidatosPorFila = rows.map((row: any) =>
+      storageObjectKeys(row.file_path, row.document_number, row.user_id)
+    );
+
+    const firmadas = new Map<string, string>();
+    if (supabase) {
+      const todas = Array.from(new Set(candidatosPorFila.flat()));
+      for (let i = 0; i < todas.length; i += 100) {
+        const lote = todas.slice(i, i + 100);
+        try {
+          const { data } = await supabase.storage.from('documents').createSignedUrls(lote, SEGUNDOS_VALIDEZ);
+          for (const item of data || []) {
+            if (item?.signedUrl && !item.error) firmadas.set(item.path, item.signedUrl);
+          }
+        } catch (err: any) {
+          console.error('Error firmando lote de soportes:', err.message);
+        }
+      }
+    }
+
+    const usados = new Map<string, number>();
+    const entradas: any[] = [];
+    const noEncontrados: string[] = [];
+
+    rows.forEach((row: any, i: number) => {
+      const carpeta = `${sanitizeZipName(row.full_name, 'Sin_nombre')}_${sanitizeZipName(row.document_number, String(row.user_id))}`
+        .replace(/\s+/g, '_');
+      const filename = path.basename(String(row.file_path || ''));
+      const ext = path.extname(String(row.file_path || '')) || '';
+
+      // Nombre dentro de la carpeta, evitando colisiones si subio dos veces el
+      // mismo tipo de soporte.
+      let nombre = `${sanitizeZipName(documentFileLabel(row.type), 'documento')}${ext}`;
+      const claveNombre = `${carpeta}/${nombre}`;
+      const n = (usados.get(claveNombre) || 0) + 1;
+      usados.set(claveNombre, n);
+      if (n > 1) nombre = `${sanitizeZipName(documentFileLabel(row.type), 'documento')} (${n})${ext}`;
+
+      // Preferencia: URL firmada de Storage; si no, la ruta local autenticada.
+      const firmada = candidatosPorFila[i].map((k) => firmadas.get(k)).find(Boolean);
+      const existeLocal = DOC_SEARCH_DIRS.some((dir) => {
+        try { return fs.existsSync(path.join(dir, filename)); } catch { return false; }
+      });
+
+      if (!firmada && !existeLocal) {
+        noEncontrados.push(`${row.full_name} (${row.document_number}) — ${row.file_path} — no se encontró en el almacenamiento (rutas probadas: ${candidatosPorFila[i].join(', ')})`);
+        return;
+      }
+
+      entradas.push({
+        carpeta,
+        nombre,
+        ruta: `${carpeta}/${nombre}`,
+        tipo: tipoCanonico(row.type),
+        persona: { nombre: row.full_name, cedula: row.document_number, id: row.user_id },
+        url: firmada || `/api/documents/view/${encodeURIComponent(filename)}`,
+        requiereAuth: !firmada,
+      });
+    });
+
+    // Carpetas que no reunen los tres soportes obligatorios.
+    const porPersona = new Map<string, { nombre: string; cedula: string; carpeta: string; tipos: Set<string> }>();
+    for (const row of rows) {
+      const carpeta = `${sanitizeZipName(row.full_name, 'Sin_nombre')}_${sanitizeZipName(row.document_number, String(row.user_id))}`
+        .replace(/\s+/g, '_');
+      const clave = String(row.user_id);
+      if (!porPersona.has(clave)) {
+        porPersona.set(clave, { nombre: row.full_name, cedula: row.document_number, carpeta, tipos: new Set() });
+      }
+    }
+    for (const e of entradas) porPersona.get(String(e.persona.id))!.tipos.add(e.tipo);
+
+    const incompletas = Array.from(porPersona.values())
+      .map((p) => ({
+        carpeta: p.carpeta,
+        nombre: p.nombre,
+        cedula: p.cedula,
+        faltan: SOPORTES_REQUERIDOS.filter((r) => !p.tipos.has(r.canonico)).map((r) => DOC_LABELS[r.canonico]),
+      }))
+      .filter((p) => p.faltan.length > 0);
+
+    res.json({
+      entradas,
+      noEncontrados,
+      incompletas,
+      totales: {
+        registrados: rows.length,
+        descargables: entradas.length,
+        personas: porPersona.size,
+        carpetasIncompletas: incompletas.length,
+      },
+      requeridos: SOPORTES_REQUERIDOS.map((r) => DOC_LABELS[r.canonico]),
+    });
+  } catch (err: any) {
+    console.error('Error generando el manifiesto de soportes:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/admin/documents/encuesta-uno/zip', authenticateToken, requireAdminOnly, async (_req: any, res: any) => {
   try {
     // Solo personas con registro en 'surveys' (Encuesta Uno). La Encuesta Dos

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import JSZip from 'jszip';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, ClipboardCheck, Calendar, Bell, 
@@ -160,12 +161,14 @@ export default function AdminDashboard() {
   // Progreso de la descarga. 'fase' distingue la preparacion en el servidor
   // (aun no llegan bytes) de la transferencia, que si tiene porcentaje real.
   const [docsProgress, setDocsProgress] = useState<{
-    fase: 'inactivo' | 'preparando' | 'descargando' | 'guardando';
+    fase: 'inactivo' | 'preparando' | 'descargando' | 'comprimiendo' | 'guardando';
     recibido: number;
     total: number;
     documentos: number;
     personas: number;
-  }>({ fase: 'inactivo', recibido: 0, total: 0, documentos: 0, personas: 0 });
+    archivos: number;
+    archivosTotal: number;
+  }>({ fase: 'inactivo', recibido: 0, total: 0, documentos: 0, personas: 0, archivos: 0, archivosTotal: 0 });
   const [landingError, setLandingError] = useState('');
   const [landingSaving, setLandingSaving] = useState(false);
 
@@ -871,6 +874,14 @@ export default function AdminDashboard() {
 
   // Descarga masiva: un único .zip con una carpeta por persona (Nombre_Cedula)
   // que contiene sus soportes de la Encuesta 1. Exclusivo del rol administrador.
+  // Descarga masiva: un único .zip con una carpeta por persona (Nombre_Cedula)
+  // que contiene sus soportes de la Encuesta 1. Exclusivo del rol administrador.
+  //
+  // El paquete completo pesa ~1.4 GB, por lo que NO puede generarse en el
+  // servidor: una función serverless de Vercel está limitada a 4.5 MB de
+  // respuesta, además del timeout y la memoria. El servidor entrega solo un
+  // manifiesto con URLs firmadas y aquí se descargan los archivos y se arma el
+  // .zip, con progreso real archivo por archivo.
   const downloadSurveyOneDocuments = async () => {
     if (user?.role !== 'admin') {
       alert('Solo los administradores pueden descargar los soportes.');
@@ -878,106 +889,160 @@ export default function AdminDashboard() {
     }
     setDownloadingDocs(true);
     setDownloadDocsError('');
-    setDocsProgress({ fase: 'preparando', recibido: 0, total: 0, documentos: 0, personas: 0 });
-    try {
-      // Resumen previo: permite mostrar cuantos soportes se van a empaquetar
-      // mientras el servidor los lee del almacenamiento.
-      try {
-        const resumenRes = await fetch('/api/admin/documents/encuesta-uno/zip/resumen', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (resumenRes.ok) {
-          const resumen = await resumenRes.json();
-          setDocsProgress((p) => ({
-            ...p,
-            documentos: Number(resumen?.documentos) || 0,
-            personas: Number(resumen?.personas) || 0
-          }));
-        }
-      } catch { /* el resumen es informativo: si falla, se sigue igual */ }
+    setDocsProgress({ fase: 'preparando', recibido: 0, total: 0, documentos: 0, personas: 0, archivos: 0, archivosTotal: 0 });
 
-      const res = await fetch('/api/admin/documents/encuesta-uno/zip', {
+    try {
+      const manifRes = await fetch('/api/admin/documents/encuesta-uno/manifiesto', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-
-      if (!res.ok) {
-        let message = 'No se pudo generar el archivo .zip.';
+      if (!manifRes.ok) {
+        let message = 'No se pudo preparar la descarga.';
         try {
-          const data = await res.json();
+          const data = await manifRes.json();
           if (data?.error) message = data.error;
-        } catch (_) { /* la respuesta no era JSON */ }
+        } catch { /* la respuesta no era JSON */ }
         setDownloadDocsError(message);
         return;
       }
 
-      const faltantes = Number(res.headers.get('X-Documentos-Faltantes') || 0);
-      const incluidos = Number(res.headers.get('X-Documentos-Incluidos') || 0);
-      const carpetasIncompletas = Number(res.headers.get('X-Carpetas-Incompletas') || 0);
-      const carpetasTotal = Number(res.headers.get('X-Carpetas-Total') || 0);
-
-      // Cada carpeta debe traer cédula frontal, cédula reverso y recibo público.
-      const avisos: string[] = [];
-      if (faltantes > 0) {
-        avisos.push(`${faltantes} documento(s) registrado(s) no se encontraron en el almacenamiento (ver _ARCHIVOS_NO_ENCONTRADOS.txt).`);
+      const manifiesto = await manifRes.json();
+      const entradas: any[] = manifiesto?.entradas || [];
+      if (entradas.length === 0) {
+        setDownloadDocsError('No hay soportes disponibles para descargar.');
+        return;
       }
-      if (carpetasIncompletas > 0) {
-        avisos.push(`${carpetasIncompletas} de ${carpetasTotal} carpeta(s) no tienen los 3 soportes obligatorios (ver _CARPETAS_INCOMPLETAS.txt y el archivo _FALTAN_DOCUMENTOS.txt dentro de cada carpeta).`);
-      }
-      const resumenAvisos = avisos.length > 0 ? `Descarga completa. ${avisos.join(' ')}` : '';
 
-      // Tamano real del .zip. Se prefiere X-Zip-Bytes sobre Content-Length
-      // porque si un proxy comprime la respuesta, Content-Length seria el
-      // tamano comprimido y el porcentaje saldria mal.
-      const total = Number(res.headers.get('X-Zip-Bytes') || res.headers.get('Content-Length') || 0);
-      setDocsProgress((p) => ({ ...p, fase: 'descargando', recibido: 0, total, documentos: incluidos || p.documentos }));
+      setDocsProgress((p) => ({
+        ...p,
+        fase: 'descargando',
+        documentos: manifiesto?.totales?.descargables || entradas.length,
+        personas: manifiesto?.totales?.personas || 0,
+        archivosTotal: entradas.length,
+      }));
 
-      // Lectura incremental para poder reportar el avance. Si el navegador no
-      // expone el stream, cae a blob() y el progreso queda indeterminado.
-      let blob: Blob;
-      if (res.body && typeof res.body.getReader === 'function') {
-        const reader = res.body.getReader();
-        const chunks: Uint8Array[] = [];
-        let recibido = 0;
+      const zip = new JSZip();
+      const fallidos: string[] = [];
+      let hechos = 0;
+      let bytes = 0;
+
+      // Descarga con concurrencia acotada: aprovecha el ancho de banda sin
+      // saturar al navegador ni al almacenamiento.
+      const CONCURRENCIA = 5;
+      let cursor = 0;
+      const trabajador = async () => {
         for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) {
-            chunks.push(value);
-            recibido += value.length;
-            setDocsProgress((p) => ({ ...p, recibido }));
+          const i = cursor++;
+          if (i >= entradas.length) return;
+          const e = entradas[i];
+          try {
+            const res = await fetch(e.url, e.requiereAuth ? { headers: { 'Authorization': `Bearer ${token}` } } : undefined);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const blob = await res.blob();
+            // Se agrega como Blob (no como ArrayBuffer) para que el navegador
+            // pueda volcarlo a disco y no retener 1.4 GB en memoria.
+            zip.file(e.ruta, blob);
+            bytes += blob.size;
+          } catch (err: any) {
+            fallidos.push(`${e.persona?.nombre} (${e.persona?.cedula}) — ${e.ruta} — ${err?.message || 'error de descarga'}`);
+          } finally {
+            hechos++;
+            setDocsProgress((p) => ({ ...p, archivos: hechos, recibido: bytes }));
           }
         }
-        blob = new Blob(chunks as BlobPart[], { type: 'application/zip' });
-      } else {
-        blob = await res.blob();
+      };
+      await Promise.all(Array.from({ length: CONCURRENCIA }, trabajador));
+
+      // Reportes de trazabilidad dentro del propio .zip.
+      const noEncontrados: string[] = [...(manifiesto?.noEncontrados || []), ...fallidos];
+      if (noEncontrados.length > 0) {
+        zip.file('_ARCHIVOS_NO_ENCONTRADOS.txt', [
+          'Documentos registrados en la base de datos que no se pudieron incluir:',
+          '',
+          ...noEncontrados
+        ].join('\n'));
       }
 
-      setDocsProgress((p) => ({ ...p, fase: 'guardando', recibido: p.total || blob.size, total: p.total || blob.size }));
+      const incompletas: any[] = manifiesto?.incompletas || [];
+      if (incompletas.length > 0) {
+        zip.file('_CARPETAS_INCOMPLETAS.txt', [
+          'Cada carpeta debe contener los 3 soportes obligatorios:',
+          ...(manifiesto?.requeridos || []).map((r: string) => `  - ${r}`),
+          '',
+          `Carpetas incompletas: ${incompletas.length} de ${manifiesto?.totales?.personas || 0}`,
+          '',
+          ...incompletas.map((p: any) => `${p.nombre} (${p.cedula}) — faltan: ${p.faltan.join(', ')}`)
+        ].join('\n'));
+        for (const p of incompletas) {
+          zip.file(`${p.carpeta}/_FALTAN_DOCUMENTOS.txt`, [
+            `${p.nombre} (${p.cedula})`,
+            '',
+            'Esta carpeta está incompleta. Faltan los siguientes soportes obligatorios:',
+            ...p.faltan.map((f: string) => `  - ${f}`),
+            '',
+            'Un soporte puede faltar porque la persona nunca lo cargó o porque el',
+            'archivo registrado no se encontró en el almacenamiento (ver',
+            '_ARCHIVOS_NO_ENCONTRADOS.txt en la raíz del .zip).'
+          ].join('\n'));
+        }
+      }
+
+      setDocsProgress((p) => ({ ...p, fase: 'comprimiendo', recibido: 0, total: bytes }));
+
       const fileName = `documentos-encuesta-1-${new Date().toISOString().slice(0, 10)}.zip`;
 
-      // Guarda el .zip en el disco. Si el navegador soporta la File System
-      // Access API (Chrome/Edge) se abre el dialogo nativo para elegir la
-      // carpeta, con Descargas por defecto; si no, cae al enlace clasico que
-      // guarda directamente en la carpeta de Descargas del equipo.
+      // Si el navegador soporta la File System Access API (Chrome/Edge) el .zip
+      // se escribe directamente en disco a medida que se genera, con memoria
+      // constante. Si no, se arma en memoria y se descarga con un enlace.
       const picker = (window as any).showSaveFilePicker;
       if (typeof picker === 'function') {
+        let handle: any = null;
         try {
-          const handle = await picker.call(window, {
+          handle = await picker.call(window, {
             suggestedName: fileName,
             startIn: 'downloads',
             types: [{ description: 'Archivo comprimido', accept: { 'application/zip': ['.zip'] } }]
           });
-          const writable = await handle.createWritable();
-          await writable.write(blob);
-          await writable.close();
-          if (resumenAvisos) setDownloadDocsError(resumenAvisos);
-          return;
         } catch (err: any) {
-          // El usuario cancelo el dialogo: no es un error que reportar.
-          if (err?.name === 'AbortError') return;
-          console.error('No se pudo usar el selector de carpeta, se usa la descarga clasica.', err);
+          if (err?.name === 'AbortError') return; // el usuario canceló
+          console.error('No se pudo usar el selector de carpeta, se usa la descarga clásica.', err);
+        }
+
+        if (handle) {
+          const writable = await handle.createWritable();
+          try {
+            await new Promise<void>((resolve, reject) => {
+              let escritos = 0;
+              let cola: Promise<void> = Promise.resolve();
+              // Los soportes son JPG/PNG/PDF, ya comprimidos: STORE evita gastar
+              // CPU y memoria recomprimiendo sin ganancia real de tamaño.
+              zip.generateInternalStream({ type: 'uint8array', compression: 'STORE', streamFiles: true })
+                .on('data', (chunk: Uint8Array) => {
+                  escritos += chunk.length;
+                  setDocsProgress((p) => ({ ...p, recibido: escritos }));
+                  // Las escrituras se encadenan para respetar el orden del .zip.
+                  cola = cola.then(() => writable.write(chunk)).catch(reject);
+                })
+                .on('error', reject)
+                .on('end', () => { cola.then(resolve, reject); })
+                .resume();
+            });
+            await writable.close();
+          } catch (err) {
+            await writable.abort?.();
+            throw err;
+          }
+          setDocsProgress((p) => ({ ...p, fase: 'guardando' }));
+          mostrarResumenDescarga(manifiesto, noEncontrados.length);
+          return;
         }
       }
+
+      const blob: Blob = await zip.generateAsync<'blob'>(
+        { type: 'blob', compression: 'STORE', streamFiles: true },
+        (meta: any) => {
+          setDocsProgress((p) => ({ ...p, recibido: Math.round((meta.percent / 100) * (p.total || 1)) }));
+        }
+      );
 
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -987,8 +1052,7 @@ export default function AdminDashboard() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-
-      if (resumenAvisos) setDownloadDocsError(resumenAvisos);
+      mostrarResumenDescarga(manifiesto, noEncontrados.length);
     } catch (err) {
       console.error(err);
       setDownloadDocsError('Error en la comunicación con el servidor.');
@@ -996,6 +1060,20 @@ export default function AdminDashboard() {
       setDownloadingDocs(false);
       setDocsProgress((p) => ({ ...p, fase: 'inactivo' }));
     }
+  };
+
+  // Aviso final: documentos que no se pudieron incluir y carpetas que no reúnen
+  // los tres soportes obligatorios.
+  const mostrarResumenDescarga = (manifiesto: any, noEncontrados: number) => {
+    const avisos: string[] = [];
+    if (noEncontrados > 0) {
+      avisos.push(`${noEncontrados} documento(s) registrado(s) no se pudieron incluir (ver _ARCHIVOS_NO_ENCONTRADOS.txt).`);
+    }
+    const incompletas = manifiesto?.totales?.carpetasIncompletas || 0;
+    if (incompletas > 0) {
+      avisos.push(`${incompletas} de ${manifiesto?.totales?.personas || 0} carpeta(s) no tienen los 3 soportes obligatorios (ver _CARPETAS_INCOMPLETAS.txt y el _FALTAN_DOCUMENTOS.txt dentro de cada carpeta).`);
+    }
+    if (avisos.length > 0) setDownloadDocsError(`Descarga completa. ${avisos.join(' ')}`);
   };
 
 
@@ -1824,17 +1902,22 @@ export default function AdminDashboard() {
                       medir, asi que se informa el volumen a empaquetar; durante
                       la transferencia se muestra el % completado y el faltante. */}
                   {downloadingDocs && (() => {
-                    const { fase, recibido, total, documentos, personas } = docsProgress;
-                    const pct = total > 0 ? Math.min(100, Math.round((recibido / total) * 100)) : 0;
-                    const faltantePct = Math.max(0, 100 - pct);
+                    const { fase, recibido, total, documentos, personas, archivos, archivosTotal } = docsProgress;
                     const mb = (n: number) => (n / 1048576).toFixed(1);
-                    const medible = total > 0 && fase !== 'preparando';
+                    // Al descargar el avance se mide por archivos completados
+                    // (se conoce el total exacto); al comprimir, por bytes escritos.
+                    const pct = fase === 'descargando'
+                      ? (archivosTotal > 0 ? Math.min(100, Math.round((archivos / archivosTotal) * 100)) : 0)
+                      : (total > 0 ? Math.min(100, Math.round((recibido / total) * 100)) : 0);
+                    const faltantePct = Math.max(0, 100 - pct);
+                    const medible = fase === 'descargando' ? archivosTotal > 0 : (total > 0 && fase !== 'preparando');
                     return (
                       <div className="mt-6 p-5 bg-white/5 border border-white/10 rounded-2xl space-y-3">
                         <div className="flex items-baseline justify-between">
                           <span className="text-xs font-black uppercase tracking-widest text-white/50">
-                            {fase === 'preparando' && 'Preparando soportes…'}
-                            {fase === 'descargando' && 'Descargando…'}
+                            {fase === 'preparando' && 'Preparando listado…'}
+                            {fase === 'descargando' && 'Descargando soportes…'}
+                            {fase === 'comprimiendo' && 'Comprimiendo .zip…'}
                             {fase === 'guardando' && 'Guardando archivo…'}
                           </span>
                           <span className="text-sm font-black text-unidas-primary tabular-nums">
@@ -1853,10 +1936,14 @@ export default function AdminDashboard() {
                         </div>
 
                         <p className="text-[11px] font-medium text-white/50 tabular-nums">
-                          {medible ? (
-                            <>Falta <strong className="text-white/80">{faltantePct}%</strong> para completar la descarga · {mb(recibido)} MB de {mb(total)} MB</>
-                          ) : (
-                            <>El servidor está leyendo los archivos del almacenamiento. Aún no se puede medir el porcentaje.</>
+                          {fase === 'descargando' && medible && (
+                            <>Falta <strong className="text-white/80">{faltantePct}%</strong> para completar la descarga · {archivos} de {archivosTotal} soportes · {mb(recibido)} MB bajados</>
+                          )}
+                          {fase !== 'descargando' && medible && (
+                            <>Falta <strong className="text-white/80">{faltantePct}%</strong> para terminar el archivo · {mb(recibido)} MB de {mb(total)} MB</>
+                          )}
+                          {!medible && (
+                            <>Consultando al servidor qué soportes hay que descargar. Aún no se puede medir el porcentaje.</>
                           )}
                         </p>
 
