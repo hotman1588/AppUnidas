@@ -1246,6 +1246,18 @@ const sanitizeZipName = (value: string, fallback: string) => {
 // Etiqueta legible del soporte, reutilizando DOC_LABELS del módulo de bandeja.
 const documentFileLabel = (type: string) => DOC_LABELS[type] || sanitizeZipName(type, 'documento');
 
+// Cada carpeta debe contener estos tres soportes. Los alias existen porque el
+// mismo documento se guardo con nombres de tipo distintos segun la version.
+const SOPORTES_REQUERIDOS: { canonico: string; alias: string[] }[] = [
+  { canonico: 'id_frontal', alias: ['id_frontal', 'cedula_frontal'] },
+  { canonico: 'id_reverso', alias: ['id_reverso', 'cedula_reverso'] },
+  { canonico: 'utility_bill', alias: ['utility_bill', 'recibo_publico', 'recibo'] },
+];
+
+// Normaliza el tipo a su forma canonica para poder comprobar completitud.
+const tipoCanonico = (type: string) =>
+  SOPORTES_REQUERIDOS.find((r) => r.alias.includes(String(type)))?.canonico || String(type);
+
 // Obtiene el contenido binario de un soporte: primero /tmp/uploads (entorno
 // local) y luego Supabase Storage (entorno serverless, donde /tmp está vacío).
 // Devuelve también el motivo del fallo para poder diagnosticar (p. ej. proyecto
@@ -1363,7 +1375,21 @@ app.get('/api/admin/documents/encuesta-uno/zip', authenticateToken, requireAdmin
     const missing: string[] = [];
     let firstReason = '';
 
+    // Inventario por persona: que soportes de los tres requeridos quedaron
+    // efectivamente dentro de su carpeta. Permite reportar las incompletas.
+    const inventario = new Map<string, { nombre: string; cedula: string; carpeta: string; tipos: Set<string> }>();
+
     for (const row of rows) {
+      const folder = `${sanitizeZipName(row.full_name, 'Sin_nombre')}_${sanitizeZipName(row.document_number, String(row.user_id))}`
+        .replace(/\s+/g, '_');
+
+      // Se registra a la persona aunque ningun archivo suyo se recupere, para
+      // que aparezca en el reporte de carpetas incompletas.
+      const clave = String(row.user_id);
+      if (!inventario.has(clave)) {
+        inventario.set(clave, { nombre: row.full_name, cedula: row.document_number, carpeta: folder, tipos: new Set() });
+      }
+
       const { buffer, reason } = await readDocumentBuffer(row.file_path, row.document_number, row.user_id);
       if (!buffer) {
         if (!firstReason && reason) firstReason = reason;
@@ -1371,8 +1397,7 @@ app.get('/api/admin/documents/encuesta-uno/zip', authenticateToken, requireAdmin
         continue;
       }
 
-      const folder = `${sanitizeZipName(row.full_name, 'Sin_nombre')}_${sanitizeZipName(row.document_number, String(row.user_id))}`
-        .replace(/\s+/g, '_');
+      inventario.get(clave)!.tipos.add(tipoCanonico(row.type));
 
       const ext = path.extname(row.file_path) || '';
       let entryName = `${folder}/${sanitizeZipName(documentFileLabel(row.type), 'documento')}${ext}`;
@@ -1410,6 +1435,40 @@ app.get('/api/admin/documents/encuesta-uno/zip', authenticateToken, requireAdmin
       ].join('\n'));
     }
 
+    // Control de completitud: cada carpeta debe traer cedula frontal, cedula
+    // reverso y recibo de servicio publico. Se nota dentro de la carpeta de
+    // cada persona incompleta y se consolida en un reporte en la raiz.
+    const incompletas: { carpeta: string; nombre: string; cedula: string; faltan: string[] }[] = [];
+    for (const persona of inventario.values()) {
+      const faltan = SOPORTES_REQUERIDOS
+        .filter((r) => !persona.tipos.has(r.canonico))
+        .map((r) => DOC_LABELS[r.canonico]);
+      if (faltan.length === 0) continue;
+
+      incompletas.push({ carpeta: persona.carpeta, nombre: persona.nombre, cedula: persona.cedula, faltan });
+      zip.file(`${persona.carpeta}/_FALTAN_DOCUMENTOS.txt`, [
+        `${persona.nombre} (${persona.cedula})`,
+        '',
+        'Esta carpeta está incompleta. Faltan los siguientes soportes obligatorios:',
+        ...faltan.map((f) => `  - ${f}`),
+        '',
+        'Un soporte puede faltar porque la persona nunca lo cargó o porque el',
+        'archivo registrado no se encontró en el almacenamiento (ver',
+        '_ARCHIVOS_NO_ENCONTRADOS.txt en la raíz del .zip).'
+      ].join('\n'));
+    }
+
+    if (incompletas.length > 0) {
+      zip.file('_CARPETAS_INCOMPLETAS.txt', [
+        'Cada carpeta debe contener los 3 soportes obligatorios:',
+        ...SOPORTES_REQUERIDOS.map((r) => `  - ${DOC_LABELS[r.canonico]}`),
+        '',
+        `Carpetas incompletas: ${incompletas.length} de ${inventario.size}`,
+        '',
+        ...incompletas.map((p) => `${p.nombre} (${p.cedula}) — faltan: ${p.faltan.join(', ')}`)
+      ].join('\n'));
+    }
+
     const content: Buffer = await zip.generateAsync({
       type: 'nodebuffer',
       compression: 'DEFLATE',
@@ -1426,7 +1485,9 @@ app.get('/api/admin/documents/encuesta-uno/zip', authenticateToken, requireAdmin
     // proxy comprime la respuesta, Content-Length pasa a ser el tamano
     // comprimido y el porcentaje del cliente quedaria mal calculado.
     res.setHeader('X-Zip-Bytes', String(content.length));
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, X-Documentos-Incluidos, X-Documentos-Faltantes, X-Zip-Bytes');
+    res.setHeader('X-Carpetas-Total', String(inventario.size));
+    res.setHeader('X-Carpetas-Incompletas', String(incompletas.length));
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, X-Documentos-Incluidos, X-Documentos-Faltantes, X-Zip-Bytes, X-Carpetas-Total, X-Carpetas-Incompletas');
     return res.send(content);
   } catch (err: any) {
     console.error('Error generando el zip de documentos:', err.message);

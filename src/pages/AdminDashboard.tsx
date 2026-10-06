@@ -912,6 +912,18 @@ export default function AdminDashboard() {
 
       const faltantes = Number(res.headers.get('X-Documentos-Faltantes') || 0);
       const incluidos = Number(res.headers.get('X-Documentos-Incluidos') || 0);
+      const carpetasIncompletas = Number(res.headers.get('X-Carpetas-Incompletas') || 0);
+      const carpetasTotal = Number(res.headers.get('X-Carpetas-Total') || 0);
+
+      // Cada carpeta debe traer cédula frontal, cédula reverso y recibo público.
+      const avisos: string[] = [];
+      if (faltantes > 0) {
+        avisos.push(`${faltantes} documento(s) registrado(s) no se encontraron en el almacenamiento (ver _ARCHIVOS_NO_ENCONTRADOS.txt).`);
+      }
+      if (carpetasIncompletas > 0) {
+        avisos.push(`${carpetasIncompletas} de ${carpetasTotal} carpeta(s) no tienen los 3 soportes obligatorios (ver _CARPETAS_INCOMPLETAS.txt y el archivo _FALTAN_DOCUMENTOS.txt dentro de cada carpeta).`);
+      }
+      const resumenAvisos = avisos.length > 0 ? `Descarga completa. ${avisos.join(' ')}` : '';
 
       // Tamano real del .zip. Se prefiere X-Zip-Bytes sobre Content-Length
       // porque si un proxy comprime la respuesta, Content-Length seria el
@@ -958,9 +970,7 @@ export default function AdminDashboard() {
           const writable = await handle.createWritable();
           await writable.write(blob);
           await writable.close();
-          if (faltantes > 0) {
-            setDownloadDocsError(`Descarga completa. ${faltantes} documento(s) registrado(s) no se encontraron en el almacenamiento (ver _ARCHIVOS_NO_ENCONTRADOS.txt dentro del .zip).`);
-          }
+          if (resumenAvisos) setDownloadDocsError(resumenAvisos);
           return;
         } catch (err: any) {
           // El usuario cancelo el dialogo: no es un error que reportar.
@@ -978,9 +988,7 @@ export default function AdminDashboard() {
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      if (faltantes > 0) {
-        setDownloadDocsError(`Descarga completa. ${faltantes} documento(s) registrado(s) no se encontraron en el almacenamiento (ver _ARCHIVOS_NO_ENCONTRADOS.txt dentro del .zip).`);
-      }
+      if (resumenAvisos) setDownloadDocsError(resumenAvisos);
     } catch (err) {
       console.error(err);
       setDownloadDocsError('Error en la comunicación con el servidor.');
