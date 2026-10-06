@@ -1,14 +1,17 @@
 import { create } from 'zustand';
-import { supabase } from '../lib/supabase';
+import { useAuthStore } from './useAuthStore';
 
 export type LandingPage = 'original' | 'component-4';
+export type ActiveSurvey = 'uno' | 'dos';
 
 interface LandingState {
   activeLanding: LandingPage;
   loading: boolean;
+  /** true cuando el backend respondio correctamente la ultima consulta. */
   tableReady: boolean;
   fetchActiveLanding: () => Promise<void>;
-  setActiveLanding: (page: LandingPage) => Promise<void>;
+  /** Devuelve la encuesta que el backend dejo vinculada a la landing elegida. */
+  setActiveLanding: (page: LandingPage) => Promise<ActiveSurvey>;
 }
 
 function injectDefaultTheme() {
@@ -18,43 +21,55 @@ function injectDefaultTheme() {
   root.style.setProperty('--color-unidas-accent', '#F59E0B');
 }
 
+const normalize = (value: unknown): LandingPage =>
+  value === 'component-4' ? 'component-4' : 'original';
+
 export const useLandingStore = create<LandingState>((set) => ({
   activeLanding: 'original',
   loading: true,
   tableReady: false,
 
+  // Lee el flag del backend propio (tabla 'settings'), la misma fuente de verdad
+  // que 'active_survey'. Ya no depende de Supabase.
   fetchActiveLanding: async () => {
     injectDefaultTheme();
-    const { data, error } = await supabase
-      .from('app_settings')
-      .select('value')
-      .eq('key', 'active_landing')
-      .maybeSingle();
-
-    if (error) {
-      // Table does not exist or network error — default to original
-      set({ activeLanding: 'original', loading: false, tableReady: false });
-      return;
+    try {
+      const res = await fetch('/api/settings/active_landing');
+      if (!res.ok) {
+        set({ loading: false, tableReady: false });
+        return;
+      }
+      const data = await res.json();
+      set({ activeLanding: normalize(data?.value), loading: false, tableReady: true });
+    } catch {
+      // Red caida: conserva el valor actual y deja de bloquear el render.
+      set({ loading: false, tableReady: false });
     }
-
-    set({
-      activeLanding: (data?.value as LandingPage) || 'original',
-      loading: false,
-      tableReady: true,
-    });
   },
 
   setActiveLanding: async (page: LandingPage) => {
-    set({ loading: true });
-    const { error } = await supabase
-      .from('app_settings')
-      .upsert({ key: 'active_landing', value: page }, { onConflict: 'key' });
+    const token = useAuthStore.getState().token;
+    const res = await fetch('/api/admin/settings/active-landing', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ value: page }),
+    });
 
-    if (error) {
-      set({ loading: false });
-      throw new Error(error.message);
+    if (!res.ok) {
+      let message = 'No se pudo guardar la landing activa.';
+      try {
+        const data = await res.json();
+        if (data?.error) message = data.error;
+      } catch { /* la respuesta no era JSON */ }
+      throw new Error(message);
     }
 
-    set({ activeLanding: page, loading: false, tableReady: true });
+    const data = await res.json();
+    const applied = normalize(data?.value);
+    set({ activeLanding: applied, tableReady: true });
+    return data?.active_survey === 'dos' ? 'dos' : 'uno';
   },
 }));

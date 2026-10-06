@@ -157,6 +157,15 @@ export default function AdminDashboard() {
   // Descarga masiva de soportes de la Encuesta 1 (.zip)
   const [downloadingDocs, setDownloadingDocs] = useState(false);
   const [downloadDocsError, setDownloadDocsError] = useState('');
+  // Progreso de la descarga. 'fase' distingue la preparacion en el servidor
+  // (aun no llegan bytes) de la transferencia, que si tiene porcentaje real.
+  const [docsProgress, setDocsProgress] = useState<{
+    fase: 'inactivo' | 'preparando' | 'descargando' | 'guardando';
+    recibido: number;
+    total: number;
+    documentos: number;
+    personas: number;
+  }>({ fase: 'inactivo', recibido: 0, total: 0, documentos: 0, personas: 0 });
   const [landingError, setLandingError] = useState('');
   const [landingSaving, setLandingSaving] = useState(false);
 
@@ -220,25 +229,13 @@ export default function AdminDashboard() {
     setLandingError('');
     setLandingSaving(true);
     try {
-      await setActiveLanding(page);
-      // Vincula la encuesta activa a la landing seleccionada:
-      // landing 'component-4' -> Encuesta Dos · landing 'original' -> Encuesta Uno.
-      const linkedSurvey = page === 'component-4' ? 'dos' : 'uno';
-      try {
-        const res = await fetch('/api/admin/settings/active-survey', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ value: linkedSurvey })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setActiveSurvey(data.value);
-        }
-      } catch (e) {
-        console.error('No se pudo sincronizar la encuesta activa con la landing', e);
-      }
+      // El backend cambia landing y encuesta vinculada en una sola transaccion
+      // ('component-4' -> Encuesta Dos · 'original' -> Encuesta Uno), asi que
+      // aqui solo reflejamos lo que quedo guardado.
+      const linkedSurvey = await setActiveLanding(page);
+      setActiveSurvey(linkedSurvey);
     } catch (err: any) {
-      setLandingError('No se pudo guardar. Ejecuta primero supabase_create_app_settings.sql en el SQL Editor de Supabase.');
+      setLandingError(err?.message || 'No se pudo guardar la landing activa.');
     } finally {
       setLandingSaving(false);
     }
@@ -881,7 +878,24 @@ export default function AdminDashboard() {
     }
     setDownloadingDocs(true);
     setDownloadDocsError('');
+    setDocsProgress({ fase: 'preparando', recibido: 0, total: 0, documentos: 0, personas: 0 });
     try {
+      // Resumen previo: permite mostrar cuantos soportes se van a empaquetar
+      // mientras el servidor los lee del almacenamiento.
+      try {
+        const resumenRes = await fetch('/api/admin/documents/encuesta-uno/zip/resumen', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (resumenRes.ok) {
+          const resumen = await resumenRes.json();
+          setDocsProgress((p) => ({
+            ...p,
+            documentos: Number(resumen?.documentos) || 0,
+            personas: Number(resumen?.personas) || 0
+          }));
+        }
+      } catch { /* el resumen es informativo: si falla, se sigue igual */ }
+
       const res = await fetch('/api/admin/documents/encuesta-uno/zip', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -897,7 +911,36 @@ export default function AdminDashboard() {
       }
 
       const faltantes = Number(res.headers.get('X-Documentos-Faltantes') || 0);
-      const blob = await res.blob();
+      const incluidos = Number(res.headers.get('X-Documentos-Incluidos') || 0);
+
+      // Tamano real del .zip. Se prefiere X-Zip-Bytes sobre Content-Length
+      // porque si un proxy comprime la respuesta, Content-Length seria el
+      // tamano comprimido y el porcentaje saldria mal.
+      const total = Number(res.headers.get('X-Zip-Bytes') || res.headers.get('Content-Length') || 0);
+      setDocsProgress((p) => ({ ...p, fase: 'descargando', recibido: 0, total, documentos: incluidos || p.documentos }));
+
+      // Lectura incremental para poder reportar el avance. Si el navegador no
+      // expone el stream, cae a blob() y el progreso queda indeterminado.
+      let blob: Blob;
+      if (res.body && typeof res.body.getReader === 'function') {
+        const reader = res.body.getReader();
+        const chunks: Uint8Array[] = [];
+        let recibido = 0;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            chunks.push(value);
+            recibido += value.length;
+            setDocsProgress((p) => ({ ...p, recibido }));
+          }
+        }
+        blob = new Blob(chunks as BlobPart[], { type: 'application/zip' });
+      } else {
+        blob = await res.blob();
+      }
+
+      setDocsProgress((p) => ({ ...p, fase: 'guardando', recibido: p.total || blob.size, total: p.total || blob.size }));
       const fileName = `documentos-encuesta-1-${new Date().toISOString().slice(0, 10)}.zip`;
 
       // Guarda el .zip en el disco. Si el navegador soporta la File System
@@ -943,6 +986,7 @@ export default function AdminDashboard() {
       setDownloadDocsError('Error en la comunicación con el servidor.');
     } finally {
       setDownloadingDocs(false);
+      setDocsProgress((p) => ({ ...p, fase: 'inactivo' }));
     }
   };
 
@@ -1768,6 +1812,55 @@ export default function AdminDashboard() {
                     <span>{downloadingDocs ? 'Generando .zip…' : 'Descargar todos los documentos (.zip)'}</span>
                   </button>
 
+                  {/* Contador de avance: durante la preparacion no hay bytes que
+                      medir, asi que se informa el volumen a empaquetar; durante
+                      la transferencia se muestra el % completado y el faltante. */}
+                  {downloadingDocs && (() => {
+                    const { fase, recibido, total, documentos, personas } = docsProgress;
+                    const pct = total > 0 ? Math.min(100, Math.round((recibido / total) * 100)) : 0;
+                    const faltantePct = Math.max(0, 100 - pct);
+                    const mb = (n: number) => (n / 1048576).toFixed(1);
+                    const medible = total > 0 && fase !== 'preparando';
+                    return (
+                      <div className="mt-6 p-5 bg-white/5 border border-white/10 rounded-2xl space-y-3">
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-xs font-black uppercase tracking-widest text-white/50">
+                            {fase === 'preparando' && 'Preparando soportes…'}
+                            {fase === 'descargando' && 'Descargando…'}
+                            {fase === 'guardando' && 'Guardando archivo…'}
+                          </span>
+                          <span className="text-sm font-black text-unidas-primary tabular-nums">
+                            {medible ? `${pct}%` : '—'}
+                          </span>
+                        </div>
+
+                        <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                          <div
+                            className={cn(
+                              "h-full bg-unidas-primary rounded-full",
+                              medible ? "transition-all duration-200" : "w-1/3 animate-pulse"
+                            )}
+                            style={medible ? { width: `${pct}%` } : undefined}
+                          />
+                        </div>
+
+                        <p className="text-[11px] font-medium text-white/50 tabular-nums">
+                          {medible ? (
+                            <>Falta <strong className="text-white/80">{faltantePct}%</strong> para completar la descarga · {mb(recibido)} MB de {mb(total)} MB</>
+                          ) : (
+                            <>El servidor está leyendo los archivos del almacenamiento. Aún no se puede medir el porcentaje.</>
+                          )}
+                        </p>
+
+                        {documentos > 0 && (
+                          <p className="text-[11px] font-medium text-white/30">
+                            {documentos} soporte(s){personas > 0 ? ` de ${personas} persona(s)` : ''} en este paquete.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {downloadDocsError && (
                     <div className="mt-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start space-x-3">
                       <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
@@ -2026,8 +2119,8 @@ export default function AdminDashboard() {
                     <div className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-start space-x-3 relative z-10">
                       <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
                       <p className="text-xs text-red-200/80 font-medium leading-relaxed">
-                        <strong className="text-red-400 block mb-1">Tabla no encontrada en Supabase</strong>
-                        Ejecuta <code className="bg-white/10 px-1 rounded">supabase_create_app_settings.sql</code> en el SQL Editor de tu proyecto Supabase para habilitar el cambio global de landing page.
+                        <strong className="text-red-400 block mb-1">Sin conexión con el servidor</strong>
+                        No se pudo leer la landing activa desde el backend. Se muestra el valor por defecto; verifica que el servidor esté arriba antes de cambiarla.
                       </p>
                     </div>
                   )}

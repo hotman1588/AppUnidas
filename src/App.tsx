@@ -44,6 +44,22 @@ export default function App() {
     });
   }, [fetchActiveLanding, setAuthLoading]);
 
+  // Propagacion del cambio hecho por el admin a las pestañas ya abiertas: se
+  // revisa al volver a la pestaña y cada 60s. Sin esto habria que recargar.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'visible') fetchActiveLanding();
+    };
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    const id = window.setInterval(refresh, 60000);
+    return () => {
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+      window.clearInterval(id);
+    };
+  }, [fetchActiveLanding]);
+
   if (landingLoading) {
     return (
       <div className="min-h-screen bg-unidas-dark flex items-center justify-center">

@@ -298,6 +298,18 @@ const initDatabase = async () => {
       );
     `).catch(err => console.error('Migration Error (settings):', err.message));
 
+    // 9.1 Semillas de los flags globales. 'active_landing' vive aqui (y ya no en
+    //     Supabase) para compartir fuente de verdad con 'active_survey': ambos se
+    //     escriben en la misma transaccion y no pueden desincronizarse.
+    await pool.query(`
+      INSERT INTO settings (key, value) VALUES ('active_landing', 'original')
+      ON CONFLICT (key) DO NOTHING;
+    `).catch(err => console.error('Migration Error (seed active_landing):', err.message));
+    await pool.query(`
+      INSERT INTO settings (key, value) VALUES ('active_survey', 'uno')
+      ON CONFLICT (key) DO NOTHING;
+    `).catch(err => console.error('Migration Error (seed active_survey):', err.message));
+
     // 10. ENCUESTA DOS — Esquema completamente aislado de la Encuesta Uno (producción).
     //     Vive en su propio schema 'encuesta_dos'. Las cajas de texto condicionales se
     //     guardan dentro de 'answers' (JSONB) sin límite de caracteres.
@@ -1255,6 +1267,24 @@ const readDocumentBuffer = async (filePath: string): Promise<{ buffer: Buffer | 
   }
 };
 
+// Resumen previo a la descarga: cuantos soportes y cuantas personas entran en
+// el .zip. Lo usa el admin para mostrar el contador antes de que empiecen a
+// llegar bytes (la fase de lectura de archivos no transfiere nada todavia).
+app.get('/api/admin/documents/encuesta-uno/zip/resumen', authenticateToken, requireAdminOnly, async (_req: any, res: any) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT COUNT(*)::int AS documentos,
+             COUNT(DISTINCT u.id)::int AS personas
+      FROM documents d
+      JOIN users u ON u.id = d.user_id
+      JOIN surveys s ON s.user_id = u.id
+    `);
+    res.json({ documentos: rows[0]?.documentos || 0, personas: rows[0]?.personas || 0 });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/admin/documents/encuesta-uno/zip', authenticateToken, requireAdminOnly, async (_req: any, res: any) => {
   try {
     // Solo personas con registro en 'surveys' (Encuesta Uno). La Encuesta Dos
@@ -1342,7 +1372,11 @@ app.get('/api/admin/documents/encuesta-uno/zip', authenticateToken, requireAdmin
     res.setHeader('Content-Length', String(content.length));
     res.setHeader('X-Documentos-Incluidos', String(included));
     res.setHeader('X-Documentos-Faltantes', String(missing.length));
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, X-Documentos-Incluidos, X-Documentos-Faltantes');
+    // Tamano real del .zip. Se expone aparte de Content-Length porque si un
+    // proxy comprime la respuesta, Content-Length pasa a ser el tamano
+    // comprimido y el porcentaje del cliente quedaria mal calculado.
+    res.setHeader('X-Zip-Bytes', String(content.length));
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, X-Documentos-Incluidos, X-Documentos-Faltantes, X-Zip-Bytes');
     return res.send(content);
   } catch (err: any) {
     console.error('Error generando el zip de documentos:', err.message);
@@ -1886,6 +1920,46 @@ app.post('/api/admin/settings/active-survey', authenticateToken, requireAdminOnl
     res.json({ success: true, value });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ---- Landing activa (flag controlado por el administrador) ----
+// Lectura publica: define que landing ven todos los usuarios ('original' por
+// defecto). Antes vivia en Supabase (tabla app_settings); se movio aqui para
+// que no dependa de la disponibilidad de ese servicio.
+app.get('/api/settings/active_landing', async (_req, res) => {
+  try {
+    const r = await pool.query("SELECT value FROM settings WHERE key = 'active_landing'");
+    res.json({ value: r.rows[0]?.value === 'component-4' ? 'component-4' : 'original' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Escritura SOLO administrador. Cambia la landing y, en la MISMA transaccion,
+// la encuesta vinculada ('component-4' -> Encuesta Dos, 'original' -> Uno),
+// de modo que ambos flags no puedan quedar desincronizados ante un fallo.
+app.post('/api/admin/settings/active-landing', authenticateToken, requireAdminOnly, async (req: any, res) => {
+  const value = req.body?.value === 'component-4' ? 'component-4' : 'original';
+  const survey = value === 'component-4' ? 'dos' : 'uno';
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      "INSERT INTO settings (key, value) VALUES ('active_landing', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+      [value]
+    );
+    await client.query(
+      "INSERT INTO settings (key, value) VALUES ('active_survey', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+      [survey]
+    );
+    await client.query('COMMIT');
+    res.json({ success: true, value, active_survey: survey });
+  } catch (err: any) {
+    await client.query('ROLLBACK').catch(() => {});
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
