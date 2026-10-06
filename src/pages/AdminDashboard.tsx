@@ -970,18 +970,33 @@ export default function AdminDashboard() {
           '',
           `Carpetas incompletas: ${incompletas.length} de ${manifiesto?.totales?.personas || 0}`,
           '',
-          ...incompletas.map((p: any) => `${p.nombre} (${p.cedula}) — faltan: ${p.faltan.join(', ')}`)
+          'NUNCA CARGADO = la persona no aportó el soporte (no hay registro en la base).',
+          'NO HALLADO    = el soporte está registrado pero su archivo no apareció',
+          '                en el almacenamiento.',
+          '',
+          ...incompletas.map((p: any) => {
+            const partes = [];
+            if (p.noCargados?.length) partes.push(`nunca cargado: ${p.noCargados.join(', ')}`);
+            if (p.noHallados?.length) partes.push(`no hallado: ${p.noHallados.join(', ')}`);
+            return `${p.nombre} (${p.cedula}) — ${partes.join(' · ')}`;
+          })
         ].join('\n'));
         for (const p of incompletas) {
           zip.file(`${p.carpeta}/_FALTAN_DOCUMENTOS.txt`, [
             `${p.nombre} (${p.cedula})`,
             '',
-            'Esta carpeta está incompleta. Faltan los siguientes soportes obligatorios:',
-            ...p.faltan.map((f: string) => `  - ${f}`),
-            '',
-            'Un soporte puede faltar porque la persona nunca lo cargó o porque el',
-            'archivo registrado no se encontró en el almacenamiento (ver',
-            '_ARCHIVOS_NO_ENCONTRADOS.txt en la raíz del .zip).'
+            'Esta carpeta está incompleta.',
+            ...(p.noCargados?.length ? [
+              '',
+              'No aportó estos soportes obligatorios (no hay registro en la base):',
+              ...p.noCargados.map((f: string) => `  - ${f}`),
+            ] : []),
+            ...(p.noHallados?.length ? [
+              '',
+              'Estos soportes están registrados pero su archivo no se encontró en',
+              'el almacenamiento (ver _ARCHIVOS_NO_ENCONTRADOS.txt en la raíz):',
+              ...p.noHallados.map((f: string) => `  - ${f}`),
+            ] : []),
           ].join('\n'));
         }
       }

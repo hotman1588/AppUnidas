@@ -1292,6 +1292,63 @@ const storageObjectKeys = (filePath: string, documentNumber?: string | null, use
   return Array.from(new Set(keys.filter(Boolean)));
 };
 
+// La carpeta de un soporte presencial se arma con la cedula tal como estaba
+// escrita al momento de subirlo (PresentialSurveyModal), por lo que si la
+// cedula se corrigio despues, el archivo queda en una carpeta que ya no
+// corresponde a la persona (incluso en 'undefined/'). El nombre del archivo,
+// en cambio, lleva timestamp y es unico. Por eso se indexa el bucket completo
+// una vez y se resuelve por nombre cuando la ruta calculada no acierta.
+let indiceStorage: { mapa: Map<string, string>; creado: number } | null = null;
+const INDICE_TTL_MS = 10 * 60 * 1000;
+
+const listarPrefijo = async (prefix: string) => {
+  const out: any[] = [];
+  for (let off = 0; ; off += 100) {
+    const { data, error } = await supabase.storage.from('documents').list(prefix, { limit: 100, offset: off });
+    if (error || !data || data.length === 0) break;
+    out.push(...data);
+    if (data.length < 100) break;
+  }
+  return out;
+};
+
+const construirIndiceStorage = async (): Promise<Map<string, string>> => {
+  if (indiceStorage && Date.now() - indiceStorage.creado < INDICE_TTL_MS) return indiceStorage.mapa;
+
+  const mapa = new Map<string, string>();
+  if (!supabase) return mapa;
+
+  try {
+    let pendientes: string[] = [''];
+    for (let nivel = 0; nivel < 3 && pendientes.length > 0; nivel++) {
+      const actuales = pendientes;
+      pendientes = [];
+      // Las carpetas se listan en paralelo acotado: son cientos y en serie
+      // se agotaria el tiempo de la funcion.
+      for (let i = 0; i < actuales.length; i += 10) {
+        const lote = actuales.slice(i, i + 10);
+        const resultados = await Promise.all(
+          lote.map(async (p) => ({ p, items: await listarPrefijo(p) }))
+        );
+        for (const { p, items } of resultados) {
+          for (const o of items) {
+            const clave = p ? `${p}/${o.name}` : o.name;
+            if (o.id) {
+              if (!mapa.has(o.name)) mapa.set(o.name, clave);
+            } else {
+              pendientes.push(clave);
+            }
+          }
+        }
+      }
+    }
+    indiceStorage = { mapa, creado: Date.now() };
+  } catch (err: any) {
+    console.error('No se pudo indexar el bucket de soportes:', err.message);
+  }
+  return mapa;
+};
+
 const readDocumentBuffer = async (
   filePath: string,
   documentNumber?: string | null,
@@ -1313,6 +1370,14 @@ const readDocumentBuffer = async (
   }
 
   const candidatos = storageObjectKeys(filePath, documentNumber, userId);
+
+  // Ultimo recurso: ubicar el archivo por su nombre en cualquier carpeta.
+  try {
+    const indice = await construirIndiceStorage();
+    const porNombre = indice.get(filename);
+    if (porNombre && !candidatos.includes(porNombre)) candidatos.push(porNombre);
+  } catch { /* si el indice falla se sigue con las rutas calculadas */ }
+
   let ultimoError = '';
   for (const key of candidatos) {
     try {
@@ -1379,9 +1444,15 @@ app.get('/api/admin/documents/encuesta-uno/manifiesto', authenticateToken, requi
     // soporte, la primera que haya resultado valida. Firmar es una operacion de
     // metadatos: no transfiere los archivos.
     const SEGUNDOS_VALIDEZ = 60 * 60 * 3;
-    const candidatosPorFila = rows.map((row: any) =>
-      storageObjectKeys(row.file_path, row.document_number, row.user_id)
-    );
+    // El indice por nombre rescata los soportes guardados bajo una cedula que
+    // ya no corresponde a la persona (cedula corregida despues de subirlos).
+    const indice = await construirIndiceStorage();
+    const candidatosPorFila = rows.map((row: any) => {
+      const claves = storageObjectKeys(row.file_path, row.document_number, row.user_id);
+      const porNombre = indice.get(path.basename(String(row.file_path || '')));
+      if (porNombre && !claves.includes(porNombre)) claves.push(porNombre);
+      return claves;
+    });
 
     const firmadas = new Map<string, string>();
     if (supabase) {
@@ -1439,25 +1510,40 @@ app.get('/api/admin/documents/encuesta-uno/manifiesto', authenticateToken, requi
       });
     });
 
-    // Carpetas que no reunen los tres soportes obligatorios.
-    const porPersona = new Map<string, { nombre: string; cedula: string; carpeta: string; tipos: Set<string> }>();
+    // Carpetas que no reunen los tres soportes obligatorios. Se distingue el
+    // soporte que la persona nunca cargo (no hay registro en la base) del que
+    // esta registrado pero no se pudo ubicar en el almacenamiento: son
+    // problemas distintos y se corrigen de forma distinta.
+    const porPersona = new Map<string, {
+      nombre: string; cedula: string; carpeta: string;
+      registrados: Set<string>; incluidos: Set<string>;
+    }>();
     for (const row of rows) {
       const carpeta = `${sanitizeZipName(row.full_name, 'Sin_nombre')}_${sanitizeZipName(row.document_number, String(row.user_id))}`
         .replace(/\s+/g, '_');
       const clave = String(row.user_id);
       if (!porPersona.has(clave)) {
-        porPersona.set(clave, { nombre: row.full_name, cedula: row.document_number, carpeta, tipos: new Set() });
+        porPersona.set(clave, { nombre: row.full_name, cedula: row.document_number, carpeta, registrados: new Set(), incluidos: new Set() });
       }
+      porPersona.get(clave)!.registrados.add(tipoCanonico(row.type));
     }
-    for (const e of entradas) porPersona.get(String(e.persona.id))!.tipos.add(e.tipo);
+    for (const e of entradas) porPersona.get(String(e.persona.id))!.incluidos.add(e.tipo);
 
     const incompletas = Array.from(porPersona.values())
       .map((p) => ({
         carpeta: p.carpeta,
         nombre: p.nombre,
         cedula: p.cedula,
-        faltan: SOPORTES_REQUERIDOS.filter((r) => !p.tipos.has(r.canonico)).map((r) => DOC_LABELS[r.canonico]),
+        // Nunca se cargo: no existe registro del soporte en la base de datos.
+        noCargados: SOPORTES_REQUERIDOS
+          .filter((r) => !p.registrados.has(r.canonico))
+          .map((r) => DOC_LABELS[r.canonico]),
+        // Registrado pero el archivo no aparecio en el almacenamiento.
+        noHallados: SOPORTES_REQUERIDOS
+          .filter((r) => p.registrados.has(r.canonico) && !p.incluidos.has(r.canonico))
+          .map((r) => DOC_LABELS[r.canonico]),
       }))
+      .map((p) => ({ ...p, faltan: [...p.noCargados, ...p.noHallados] }))
       .filter((p) => p.faltan.length > 0);
 
     res.json({
