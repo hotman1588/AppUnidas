@@ -663,16 +663,30 @@ app.get('/api/documents/view/:filename', authenticateToken, async (req, res) => 
     }
   }
   
-  // 2. Fallback: retrieve from Supabase Storage if local file is missing (Vercel serverless environment)
+  // 2. Fallback: retrieve from Supabase Storage if local file is missing (Vercel serverless environment).
+  //    Se resuelve la cedula y el id del dueño para poder probar tambien las
+  //    carpetas 'presential/<cedula>/' y '<user_id>/', donde viven los soportes
+  //    cargados desde la encuesta presencial.
   if (supabase) {
     try {
-      console.log(`Local file missing. Fetching ${req.params.filename} from Supabase storage fallback...`);
-      const { data, error } = await supabase.storage
-        .from('documents')
-        .download(req.params.filename);
+      let documentNumber: string | null = null;
+      let ownerId: number | null = null;
+      try {
+        const meta = await pool.query(
+          `SELECT u.document_number, u.id AS user_id
+             FROM documents d JOIN users u ON u.id = d.user_id
+            WHERE d.file_path = $1 OR d.file_path LIKE $2
+            LIMIT 1`,
+          [req.params.filename, `%${req.params.filename}`]
+        );
+        documentNumber = meta.rows[0]?.document_number ?? null;
+        ownerId = meta.rows[0]?.user_id ?? null;
+      } catch (err: any) {
+        console.error('No se pudo resolver el dueño del soporte:', err.message);
+      }
 
-      if (!error && data) {
-        const buffer = Buffer.from(await data.arrayBuffer());
+      const { buffer, reason } = await readDocumentBuffer(req.params.filename, documentNumber, ownerId);
+      if (buffer) {
         const ext = path.extname(req.params.filename).toLowerCase();
         let contentType = 'application/octet-stream';
         if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
@@ -681,9 +695,8 @@ app.get('/api/documents/view/:filename', authenticateToken, async (req, res) => 
 
         res.setHeader('Content-Type', contentType);
         return res.send(buffer);
-      } else {
-        console.error('Supabase storage download failed:', error?.message || 'File not found');
       }
+      console.error('Supabase storage download failed:', reason || 'File not found');
     } catch (err: any) {
       console.error('Error fetching file from Supabase storage:', err.message);
     }
@@ -1237,7 +1250,41 @@ const documentFileLabel = (type: string) => DOC_LABELS[type] || sanitizeZipName(
 // local) y luego Supabase Storage (entorno serverless, donde /tmp está vacío).
 // Devuelve también el motivo del fallo para poder diagnosticar (p. ej. proyecto
 // de Supabase restringido por cuota) en lugar de un error genérico.
-const readDocumentBuffer = async (filePath: string): Promise<{ buffer: Buffer | null; reason?: string }> => {
+// En el bucket 'documents' conviven tres convenciones de nombre, segun por que
+// via se cargo el soporte:
+//   a) raiz:                 file-<ts>-<rand>.ext        (subida por el servidor)
+//   b) <user_id>/:           <user_id>_<tipo>_<ts>.ext
+//   c) presential/<cedula>/: <ts>-<tipo>.ext             (PresentialSurveyModal)
+// La columna documents.file_path guarda solo el nombre del archivo, sin el
+// prefijo de carpeta, por lo que buscar unicamente el basename en la raiz
+// fallaba para (b) y (c). Se prueban todas las claves posibles.
+const storageObjectKeys = (filePath: string, documentNumber?: string | null, userId?: number | string | null) => {
+  const raw = String(filePath || '');
+  const filename = path.basename(raw);
+  const keys: string[] = [];
+
+  // Si se guardo una URL publica completa, la clave real es lo que sigue al bucket.
+  const marcador = '/documents/';
+  const i = raw.indexOf(marcador);
+  if (/^https?:\/\//i.test(raw) && i >= 0) {
+    keys.push(decodeURIComponent(raw.slice(i + marcador.length)));
+  }
+
+  // Si ya trae carpeta, se respeta tal cual.
+  if (raw.includes('/') && !/^https?:\/\//i.test(raw)) keys.push(raw.replace(/^\/+/, ''));
+
+  keys.push(filename);
+  if (documentNumber) keys.push(`presential/${documentNumber}/${filename}`);
+  if (userId !== undefined && userId !== null && userId !== '') keys.push(`${userId}/${filename}`);
+
+  return Array.from(new Set(keys.filter(Boolean)));
+};
+
+const readDocumentBuffer = async (
+  filePath: string,
+  documentNumber?: string | null,
+  userId?: number | string | null
+): Promise<{ buffer: Buffer | null; reason?: string }> => {
   const filename = path.basename(filePath);
 
   for (const dir of DOC_SEARCH_DIRS) {
@@ -1253,18 +1300,21 @@ const readDocumentBuffer = async (filePath: string): Promise<{ buffer: Buffer | 
     return { buffer: null, reason: 'El cliente de Supabase no está inicializado en el servidor (falta SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).' };
   }
 
-  try {
-    const { data, error } = await supabase.storage.from('documents').download(filename);
-    if (error || !data) {
-      const reason = error?.message || 'Archivo no encontrado en el bucket "documents".';
-      console.error('Soporte no disponible en Supabase Storage:', filename, reason);
-      return { buffer: null, reason };
+  const candidatos = storageObjectKeys(filePath, documentNumber, userId);
+  let ultimoError = '';
+  for (const key of candidatos) {
+    try {
+      const { data, error } = await supabase.storage.from('documents').download(key);
+      if (!error && data) return { buffer: Buffer.from(await data.arrayBuffer()) };
+      ultimoError = error?.message || 'Archivo no encontrado en el bucket "documents".';
+    } catch (err: any) {
+      ultimoError = err.message;
     }
-    return { buffer: Buffer.from(await data.arrayBuffer()) };
-  } catch (err: any) {
-    console.error('Error descargando soporte de Supabase Storage:', filename, err.message);
-    return { buffer: null, reason: err.message };
   }
+
+  const reason = `${ultimoError} (rutas probadas: ${candidatos.join(', ')})`;
+  console.error('Soporte no disponible en Supabase Storage:', filename, reason);
+  return { buffer: null, reason };
 };
 
 // Resumen previo a la descarga: cuantos soportes y cuantas personas entran en
@@ -1314,7 +1364,7 @@ app.get('/api/admin/documents/encuesta-uno/zip', authenticateToken, requireAdmin
     let firstReason = '';
 
     for (const row of rows) {
-      const { buffer, reason } = await readDocumentBuffer(row.file_path);
+      const { buffer, reason } = await readDocumentBuffer(row.file_path, row.document_number, row.user_id);
       if (!buffer) {
         if (!firstReason && reason) firstReason = reason;
         missing.push(`${row.full_name} (${row.document_number}) — ${row.file_path}${reason ? ` — ${reason}` : ''}`);
